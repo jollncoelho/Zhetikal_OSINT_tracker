@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
-  FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, Maximize2,
+  FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, NotebookPen,
 } from 'lucide-react';
 import type { EntityData } from '../types';
 
@@ -87,7 +87,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         borderColor: selected ? data.color : '#1e3a5f',
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
-      onDoubleClick={handleExpandNote}
     >
       {/* ── Left border strip ── */}
       <Handle
@@ -180,22 +179,25 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       </div>
 
       {/* Notes preview */}
-      <div className="px-3 pb-3">
-        <div className="flex items-start gap-1">
-          <p className="flex-1 text-xs font-mono text-cyber-text-dim italic line-clamp-2">
-            {data.notes || (
-              <span className="opacity-50">Double-clic pour noter...</span>
-            )}
-          </p>
-          <button
-            onClick={handleExpandNote}
-            className="flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan transition-colors"
-            title="Ouvrir les notes"
-          >
-            <Maximize2 size={9} />
-          </button>
-        </div>
+      <div className="px-3 pb-3 pr-10">
+        <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
+          {data.notes || <span className="opacity-40">Aucune note...</span>}
+        </p>
       </div>
+
+      {/* Open notes button — bottom-left */}
+      {!renamingLabel && (
+        <button
+          onClick={handleExpandNote}
+          title="Ouvrir le bloc-notes"
+          className="absolute bottom-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
+            bg-cyber-dark/70 border border-cyber-border
+            text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+            transition-all duration-150 z-10"
+        >
+          <NotebookPen size={11} />
+        </button>
+      )}
 
       {/* Delete button — always visible, top-right corner */}
       {!renamingLabel && (
