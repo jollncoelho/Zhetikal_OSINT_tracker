@@ -28,6 +28,9 @@ const TYPE_LABELS: Record<string, string> = {
   note: 'NOTE',
 };
 
+// Thickness of the invisible connection strip along each border (px)
+const HANDLE_THICKNESS = 14;
+
 interface EntityNodeProps {
   id: string;
   data: EntityData;
@@ -73,6 +76,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const typeLabel = TYPE_LABELS[data.entityType] || data.entityType.toUpperCase();
+  const half = HANDLE_THICKNESS / 2;
+
+  /*
+   * Each Handle is a wide transparent strip sitting flush on its border.
+   * - background: transparent  → invisible
+   * - cursor: crosshair        → tells the user "you can start a connection here"
+   * - pointerEvents handled by React Flow automatically
+   * All four sides are both source AND target (connectionMode="loose" in ReactFlow),
+   * so a connection can start or land anywhere on the perimeter.
+   */
+  const handleBase: React.CSSProperties = {
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 0,
+    cursor: 'crosshair',
+  };
 
   return (
     <div
@@ -85,34 +104,64 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       }}
       onDoubleClick={handleExpandNote}
     >
-      {/*
-        Single invisible handle per side, covering the full side length.
-        opacity:0 hides the dot; pointerEvents:all keeps them connectable.
-        connectionMode="loose" on ReactFlow lets source↔target connect freely.
-      */}
+      {/* ── Left border strip ── */}
       <Handle
         id="left"
-        type="target"
+        type="source"
         position={Position.Left}
-        style={{ opacity: 0, width: 1, height: '100%', top: 0, transform: 'none', borderRadius: 0, left: 0 }}
+        style={{
+          ...handleBase,
+          width: HANDLE_THICKNESS,
+          height: '100%',
+          top: 0,
+          left: -half,
+          transform: 'none',
+        }}
       />
+
+      {/* ── Right border strip ── */}
       <Handle
         id="right"
         type="source"
         position={Position.Right}
-        style={{ opacity: 0, width: 1, height: '100%', top: 0, transform: 'none', borderRadius: 0, right: 0 }}
+        style={{
+          ...handleBase,
+          width: HANDLE_THICKNESS,
+          height: '100%',
+          top: 0,
+          right: -half,
+          transform: 'none',
+        }}
       />
+
+      {/* ── Top border strip ── */}
       <Handle
         id="top"
-        type="target"
+        type="source"
         position={Position.Top}
-        style={{ opacity: 0, width: '100%', height: 1, left: 0, transform: 'none', borderRadius: 0, top: 0 }}
+        style={{
+          ...handleBase,
+          width: '100%',
+          height: HANDLE_THICKNESS,
+          left: 0,
+          top: -half,
+          transform: 'none',
+        }}
       />
+
+      {/* ── Bottom border strip ── */}
       <Handle
         id="bottom"
         type="source"
         position={Position.Bottom}
-        style={{ opacity: 0, width: '100%', height: 1, left: 0, transform: 'none', borderRadius: 0, bottom: 0 }}
+        style={{
+          ...handleBase,
+          width: '100%',
+          height: HANDLE_THICKNESS,
+          left: 0,
+          bottom: -half,
+          transform: 'none',
+        }}
       />
 
       {/* Header */}

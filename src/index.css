@@ -119,18 +119,27 @@ button, input, textarea, select {
   stroke-width: 2 !important;
 }
 
+/* Handles are full-border strips — let inline styles control size/appearance */
 .react-flow__handle {
-  width: 10px !important;
-  height: 10px !important;
-  background: var(--cyber-cyan) !important;
-  border: 2px solid var(--cyber-dark) !important;
-  transition: all 0.2s ease;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  min-width: unset !important;
+  min-height: unset !important;
 }
 
+/* Show crosshair on the connection zone so users know they can drag a link */
 .react-flow__handle:hover {
-  background: #fff !important;
-  box-shadow: 0 0 10px var(--cyber-cyan);
-  transform: scale(1.3);
+  cursor: crosshair !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Highlight the border of the target node while dragging a connection onto it */
+.react-flow__handle.connectingto,
+.react-flow__handle.valid {
+  background: transparent !important;
 }
 
 .react-flow__attribution {
