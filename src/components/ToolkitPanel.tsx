@@ -160,7 +160,7 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
 
       <div className="px-4 py-3 border-t border-cyber-border">
         <a
-          href="https://cyberz7.github.io/Ghostint-Tools/"
+          href="https://osint-zhetikal-master-toolkit-v2.vercel.app"
           target="_blank"
           rel="noopener noreferrer"
           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-medium hover:bg-cyber-cyan/20 transition-colors"
