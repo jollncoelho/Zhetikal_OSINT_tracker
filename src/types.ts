@@ -12,7 +12,18 @@ export type EntityType =
   | 'file'
   | 'url'
   | 'crypto'
-  | 'note';
+  | 'note'
+  | 'social';
+
+export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin' | 'x';
+
+export const SOCIAL_PLATFORMS: { id: SocialPlatform; label: string; color: string }[] = [
+  { id: 'facebook',  label: 'Facebook',  color: '#1877f2' },
+  { id: 'instagram', label: 'Instagram', color: '#e1306c' },
+  { id: 'tiktok',    label: 'TikTok',    color: '#00f2ea' },
+  { id: 'linkedin',  label: 'LinkedIn',  color: '#0a66c2' },
+  { id: 'x',         label: 'X',         color: '#e7e9ea' },
+];
 
 export interface EntityData extends Record<string, unknown> {
   label: string;
@@ -20,10 +31,11 @@ export interface EntityData extends Record<string, unknown> {
   notes: string;
   color: string;
   icon: string;
+  socialPlatform?: SocialPlatform;
 }
 
 export interface EntityNode extends Node {
-  type: 'entity';
+  type: 'entity' | 'social';
   data: EntityData;
 }
 
@@ -52,6 +64,7 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   url: 'URL',
   crypto: 'Crypto',
   note: 'Note',
+  social: 'Social Media',
 };
 
 export const ENTITY_COLORS: Record<EntityType, string> = {
@@ -67,6 +80,7 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   url: '#0ea5e9',
   crypto: '#f59e0b',
   note: '#94a3b8',
+  social: '#1877f2',
 };
 
 export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
@@ -82,4 +96,5 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   url: 'Link',
   crypto: 'Bitcoin',
   note: 'StickyNote',
+  social: 'Share2',
 };

@@ -18,6 +18,7 @@ import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 import EntityNode from './components/EntityNode';
+import SocialNode from './components/SocialNode';
 import CustomEdge from './components/CustomEdge';
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -28,6 +29,7 @@ import type { EntityData, EntityNode as EntityNodeType, EntityType } from './typ
 
 const nodeTypes: NodeTypes = {
   entity: EntityNode as NodeTypes['entity'],
+  social: SocialNode as NodeTypes['social'],
 };
 
 const edgeTypes = {
@@ -334,8 +336,8 @@ export default function App() {
 
   useEffect(() => {
     const handleUpdate = (e: Event) => {
-      const { id, label, notes } = (e as CustomEvent).detail;
-      updateNodeData(id, { label, notes });
+      const { id, label, notes, socialPlatform, color } = (e as CustomEvent).detail;
+      updateNodeData(id, { label, notes, ...(socialPlatform !== undefined && { socialPlatform }), ...(color !== undefined && { color }) });
     };
     const handleDeleteNode = (e: Event) => {
       const { id } = (e as CustomEvent).detail;

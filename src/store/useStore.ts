@@ -8,7 +8,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import type { CaseData, EntityData, EntityType, EntityNode } from '../types';
-import { ENTITY_COLORS, ENTITY_ICON_NAMES, ENTITY_LABELS } from '../types';
+import { ENTITY_COLORS, ENTITY_ICON_NAMES, ENTITY_LABELS, SOCIAL_PLATFORMS } from '../types';
 
 const STORAGE_KEY = 'zhetical-osint-cases';
 const ACTIVE_CASE_KEY = 'zhetical-osint-active-case';
@@ -181,9 +181,11 @@ export function useStore() {
 
   const addEntity = useCallback(
     (entityType: EntityType, label: string, position?: { x: number; y: number }) => {
+      const isSocial = entityType === 'social';
+      const defaultPlatform = SOCIAL_PLATFORMS[0];
       const newNode: EntityNode = {
         id: generateId(),
-        type: 'entity',
+        type: isSocial ? 'social' : 'entity',
         position: position ?? {
           x: 100 + Math.random() * 400,
           y: 100 + Math.random() * 300,
@@ -192,8 +194,9 @@ export function useStore() {
           label: label || ENTITY_LABELS[entityType],
           entityType,
           notes: '',
-          color: ENTITY_COLORS[entityType],
+          color: isSocial ? defaultPlatform.color : ENTITY_COLORS[entityType],
           icon: ENTITY_ICON_NAMES[entityType],
+          ...(isSocial && { socialPlatform: defaultPlatform.id }),
         },
       };
       setNodes((prev) => [...prev, newNode]);
