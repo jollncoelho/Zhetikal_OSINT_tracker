@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import {
   useNodesState,
   useEdgesState,
@@ -47,12 +47,25 @@ export function useStore() {
   const [activeCaseId, setActiveCaseId] = useState<string | null>(loadActiveCaseId);
   const [nodes, setNodes, onNodesChange] = useNodesState<EntityNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   // Tracks whether the current nodes/edges came from a switchCase load.
   // While true, the write-back effect is suppressed to avoid overwriting loaded data.
   const switchingRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeCase = cases.find((c) => c.id === activeCaseId) ?? null;
+  // Keep a ref to current nodes/edges for the beforeunload flush
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const activeCaseIdRef = useRef(activeCaseId);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+  activeCaseIdRef.current = activeCaseId;
+
+  const activeCase = useMemo(
+    () => cases.find((c) => c.id === activeCaseId) ?? null,
+    [cases, activeCaseId]
+  );
 
   useEffect(() => {
     saveCases(cases);
@@ -62,7 +75,7 @@ export function useStore() {
     saveActiveCaseId(activeCaseId);
   }, [activeCaseId]);
 
-  // Write-back: persist current nodes/edges into the active case.
+  // Write-back with debounce: persist nodes/edges after 400ms of inactivity.
   // Suppressed for one tick after a switchCase to avoid race condition.
   useEffect(() => {
     if (!activeCaseId) return;
@@ -70,14 +83,38 @@ export function useStore() {
       switchingRef.current = false;
       return;
     }
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, nodes: nodes as EntityNode[], edges, updatedAt: new Date().toISOString() }
-          : c
-      )
-    );
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? { ...c, nodes: nodes as EntityNode[], edges, updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+      setLastSaved(new Date());
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [nodes, edges, activeCaseId]);
+
+  // Force immediate save on page unload so no data is lost on tab/browser close
+  useEffect(() => {
+    const handleUnload = () => {
+      const cid = activeCaseIdRef.current;
+      if (!cid) return;
+      const storedCases = loadCases();
+      const updated = storedCases.map((c) =>
+        c.id === cid
+          ? { ...c, nodes: nodesRef.current as EntityNode[], edges: edgesRef.current, updatedAt: new Date().toISOString() }
+          : c
+      );
+      saveCases(updated);
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []);
 
   // On mount: load the active case's nodes/edges if there is one
   useEffect(() => {
@@ -249,6 +286,12 @@ export function useStore() {
     [setEdges]
   );
 
+  const clearCanvas = useCallback(() => {
+    if (!activeCaseId) return;
+    setNodes([]);
+    setEdges([]);
+  }, [activeCaseId, setNodes, setEdges]);
+
   const saveProgress = useCallback(() => {
     if (!activeCase) return;
     const snapshot: CaseData = {
@@ -316,6 +359,7 @@ export function useStore() {
     activeCaseId,
     nodes,
     edges,
+    lastSaved,
     onNodesChange,
     onEdgesChange,
     createCase,
@@ -328,6 +372,7 @@ export function useStore() {
     onConnect,
     deleteNode,
     deleteEdge,
+    clearCanvas,
     saveProgress,
     exportCase,
     importCase,

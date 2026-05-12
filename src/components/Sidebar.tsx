@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import {
   Plus, FolderOpen, FolderX, Trash2, Download, Upload, ChevronDown,
-  ChevronRight, Search, X, FileText, Image, Save, Pencil, Check,
+  ChevronRight, Search, X, FileText, Image, Save, Pencil, Check, Eraser,
+  AlertTriangle,
 } from 'lucide-react';
 import type { CaseData, EntityType } from '../types';
 import { ENTITY_COLORS, ENTITY_LABELS } from '../types';
@@ -20,6 +21,7 @@ interface SidebarProps {
   onExportPdf: () => Promise<void>;
   onExportPng: () => Promise<void>;
   onImport: (json: string) => void;
+  onClearCanvas: () => void;
 }
 
 const ENTITY_TYPES = Object.keys(ENTITY_LABELS) as EntityType[];
@@ -38,6 +40,7 @@ export default function Sidebar({
   onExportPdf,
   onExportPng,
   onImport,
+  onClearCanvas,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [casesOpen, setCasesOpen] = useState(true);
@@ -51,6 +54,7 @@ export default function Sidebar({
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredTypes = ENTITY_TYPES.filter((t) =>
@@ -397,6 +401,44 @@ export default function Sidebar({
               <Upload size={12} />
               Import JSON
             </button>
+
+            <div className="h-px bg-cyber-border my-1" />
+
+            {/* Clear canvas — inline confirm */}
+            {confirmClear ? (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 space-y-2">
+                <div className="flex items-start gap-1.5">
+                  <AlertTriangle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-300 leading-tight">
+                    Supprimer toutes les entités et tous les liens du graphe ?<br />
+                    <span className="text-red-400/70">Cette action est irréversible.</span>
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => { onClearCanvas(); setConfirmClear(false); }}
+                    className="flex items-center gap-1 flex-1 justify-center py-1 rounded text-[10px] font-bold bg-red-500/25 text-red-400 hover:bg-red-500/40 border border-red-500/40 transition-colors"
+                  >
+                    <Check size={9} /> Confirmer
+                  </button>
+                  <button
+                    onClick={() => setConfirmClear(false)}
+                    className="px-2 py-1 rounded text-[10px] text-cyber-text-dim hover:bg-cyber-dark border border-cyber-border transition-colors"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmClear(true)}
+                disabled={!activeCaseId}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-red-400/70 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-colors disabled:opacity-30"
+              >
+                <Eraser size={12} />
+                Clear Canvas
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -302,6 +302,7 @@ export default function App() {
     activeCaseId,
     nodes,
     edges,
+    lastSaved,
     onNodesChange,
     onEdgesChange,
     createCase,
@@ -312,6 +313,7 @@ export default function App() {
     onConnect,
     deleteNode,
     deleteEdge,
+    clearCanvas,
     saveProgress,
     exportCase,
     importCase,
@@ -454,6 +456,7 @@ export default function App() {
         onExportPdf={exportPdfFn}
         onExportPng={exportPngFn}
         onImport={importCase}
+        onClearCanvas={clearCanvas}
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">
@@ -604,13 +607,21 @@ export default function App() {
             <span className="text-cyber-border">|</span>
             <span>Ghostint / CyberZ7 — OSINT Tracker</span>
           </div>
-          <span>
-            {new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </span>
+          <div className="flex items-center gap-3">
+            {lastSaved && (
+              <span className="flex items-center gap-1 text-cyber-green/70">
+                <span className="w-1 h-1 rounded-full bg-cyber-green" />
+                Saved {lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
+            <span>
+              {new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+          </div>
         </div>
       </div>
 
