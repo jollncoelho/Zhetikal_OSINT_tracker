@@ -13,7 +13,7 @@ import {
   type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity } from 'lucide-react';
+import { Ghost, Activity, Home } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
@@ -501,6 +501,16 @@ export default function App() {
               <Ghost size={12} />
               Ghostint-Tools
             </button>
+
+            <a
+              href="https://prohacking77.me"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Accueil — prohacking77.me"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyber-panel border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150"
+            >
+              <Home size={14} />
+            </a>
           </div>
         </div>
 
