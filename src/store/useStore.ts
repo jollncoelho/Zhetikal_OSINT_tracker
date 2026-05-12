@@ -212,7 +212,7 @@ export function useStore() {
   );
 
   const onConnect = useCallback(
-    (connection: Connection) => {
+    (connection: Connection, offsets?: { sourceOffX: number; sourceOffY: number; targetOffX: number; targetOffY: number } | null) => {
       const newEdge: Edge = {
         ...connection,
         id: `e-${generateId()}`,
@@ -225,6 +225,12 @@ export function useStore() {
           height: 18,
           color: '#00c8d4',
         },
+        data: offsets ? {
+          sourceOffX: offsets.sourceOffX,
+          sourceOffY: offsets.sourceOffY,
+          targetOffX: offsets.targetOffX,
+          targetOffY: offsets.targetOffY,
+        } : undefined,
       };
       setEdges((prev) => addEdge(newEdge, prev));
     },

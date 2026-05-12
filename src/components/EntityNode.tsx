@@ -28,8 +28,6 @@ const TYPE_LABELS: Record<string, string> = {
   note: 'NOTE',
 };
 
-const SIDE_OFFSETS = [25, 50, 75];
-
 interface EntityNodeProps {
   id: string;
   data: EntityData;
@@ -88,23 +86,84 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       }}
       onDoubleClick={handleExpandNote}
     >
-      {/* Handles */}
-      {SIDE_OFFSETS.map((offset) => (
-        <Handle key={`left-${offset}`} id={`left-${offset}`} type="target" position={Position.Left}
-          style={{ background: borderColor, top: `${offset}%`, transform: 'translateY(-50%)' }} className="!w-2.5 !h-2.5" />
-      ))}
-      {SIDE_OFFSETS.map((offset) => (
-        <Handle key={`right-${offset}`} id={`right-${offset}`} type="source" position={Position.Right}
-          style={{ background: borderColor, top: `${offset}%`, transform: 'translateY(-50%)' }} className="!w-2.5 !h-2.5" />
-      ))}
-      {SIDE_OFFSETS.map((offset) => (
-        <Handle key={`top-${offset}`} id={`top-${offset}`} type="target" position={Position.Top}
-          style={{ background: borderColor, left: `${offset}%`, transform: 'translateX(-50%)' }} className="!w-2.5 !h-2.5" />
-      ))}
-      {SIDE_OFFSETS.map((offset) => (
-        <Handle key={`bottom-${offset}`} id={`bottom-${offset}`} type="source" position={Position.Bottom}
-          style={{ background: borderColor, left: `${offset}%`, transform: 'translateX(-50%)' }} className="!w-2.5 !h-2.5" />
-      ))}
+      {/*
+        Free-connection handles — one per side, invisible, covering the full side.
+        connectionMode="loose" in ReactFlow allows any handle type to connect to any other.
+        The actual pixel position is computed in CustomEdge from the stored offset data.
+      */}
+      <Handle
+        id="left"
+        type="target"
+        position={Position.Left}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          width: 12,
+          height: '100%',
+          top: 0,
+          left: -6,
+          transform: 'none',
+          borderRadius: 0,
+          opacity: 0,
+        }}
+      />
+      <Handle
+        id="right"
+        type="source"
+        position={Position.Right}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          width: 12,
+          height: '100%',
+          top: 0,
+          right: -6,
+          transform: 'none',
+          borderRadius: 0,
+          opacity: 0,
+        }}
+      />
+      <Handle
+        id="top"
+        type="target"
+        position={Position.Top}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          width: '100%',
+          height: 12,
+          left: 0,
+          top: -6,
+          transform: 'none',
+          borderRadius: 0,
+          opacity: 0,
+        }}
+      />
+      <Handle
+        id="bottom"
+        type="source"
+        position={Position.Bottom}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          width: '100%',
+          height: 12,
+          left: 0,
+          bottom: -6,
+          transform: 'none',
+          borderRadius: 0,
+          opacity: 0,
+        }}
+      />
+
+      {/* Perimeter hover glow — visible connection zone indicator */}
+      <div
+        className="absolute inset-0 rounded-xl pointer-events-none transition-opacity duration-150"
+        style={{
+          boxShadow: `inset 0 0 0 2px ${borderColor}55`,
+          opacity: selected ? 1 : 0,
+        }}
+      />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
@@ -155,7 +214,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         </div>
       </div>
 
-      {/* Action buttons — always visible on hover */}
+      {/* Action buttons */}
       {renamingLabel ? (
         <div className="flex gap-1 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
           <button
