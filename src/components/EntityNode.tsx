@@ -13,20 +13,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
 
-const TYPE_LABELS: Record<string, string> = {
-  ip: 'IP',
-  domain: 'DOMAIN',
-  email: 'EMAIL',
-  username: 'USER',
-  phone: 'PHONE',
-  location: 'LOCATION',
-  organization: 'ORG',
-  person: 'PERSON',
-  file: 'FILE',
-  url: 'URL',
-  crypto: 'CRYPTO',
-  note: 'NOTE',
-};
 
 // Thickness of the invisible connection strip along each border (px)
 const HANDLE_THICKNESS = 14;
@@ -75,7 +61,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   };
 
   const IconComponent = ICON_MAP[data.icon] || Globe;
-  const typeLabel = TYPE_LABELS[data.entityType] || data.entityType.toUpperCase();
   const half = HANDLE_THICKNESS / 2;
 
   /*
@@ -165,10 +150,10 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: `${data.color}22` }}>
-          <IconComponent size={16} style={{ color: data.color }} />
+          <IconComponent size={14} style={{ color: data.color }} />
         </div>
 
         {renamingLabel ? (
@@ -179,20 +164,19 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             onKeyDown={handleKeyDown}
             onBlur={handleSaveLabel}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-sm font-semibold text-cyber-text outline-none focus:border-cyber-cyan font-tech"
+            className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono"
+            style={{ color: data.color }}
           />
         ) : (
-          <span className={`flex-1 text-sm font-semibold text-cyber-text truncate ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`}>
+          <span
+            className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`}
+            style={{ color: data.color }}
+            onDoubleClick={(e) => { e.stopPropagation(); setRenamingLabel(true); }}
+            title="Double-clic pour renommer"
+          >
             {data.label}
           </span>
         )}
-
-        <span
-          className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border flex-shrink-0"
-          style={{ color: data.color, borderColor: `${data.color}44`, background: `${data.color}11` }}
-        >
-          {typeLabel}
-        </span>
       </div>
 
       {/* Notes preview */}
