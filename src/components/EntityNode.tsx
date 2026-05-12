@@ -73,7 +73,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const typeLabel = TYPE_LABELS[data.entityType] || data.entityType.toUpperCase();
-  const borderColor = data.color || '#1e3a5f';
 
   return (
     <div
@@ -87,82 +86,33 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       onDoubleClick={handleExpandNote}
     >
       {/*
-        Free-connection handles — one per side, invisible, covering the full side.
-        connectionMode="loose" in ReactFlow allows any handle type to connect to any other.
-        The actual pixel position is computed in CustomEdge from the stored offset data.
+        Single invisible handle per side, covering the full side length.
+        opacity:0 hides the dot; pointerEvents:all keeps them connectable.
+        connectionMode="loose" on ReactFlow lets source↔target connect freely.
       */}
       <Handle
         id="left"
         type="target"
         position={Position.Left}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          width: 12,
-          height: '100%',
-          top: 0,
-          left: -6,
-          transform: 'none',
-          borderRadius: 0,
-          opacity: 0,
-        }}
+        style={{ opacity: 0, width: 1, height: '100%', top: 0, transform: 'none', borderRadius: 0, left: 0 }}
       />
       <Handle
         id="right"
         type="source"
         position={Position.Right}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          width: 12,
-          height: '100%',
-          top: 0,
-          right: -6,
-          transform: 'none',
-          borderRadius: 0,
-          opacity: 0,
-        }}
+        style={{ opacity: 0, width: 1, height: '100%', top: 0, transform: 'none', borderRadius: 0, right: 0 }}
       />
       <Handle
         id="top"
         type="target"
         position={Position.Top}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          width: '100%',
-          height: 12,
-          left: 0,
-          top: -6,
-          transform: 'none',
-          borderRadius: 0,
-          opacity: 0,
-        }}
+        style={{ opacity: 0, width: '100%', height: 1, left: 0, transform: 'none', borderRadius: 0, top: 0 }}
       />
       <Handle
         id="bottom"
         type="source"
         position={Position.Bottom}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          width: '100%',
-          height: 12,
-          left: 0,
-          bottom: -6,
-          transform: 'none',
-          borderRadius: 0,
-          opacity: 0,
-        }}
-      />
-
-      {/* Perimeter hover glow — visible connection zone indicator */}
-      <div
-        className="absolute inset-0 rounded-xl pointer-events-none transition-opacity duration-150"
-        style={{
-          boxShadow: `inset 0 0 0 2px ${borderColor}55`,
-          opacity: selected ? 1 : 0,
-        }}
+        style={{ opacity: 0, width: '100%', height: 1, left: 0, transform: 'none', borderRadius: 0, bottom: 0 }}
       />
 
       {/* Header */}

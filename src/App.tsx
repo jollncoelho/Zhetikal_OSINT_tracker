@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -11,8 +11,6 @@ import {
   type NodeTypes,
   type Node,
   type Edge,
-  type Connection,
-  type OnConnectStartParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Ghost, Activity } from 'lucide-react';
@@ -41,84 +39,12 @@ function FlowExporter({
   activeCase,
   onRegisterExportPng,
   onRegisterExportPdf,
-  onRegisterConnectHandlers,
 }: {
   activeCase: ReturnType<typeof useStore>['activeCase'];
   onRegisterExportPng: (fn: () => Promise<void>) => void;
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
-  onRegisterConnectHandlers: (handlers: {
-    onConnectStart: (evt: MouseEvent | TouchEvent, params: OnConnectStartParams) => void;
-    onConnectEnd: (evt: MouseEvent | TouchEvent) => void;
-    getConnectionOffsets: () => { sourceOffX: number; sourceOffY: number; targetOffX: number; targetOffY: number } | null;
-  }) => void;
 }) {
-  const { getNodes, screenToFlowPosition } = useReactFlow();
-
-  // Refs for tracking perimeter offsets during connection drag
-  const connectStartRef = useRef<{ nodeId: string; flowX: number; flowY: number } | null>(null);
-  const connectionOffsetsRef = useRef<{ sourceOffX: number; sourceOffY: number; targetOffX: number; targetOffY: number } | null>(null);
-
-  const computeNodeOffset = useCallback((nodeId: string, flowX: number, flowY: number) => {
-    const node = getNodes().find((n) => n.id === nodeId);
-    if (!node) return null;
-    const w = (node.measured?.width ?? node.width ?? 200) as number;
-    const h = (node.measured?.height ?? node.height ?? 80) as number;
-    const offX = Math.max(0, Math.min(1, (flowX - node.position.x) / w));
-    const offY = Math.max(0, Math.min(1, (flowY - node.position.y) / h));
-    return { offX, offY };
-  }, [getNodes]);
-
-  useEffect(() => {
-    const handlers = {
-      onConnectStart: (_evt: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
-        const evt = _evt as MouseEvent;
-        const flowPos = screenToFlowPosition({ x: evt.clientX, y: evt.clientY });
-        connectStartRef.current = {
-          nodeId: params.nodeId ?? '',
-          flowX: flowPos.x,
-          flowY: flowPos.y,
-        };
-        connectionOffsetsRef.current = null;
-      },
-      onConnectEnd: (_evt: MouseEvent | TouchEvent) => {
-        const evt = _evt as MouseEvent;
-        const flowPos = screenToFlowPosition({ x: evt.clientX, y: evt.clientY });
-        if (!connectStartRef.current) return;
-
-        // Find the target node under the mouse
-        const allNodes = getNodes();
-        let targetNodeId: string | null = null;
-        for (const node of allNodes) {
-          if (node.id === connectStartRef.current.nodeId) continue;
-          const w = (node.measured?.width ?? node.width ?? 200) as number;
-          const h = (node.measured?.height ?? node.height ?? 80) as number;
-          if (
-            flowPos.x >= node.position.x - 8 &&
-            flowPos.x <= node.position.x + w + 8 &&
-            flowPos.y >= node.position.y - 8 &&
-            flowPos.y <= node.position.y + h + 8
-          ) {
-            targetNodeId = node.id;
-            break;
-          }
-        }
-
-        const sourceOff = computeNodeOffset(connectStartRef.current.nodeId, connectStartRef.current.flowX, connectStartRef.current.flowY);
-        const targetOff = targetNodeId ? computeNodeOffset(targetNodeId, flowPos.x, flowPos.y) : null;
-
-        if (sourceOff && targetOff) {
-          connectionOffsetsRef.current = {
-            sourceOffX: sourceOff.offX,
-            sourceOffY: sourceOff.offY,
-            targetOffX: targetOff.offX,
-            targetOffY: targetOff.offY,
-          };
-        }
-      },
-      getConnectionOffsets: () => connectionOffsetsRef.current,
-    };
-    onRegisterConnectHandlers(handlers);
-  }, [computeNodeOffset, getNodes, onRegisterConnectHandlers, screenToFlowPosition]);
+  const { getNodes } = useReactFlow();
 
   const captureViewport = useCallback(async (): Promise<string> => {
     const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
@@ -404,29 +330,6 @@ export default function App() {
   const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
   const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
 
-  const connectHandlersRef = useRef<{
-    onConnectStart: (evt: MouseEvent | TouchEvent, params: OnConnectStartParams) => void;
-    onConnectEnd: (evt: MouseEvent | TouchEvent) => void;
-    getConnectionOffsets: () => { sourceOffX: number; sourceOffY: number; targetOffX: number; targetOffY: number } | null;
-  } | null>(null);
-
-  const handleRegisterConnectHandlers = useCallback((handlers: typeof connectHandlersRef.current) => {
-    connectHandlersRef.current = handlers;
-  }, []);
-
-  const handleConnectStart = useCallback((evt: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
-    connectHandlersRef.current?.onConnectStart(evt, params);
-  }, []);
-
-  const handleConnectEnd = useCallback((evt: MouseEvent | TouchEvent) => {
-    connectHandlersRef.current?.onConnectEnd(evt);
-  }, []);
-
-  const handleConnect = useCallback((connection: Connection) => {
-    const offsets = connectHandlersRef.current?.getConnectionOffsets() ?? null;
-    onConnect(connection, offsets);
-  }, [onConnect]);
-
   const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNodeType | undefined) ?? null;
 
   useEffect(() => {
@@ -632,9 +535,7 @@ export default function App() {
             edges={styledEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onConnect={handleConnect}
-            onConnectStart={handleConnectStart}
-            onConnectEnd={handleConnectEnd}
+            onConnect={onConnect}
             onEdgeClick={handleEdgeClick}
             onNodeClick={handleNodeClick}
             onPaneClick={handlePaneClick}
@@ -671,7 +572,6 @@ export default function App() {
               activeCase={activeCase}
               onRegisterExportPng={handleRegisterExportPng}
               onRegisterExportPdf={handleRegisterExportPdf}
-              onRegisterConnectHandlers={handleRegisterConnectHandlers}
             />
           </ReactFlow>
         </div>
