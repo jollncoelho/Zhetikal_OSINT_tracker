@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
-  FileText, Link, Bitcoin, StickyNote, Pencil, Trash2, X, Check, Maximize2,
+  FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, Maximize2,
 } from 'lucide-react';
 import type { EntityData } from '../types';
 
@@ -95,7 +95,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   return (
     <div
-      className={`relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${
+      className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${
         selected ? 'shadow-lg' : ''
       }`}
       style={{
@@ -213,8 +213,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         </div>
       </div>
 
-      {/* Action buttons */}
-      {renamingLabel ? (
+      {/* Delete button — always visible, top-right corner */}
+      {!renamingLabel && (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+          title="Supprimer"
+          className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
+            bg-cyber-dark/70 border border-cyber-border
+            text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40
+            transition-all duration-150 z-10"
+        >
+          <Trash2 size={11} />
+        </button>
+      )}
+
+      {/* Rename confirm/cancel row */}
+      {renamingLabel && (
         <div className="flex gap-1 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={handleSaveLabel}
@@ -227,23 +241,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-panel border border-cyber-border text-cyber-text-dim text-[10px] font-medium hover:bg-cyber-dark transition-colors"
           >
             <X size={10} />
-          </button>
-        </div>
-      ) : (
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); setRenamingLabel(true); }}
-            className="w-5 h-5 rounded flex items-center justify-center bg-cyber-dark/80 hover:bg-cyber-panel text-cyber-text-dim hover:text-cyber-cyan transition-colors"
-            title="Renommer"
-          >
-            <Pencil size={10} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-            className="w-5 h-5 rounded flex items-center justify-center bg-cyber-dark/80 hover:bg-cyber-panel text-cyber-text-dim hover:text-cyber-red transition-colors"
-            title="Supprimer"
-          >
-            <Trash2 size={10} />
           </button>
         </div>
       )}
