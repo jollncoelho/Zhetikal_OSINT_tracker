@@ -5,7 +5,6 @@ import {
   Controls,
   MiniMap,
   BackgroundVariant,
-  MarkerType,
   ConnectionMode,
   useReactFlow,
   type NodeTypes,
@@ -414,15 +413,10 @@ export default function App() {
 
   const styledEdges = edges.map((e) => ({
     ...e,
+    selected: e.id === selectedEdgeId,
     style: e.id === selectedEdgeId
-      ? { stroke: '#ef4444', strokeWidth: 3 }
-      : { stroke: '#00c8d4', strokeWidth: 3 },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      width: 18,
-      height: 18,
-      color: e.id === selectedEdgeId ? '#ef4444' : '#00c8d4',
-    },
+      ? { stroke: '#ef4444' }
+      : { stroke: '#00c8d4' },
   }));
 
   const nodeCount = nodes.length;
@@ -561,14 +555,7 @@ export default function App() {
             fitView
             defaultEdgeOptions={{
               type: 'custom',
-              animated: false,
-              style: { stroke: '#00c8d4', strokeWidth: 3 },
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                width: 18,
-                height: 18,
-                color: '#00c8d4',
-              },
+              style: { stroke: '#00c8d4' },
             }}
             proOptions={{ hideAttribution: true }}
             className="bg-cyber-black"

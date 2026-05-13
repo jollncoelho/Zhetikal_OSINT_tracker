@@ -146,6 +146,11 @@ button, input, textarea, select {
   display: none !important;
 }
 
+@keyframes flow-dash {
+  from { stroke-dashoffset: 20; }
+  to   { stroke-dashoffset: 0; }
+}
+
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 5px rgba(0, 240, 255, 0.2); }
   50% { box-shadow: 0 0 20px rgba(0, 240, 255, 0.4); }
