@@ -66,6 +66,34 @@ function FlowExporter({
     });
   }, [getNodes]);
 
+  const captureViewportForPdf = useCallback(async (): Promise<string> => {
+    const wrapper = document.querySelector('.react-flow__wrapper') as HTMLElement | null;
+    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!viewport || !wrapper) throw new Error('Viewport not found');
+    if (getNodes().length === 0) throw new Error('No nodes to capture');
+
+    wrapper.classList.add('pdf-export');
+    // Let the browser repaint with the new styles before capturing
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+      return await toPng(viewport, {
+        cacheBust: true,
+        pixelRatio: 4,
+        backgroundColor: '#ffffff',
+        filter: (node) => {
+          if (node instanceof Element) {
+            if (node.classList.contains('react-flow__controls')) return false;
+            if (node.classList.contains('react-flow__minimap')) return false;
+          }
+          return true;
+        },
+      });
+    } finally {
+      wrapper.classList.remove('pdf-export');
+    }
+  }, [getNodes]);
+
   useEffect(() => {
     const exportPng = async () => {
       if (!activeCase) return;
@@ -78,7 +106,7 @@ function FlowExporter({
 
     const exportPdf = async () => {
       if (!activeCase) return;
-      const dataUrl = await captureViewport();
+      const dataUrl = await captureViewportForPdf();
 
       await new Promise<void>((resolve) => {
         const img = new window.Image();
@@ -289,7 +317,7 @@ function FlowExporter({
 
     onRegisterExportPng(exportPng);
     onRegisterExportPdf(exportPdf);
-  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf]);
+  }, [activeCase, captureViewport, captureViewportForPdf, onRegisterExportPng, onRegisterExportPdf]);
 
   return null;
 }
