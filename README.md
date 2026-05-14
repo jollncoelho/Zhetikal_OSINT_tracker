@@ -1,6 +1,6 @@
 # 🛡️ Zhétical OSINT Case Tracker v2.0
 
-Lien vers l'outil en ligne : [https://advanced-osint-case-jgpp.bolt.host](https://advanced-osint-case-jgpp.bolt.host)
+Lien vers l'outil en ligne : [https://tracker.prohacking77.me](https://tracker.prohacking77.me)
 
 ## 🔍 À propos
 Le **Zhétical OSINT Tracker** est un outil d'investigation numérique conçu pour aider les enquêteurs à structurer leurs recherches. Il permet de créer des graphes de liens interactifs entre différentes entités (Usernames, IP, Domaines, etc.) tout en garantissant une confidentialité totale.
