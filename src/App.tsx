@@ -1,3 +1,4 @@
+import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
