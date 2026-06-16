@@ -1,3 +1,4 @@
+import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
@@ -583,10 +584,15 @@ export default function App() {
         onClearCanvas={clearCanvas}
       />
 
-      <div className="flex-1 flex flex-col relative min-w-0">
-        {/* Top bar */}
-        <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
-          <div className="flex items-center gap-3">
+ <div className="flex-1 flex flex-col relative min-w-0">
+  {/* Fenêtre de test Jarvis */}
+  <div className="absolute bottom-4 right-4 z-50">
+    <HermesAnalyzer targetValue="Ziggy" targetType="Username" />
+  </div>
+
+ {/* Top bar */}
+  <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
+    <div className="flex items-center gap-3">
             <img
               src="/photo_2026-05-04_13-46-20.jpg"
               alt="Zhétikal"
