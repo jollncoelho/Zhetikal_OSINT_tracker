@@ -14,8 +14,7 @@ interface HermesGatewayResponse {
 
 // L'URL de la passerelle locale par défaut de Hermes Desktop
 // On remplace 127.0.0.1 par localhost
-const HERMES_GATEWAY_URL = 'http://localhost:11834/v1';
-
+const HERMES_GATEWAY_URL = 'http://localhost:23406/v1';
 export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
   try {
     const response = await fetch(`${HERMES_GATEWAY_URL}/chat/completions`, {
