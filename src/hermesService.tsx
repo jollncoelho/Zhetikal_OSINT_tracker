@@ -5,7 +5,7 @@ export interface HermesMessage {
 interface OllamaChatResponse {
   message: { role: 'assistant'; content: string; };
 }
-const OLLAMA_BASE_URL = 'http://localhost:11434';
+const OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
   try {
     const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
