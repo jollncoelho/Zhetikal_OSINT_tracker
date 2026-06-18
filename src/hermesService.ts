@@ -12,16 +12,26 @@ interface HermesResponse {
 // Proxy Hermes Desktop local
 const HERMES_URL = 'http://localhost:62938/api/chat';
 
-export const queryHermes = async (messages: HermesMessage[], cwd?: string): Promise<string> => {
+export const queryHermes = async (messages: HermesMessage[], workdir?: string): Promise<string> => {
   try {
+    const effectiveMessages: HermesMessage[] = workdir
+      ? [
+          {
+            role: 'system',
+            content: `Tu travailles EXCLUSIVEMENT dans le répertoire suivant : ${workdir}\nN'accède à aucun autre répertoire. Toutes tes opérations sur le système de fichiers doivent rester dans ce dossier.`,
+          },
+          ...messages,
+        ]
+      : messages;
+
     const body: Record<string, unknown> = {
       model: 'gemma4',
-      messages,
+      messages: effectiveMessages,
       stream: false,
     };
 
-    if (cwd) {
-      body.cwd = cwd;
+    if (workdir) {
+      body.cwd = workdir;
     }
 
     const response = await fetch(HERMES_URL, {
