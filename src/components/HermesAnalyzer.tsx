@@ -47,7 +47,9 @@ Anomalies, contradictions, données suspectes ou manquantes, risques identifiés
 ## 5. Prochaines actions recommandées
 Actions d'investigation concrètes et priorisées. Sources à interroger, outils adaptés, pivots suggérés.
 
-Sois factuel. Ne commente pas les données absentes. Ne génère aucune information fictive.`;
+Sois factuel. Ne commente pas les données absentes. Ne génère aucune information fictive.
+
+IMPORTANT — Présentation : n'affiche JAMAIS les identifiants techniques des nœuds (chaînes alphanumériques comme "7k8gbfi8w", "z3o4qs0oc", etc.) dans le rapport. Utilise exclusivement les labels humains (noms, pseudos, numéros de téléphone, domaines, adresses IP lisibles). Le rapport doit être parfaitement compréhensible sans connaissance du modèle de données interne.`;
 
     const graphSummary = {
       caseId: activeCase?.id,
