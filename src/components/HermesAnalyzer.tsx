@@ -1,10 +1,71 @@
 import React, { useState } from 'react';
 import { queryHermes, HermesMessage } from '../hermesService';
 import { useStore } from '../store/useStore';
+import type { EntityType } from '../types';
+
+interface SuggestedEntity {
+  label: string;
+  entityType: EntityType;
+}
+
+const ENTITY_TYPE_MAP: Record<string, EntityType> = {
+  ip: 'ip',
+  'adresse ip': 'ip',
+  domaine: 'domain',
+  domain: 'domain',
+  email: 'email',
+  'e-mail': 'email',
+  pseudo: 'username',
+  username: 'username',
+  pseudonyme: 'username',
+  téléphone: 'phone',
+  telephone: 'phone',
+  numéro: 'phone',
+  numero: 'phone',
+  localisation: 'location',
+  location: 'location',
+  organisation: 'organization',
+  organization: 'organization',
+  entreprise: 'organization',
+  personne: 'person',
+  person: 'person',
+  nom: 'person',
+  url: 'url',
+  lien: 'url',
+  crypto: 'crypto',
+  wallet: 'crypto',
+  fichier: 'file',
+  file: 'file',
+};
+
+function parseEntities(text: string): SuggestedEntity[] {
+  const results: SuggestedEntity[] = [];
+  const seen = new Set<string>();
+
+  // Match lines like: [TYPE] valeur  or  TYPE: valeur  or  **TYPE** valeur
+  const linePattern = /\*{0,2}([a-zA-Zéèêàù\s]+?)\*{0,2}\s*[:\-–]\s*(.+)/gi;
+  let match;
+  while ((match = linePattern.exec(text)) !== null) {
+    const rawType = match[1].trim().toLowerCase();
+    const rawLabel = match[2].trim().replace(/[`"'*]/g, '').split(/[,\n]/)[0].trim();
+    const entityType = ENTITY_TYPE_MAP[rawType];
+    if (entityType && rawLabel && rawLabel.length > 1 && rawLabel.length < 100) {
+      const key = `${entityType}:${rawLabel}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({ label: rawLabel, entityType });
+      }
+    }
+  }
+
+  return results;
+}
 
 export const HermesAnalyzer: React.FC = () => {
-  const { nodes, edges, activeCase } = useStore();
-  const [logs, setLogs] = useState('');
+  const { nodes, edges, activeCase, addEntity } = useStore();
+  const [report, setReport] = useState('');
+  const [suggestedEntities, setSuggestedEntities] = useState<SuggestedEntity[]>([]);
+  const [injected, setInjected] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -14,10 +75,7 @@ export const HermesAnalyzer: React.FC = () => {
     nodes[0];
 
   const targetValue = targetNode?.data?.label || 'inconnu';
-  const targetType = targetNode?.data?.entityType || 'Unknown';
 
-  // Répertoire du projet actif injecté dans la requête Hermes Desktop (champ cwd).
-  // Priorité : projectPath explicite > chemin dérivé du nom du cas.
   const projectCwd: string | undefined = activeCase
     ? (activeCase.projectPath?.trim() ||
         `~/ghostint-cases/${activeCase.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-.]/g, '')}`)
@@ -25,101 +83,112 @@ export const HermesAnalyzer: React.FC = () => {
 
   const triggerHermesAnalysis = async () => {
     setIsProcessing(true);
-    const cwdLabel = projectCwd ?? '(répertoire par défaut Hermes)';
-    setLogs(
-      `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
-    );
-
-    const systemPrompt = `Tu es Hermes, générateur de munitions OSINT. Tu reçois des entités (noms, pseudos, téléphones, IPs, domaines) extraites d'un graphe d'enquête. Tu NE rédiges PAS de rapport. Tu génères UNIQUEMENT des outils de recherche prêts à l'emploi.
-
-INTERDICTIONS ABSOLUES :
-- Zéro phrase descriptive ou narrative.
-- Zéro identifiant technique aléatoire (chaînes comme "7k8gbfi8w").
-- Zéro commentaire sur ce que tu fais ou ce que le graphe contient.
-- Uniquement des dorks et des URLs, rien d'autre.
-
-FORMAT DE SORTIE OBLIGATOIRE :
-
-## 🔍 GOOGLE DORKS
-
-Pour chaque entité (nom complet, pseudo, téléphone, domaine, IP), génère des dorks Google exacts et exploitables. Exemples de formats à adapter :
-"[NOM COMPLET]" site:linkedin.com
-"[PSEUDO]" site:facebook.com OR site:instagram.com
-"[PSEUDO]" filetype:pdf
-"[TÉLÉPHONE]" site:leboncoin.fr OR site:paruvendu.fr
-"[NOM]" AND "[TÉLÉPHONE]"
-"[NOM]" site:pagesjaunes.fr OR site:118712.fr
-intitle:"[NOM]" inurl:cv OR inurl:resume
-"[IP]" site:pastebin.com OR site:paste2.org
-
-## 🌐 LIENS DIRECTS
-
-Pour chaque IP présente, génère ces URLs en remplaçant [IP] par la valeur réelle :
-https://scamalytics.com/ip/[IP]
-https://bgp.he.net/ip/[IP]
-https://www.abuseipdb.com/check/[IP]
-https://ipinfo.io/[IP]
-https://shodan.io/host/[IP]
-
-Pour chaque pseudo présent, génère ces URLs en remplaçant [PSEUDO] par la valeur réelle :
-https://whatsmyname.app/?q=[PSEUDO]
-https://namechk.com/[PSEUDO]
-https://www.google.com/search?q=%22[PSEUDO]%22
-
-Pour chaque numéro de téléphone présent, génère ces URLs :
-https://www.societe.com/cgi-bin/search?champs=[TÉLÉPHONE]
-https://www.google.com/search?q=%22[TÉLÉPHONE]%22`;
+    setReport('');
+    setSuggestedEntities([]);
+    setInjected(new Set());
 
     const nodeIndex = new Map(nodes.map((n) => [n.id, n]));
 
-    const cleanNodes = nodes.map((n) => {
-      const label = n.data?.label?.trim() || '(sans nom)';
-      const type = n.data?.entityType || 'entité';
-      return `- ${type}: ${label}${n.data?.notes ? ` [note: ${n.data.notes}]` : ''}`;
-    }).join('\n');
+    const cleanNodes = nodes
+      .map((n) => {
+        const label = n.data?.label?.trim() || '(sans nom)';
+        const type = n.data?.entityType || 'entité';
+        return `- ${type}: ${label}${n.data?.notes ? ` [note: ${n.data.notes}]` : ''}`;
+      })
+      .join('\n');
 
-    const cleanEdges = edges.map((e) => {
-      const src = nodeIndex.get(e.source);
-      const tgt = nodeIndex.get(e.target);
-      const fromLabel = src?.data?.label?.trim() || src?.data?.entityType || '(inconnu)';
-      const toLabel = tgt?.data?.label?.trim() || tgt?.data?.entityType || '(inconnu)';
-      const rel = (e as any).label?.trim();
-      return rel
-        ? `- ${fromLabel} —[${rel}]→ ${toLabel}`
-        : `- ${fromLabel} → ${toLabel}`;
-    }).join('\n');
+    const cleanEdges = edges
+      .map((e) => {
+        const src = nodeIndex.get(e.source);
+        const tgt = nodeIndex.get(e.target);
+        const fromLabel = src?.data?.label?.trim() || src?.data?.entityType || '(inconnu)';
+        const toLabel = tgt?.data?.label?.trim() || tgt?.data?.entityType || '(inconnu)';
+        const rel = (e as any).label?.trim();
+        return rel
+          ? `- ${fromLabel} —[${rel}]→ ${toLabel}`
+          : `- ${fromLabel} → ${toLabel}`;
+      })
+      .join('\n');
 
-    const graphText = `ENTITÉS (${nodes.length}) :\n${cleanNodes || '(aucune)'}\n\nRELATIONS (${edges.length}) :\n${cleanEdges || '(aucune)'}`;
+    const graphText = `ENTITÉS CONNUES (${nodes.length}) :\n${cleanNodes || '(aucune)'}\n\nRELATIONS (${edges.length}) :\n${cleanEdges || '(aucune)'}`;
+
+    const systemPrompt = `Tu es Hermes, agent OSINT autonome. Tu travailles en binôme avec l'opérateur José. Tu prends en charge l'investigation en tâche de fond et tu lui rapportes uniquement les NOUVELLES informations que tu as trouvées — des éléments qu'il ne voit pas encore sur son écran.
+
+RÈGLES ABSOLUES :
+- Adresse-toi directement à José à la première personne, comme un coéquipier de terrain.
+- N'affiche JAMAIS d'identifiants techniques (chaînes aléatoires). Utilise les vrais noms, pseudos, numéros.
+- Ne répète pas ce qui est déjà dans le graphe. Apporte du NOUVEAU.
+- Simule une investigation active : parle comme si tu venais de croiser des registres, des bases de fuites, des index OSINT.
+- Sois concis, direct, factuel. Ton rapport doit tenir en quelques paragraphes denses.
+
+STRUCTURE DE TA RÉPONSE :
+
+Commence par : "José, j'ai pris le relais sur [cible]. En fouillant en parallèle, voici ce que j'ai découvert que tu n'as pas encore :"
+
+Puis liste les découvertes sous ces rubriques exactes (si applicable) :
+
+Nom: [nom complet trouvé]
+Pseudo: [alias détecté]
+Téléphone: [numéro trouvé]
+Email: [email trouvé]
+IP: [adresse IP associée]
+Domaine: [domaine lié]
+Organisation: [entreprise ou structure]
+Localisation: [ville, région ou coordonnées]
+URL: [lien direct exploitable]
+
+Termine par une phrase sur l'angle d'investigation à prioriser.
+
+IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre ligne avec la valeur directement après le deux-points. Ces lignes serviront à injecter les entités dans le graphe.`;
 
     const context: HermesMessage[] = [
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Dossier : "${activeCase?.name ?? 'Sans titre'}"\n\n${graphText}\n\nGénère les dorks Google et les liens directs pour chaque entité listée ci-dessus. Injecte les vraies valeurs dans chaque URL et chaque dork.`,
+        content: `Dossier : "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}"\n\n${graphText}\n\nLance l'investigation en tâche de fond et rapporte-moi tes découvertes.`,
       },
     ];
 
     try {
-      setLogs((p) => p + 'Requête envoyée au Moteur Hermes Core...\n');
       const res = await queryHermes(context, projectCwd);
-      setLogs(res);
+      setReport(res);
+      setSuggestedEntities(parseEntities(res));
     } catch (err: any) {
-      setLogs((p) => p + '❌ ÉCHEC — Hermes Core.\n' + err.message);
+      setReport('ÉCHEC — Hermes Core hors ligne.\n' + err.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleSaveData = () => {
-    if (!logs) return;
-    const blob = new Blob([logs], { type: 'text/plain;charset=utf-8' });
+  const handleInject = (entity: SuggestedEntity) => {
+    addEntity(entity.entityType, entity.label);
+    setInjected((prev) => new Set(prev).add(`${entity.entityType}:${entity.label}`));
+  };
+
+  const handleInjectAll = () => {
+    suggestedEntities.forEach((e) => {
+      const key = `${e.entityType}:${e.label}`;
+      if (!injected.has(key)) {
+        addEntity(e.entityType, e.label);
+      }
+    });
+    setInjected(new Set(suggestedEntities.map((e) => `${e.entityType}:${e.label}`)));
+  };
+
+  const handleSave = () => {
+    if (!report) return;
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Analyse_Hermes_${targetValue}.txt`;
+    link.download = `Hermes_${targetValue}.txt`;
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const allInjected =
+    suggestedEntities.length > 0 &&
+    suggestedEntities.every((e) => injected.has(`${e.entityType}:${e.label}`));
 
   return (
     <div
@@ -130,13 +199,58 @@ https://www.google.com/search?q=%22[TÉLÉPHONE]%22`;
         transform: 'translateX(-50%)',
         zIndex: 9999,
         width: '100%',
-        maxWidth: '500px',
+        maxWidth: '560px',
       }}
       className="flex flex-col items-center gap-2 px-4"
     >
-      {logs && !isMinimized && (
-        <div className="w-full h-48 bg-[#0d111c]/95 border border-purple-900/60 rounded-lg p-4 overflow-y-auto text-gray-300 text-xs text-left shadow-2xl backdrop-blur-sm custom-scrollbar">
-          <div className="whitespace-pre-wrap font-mono">{logs}</div>
+      {report && !isMinimized && (
+        <div className="w-full bg-[#0d111c]/95 border border-purple-900/60 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden">
+          {/* Report text */}
+          <div className="h-48 overflow-y-auto p-4 text-gray-300 text-xs custom-scrollbar">
+            <div className="whitespace-pre-wrap font-mono">{report}</div>
+          </div>
+
+          {/* Inject bar */}
+          {suggestedEntities.length > 0 && (
+            <div className="border-t border-purple-900/40 p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-purple-400 text-xs font-semibold tracking-wide uppercase">
+                  {suggestedEntities.length} entité{suggestedEntities.length > 1 ? 's' : ''} détectée{suggestedEntities.length > 1 ? 's' : ''}
+                </span>
+                {!allInjected && (
+                  <button
+                    onClick={handleInjectAll}
+                    className="text-xs px-2 py-1 rounded bg-purple-700/50 hover:bg-purple-600/60 text-purple-200 transition-colors"
+                  >
+                    Tout injecter
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {suggestedEntities.map((e) => {
+                  const key = `${e.entityType}:${e.label}`;
+                  const done = injected.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => !done && handleInject(e)}
+                      disabled={done}
+                      title={done ? 'Déjà injecté' : `Ajouter au graphe : ${e.entityType}`}
+                      className={`text-xs px-2 py-1 rounded border transition-colors max-w-[180px] truncate ${
+                        done
+                          ? 'border-green-700/50 bg-green-900/20 text-green-400 cursor-default'
+                          : 'border-purple-700/50 bg-purple-900/20 text-purple-300 hover:bg-purple-700/40 cursor-pointer'
+                      }`}
+                    >
+                      {done ? '✓ ' : '+ '}
+                      <span className="opacity-60 mr-1">[{e.entityType}]</span>
+                      {e.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -144,19 +258,24 @@ https://www.google.com/search?q=%22[TÉLÉPHONE]%22`;
         <button
           onClick={triggerHermesAnalysis}
           disabled={isProcessing}
-          title={isProcessing ? 'Analyse en cours...' : "Lancer l'analyse"}
+          title={isProcessing ? 'Investigation en cours...' : 'Lancer Hermes'}
           className="w-8 h-8 flex items-center justify-center rounded text-purple-300 hover:bg-purple-900/40 disabled:opacity-40 transition-colors text-base"
         >
-          🧬
+          {isProcessing ? (
+            <span className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin inline-block" />
+          ) : (
+            '🧬'
+          )}
         </button>
         <button
-          onClick={handleSaveData}
-          title="Sauvegarder l'analyse"
-          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base"
+          onClick={handleSave}
+          disabled={!report}
+          title="Sauvegarder le rapport"
+          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 disabled:opacity-30 transition-colors text-base"
         >
           💾
         </button>
-        {logs && (
+        {report && (
           <button
             onClick={() => setIsMinimized(!isMinimized)}
             title={isMinimized ? 'Agrandir' : 'Minimiser'}
@@ -166,8 +285,8 @@ https://www.google.com/search?q=%22[TÉLÉPHONE]%22`;
           </button>
         )}
         <button
-          onClick={() => setLogs('')}
-          title="Effacer l'analyse"
+          onClick={() => { setReport(''); setSuggestedEntities([]); setInjected(new Set()); }}
+          title="Effacer"
           className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-red-500/30 hover:text-red-400 transition-colors text-base font-bold"
         >
           ✕
