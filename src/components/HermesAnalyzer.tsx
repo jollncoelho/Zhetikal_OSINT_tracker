@@ -30,7 +30,24 @@ export const HermesAnalyzer: React.FC = () => {
       `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
     );
 
-    const systemPrompt = `Tu es Hermes, un expert OSINT rigoureux et technique. Analyse les données du graphe fournies sans jamais inventer de fausses informations.`;
+    const systemPrompt = `Tu es Hermes, expert OSINT. Tu reçois un graphe d'entités (nodes) et de relations (edges). Tu ne le décris pas — tu l'analyses : croisements, patterns, sources à vérifier, risques. Réponds par un rapport de synthèse technique structuré en 5 sections :
+
+## 1. Résumé exécutif
+Synthèse en 3-5 lignes de la situation globale et du niveau de risque.
+
+## 2. Entités clés
+Les entités les plus significatives du graphe avec leur rôle probable et les informations exploitables associées.
+
+## 3. Liens réseau identifiés
+Croisements entre entités (IP ↔ domaine, personne ↔ compte, etc.), clusters détectés, connexions indirectes probables.
+
+## 4. Alertes et incohérences
+Anomalies, contradictions, données suspectes ou manquantes, risques identifiés.
+
+## 5. Prochaines actions recommandées
+Actions d'investigation concrètes et priorisées. Sources à interroger, outils adaptés, pivots suggérés.
+
+Sois factuel. Ne commente pas les données absentes. Ne génère aucune information fictive.`;
 
     const graphSummary = {
       caseId: activeCase?.id,
@@ -53,7 +70,7 @@ export const HermesAnalyzer: React.FC = () => {
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Analyse la cible principale : "${targetValue}" (type : ${targetType}).\nDossier OSINT complet (${nodes.length} nœuds, ${edges.length} liens) :\n${JSON.stringify(graphSummary, null, 2)}`,
+        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\nGraphe : ${nodes.length} nœuds, ${edges.length} liens\n\nDonnées brutes :\n${JSON.stringify(graphSummary, null, 2)}\n\nProduis le rapport de synthèse en 5 sections.`,
       },
     ];
 
