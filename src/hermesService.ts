@@ -9,7 +9,7 @@ interface OllamaResponse {
   };
 }
 
-// On cible directement le port stable d'Ollama sur ton PC
+// Connexion directe à ton Ollama local (le port 11434 est ouvert chez toi)
 const OLLAMA_URL = 'http://localhost:11434/api/chat';
 
 export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
@@ -20,18 +20,18 @@ export const queryHermes = async (messages: HermesMessage[]): Promise<string> =>
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        model: 'gemma4', // Met ici le nom exact de ton modèle local (gemma4, etc.)
+        model: 'gemma4', // Ajuste le nom si ton modèle s'appelle différemment dans Ollama
         messages: messages,
         stream: false 
       }),
     });
 
-    if (!response.ok) throw new Error(`Ollama Error: ${response.status}`);
+    if (!response.ok) throw new Error(`Erreur Ollama: ${response.status}`);
     
     const data: OllamaResponse = await response.json();
     return data.message.content.trim();
   } catch (error) {
     console.error(error);
-    throw new Error('Impossible de joindre Ollama. Vérifie qu\'Ollama tourne bien en arrière-plan.');
+    throw new Error('Impossible de joindre Ollama. Assure-toi que l\'application Ollama tourne bien en arrière-plan.');
   }
 };
