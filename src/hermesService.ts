@@ -13,7 +13,7 @@ interface HermesGatewayResponse {
 }
 
 // L'URL officielle confirmée par Hermes
-const HERMES_GATEWAY_URL = 'http://localhost:1001/v1';
+const HERMES_GATEWAY_URL = 'http://localhost:62938/v1';
 
 export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
   try {
