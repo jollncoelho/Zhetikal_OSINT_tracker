@@ -34,6 +34,8 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
       body.cwd = workdir;
     }
 
+    console.log('Hermes request → workdir:', workdir, 'messages count:', effectiveMessages.length);
+
     const response = await fetch(HERMES_URL, {
       method: 'POST',
       headers: {
