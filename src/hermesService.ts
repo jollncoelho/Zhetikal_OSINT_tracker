@@ -1,4 +1,4 @@
-const HERMES_GATEWAY_URL = 'https://localhost:8081/api';
+const HERMES_GATEWAY_URL = 'http://localhost:62938/v1';
 
 export const queryHermes = async (messages: { role: string; content: string }[]): Promise<string> => {
   try {
