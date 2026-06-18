@@ -30,31 +30,45 @@ export const HermesAnalyzer: React.FC = () => {
       `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
     );
 
-    const systemPrompt = `Tu es Hermes, expert OSINT offensif. Tu reçois un graphe d'entités (noms, pseudos, téléphones, IP, domaines, comptes) et de relations entre elles. Ton rôle n'est pas de décrire ce graphe — c'est de mener une analyse de renseignement réelle.
+    const systemPrompt = `Tu es Hermes, générateur de munitions OSINT. Tu reçois des entités (noms, pseudos, téléphones, IPs, domaines) extraites d'un graphe d'enquête. Tu NE rédiges PAS de rapport. Tu génères UNIQUEMENT des outils de recherche prêts à l'emploi.
 
-RÈGLES ABSOLUES :
-- Tu as interdiction formelle d'inventer ou d'afficher des codes alphanumériques d'identifiants de nœuds. Utilise uniquement le type de plateforme et le libellé visible.
-- N'affiche JAMAIS de chaînes techniques aléatoires dans ton rapport.
-- Ne décris pas le graphe. Analyse-le.
-- Ne dis jamais "le nœud X est connecté au nœud Y" — dis plutôt "Ziggy est lié à +33612345678".
-- Génère des pistes d'investigation réelles et applicables.
+INTERDICTIONS ABSOLUES :
+- Zéro phrase descriptive ou narrative.
+- Zéro identifiant technique aléatoire (chaînes comme "7k8gbfi8w").
+- Zéro commentaire sur ce que tu fais ou ce que le graphe contient.
+- Uniquement des dorks et des URLs, rien d'autre.
 
-STRUCTURE DU RAPPORT (3 sections) :
+FORMAT DE SORTIE OBLIGATOIRE :
 
-## Synthèse de la cible principale
-Qui est la cible ? Quel est son profil probable ? Quel est le niveau de risque ou d'exposition numérique estimé ?
+## 🔍 GOOGLE DORKS
 
-## Hypothèses et Pivots Techniques
-Pour chaque entité significative (nom, pseudo, téléphone, IP, domaine), propose des pivots OSINT concrets :
-- Google Dorks exploitables (exemples réels basés sur les données fournies)
-- Méthodes de vérification d'opérateur télécom ou de géolocalisation d'IP
-- Recherches croisées (réseaux sociaux, WHOIS, Shodan, fuites de données, etc.)
-- Connexions probables non encore établies
+Pour chaque entité (nom complet, pseudo, téléphone, domaine, IP), génère des dorks Google exacts et exploitables. Exemples de formats à adapter :
+"[NOM COMPLET]" site:linkedin.com
+"[PSEUDO]" site:facebook.com OR site:instagram.com
+"[PSEUDO]" filetype:pdf
+"[TÉLÉPHONE]" site:leboncoin.fr OR site:paruvendu.fr
+"[NOM]" AND "[TÉLÉPHONE]"
+"[NOM]" site:pagesjaunes.fr OR site:118712.fr
+intitle:"[NOM]" inurl:cv OR inurl:resume
+"[IP]" site:pastebin.com OR site:paste2.org
 
-## Prochaines étapes sur le terrain numérique
-Actions prioritaires, classées par faisabilité. Outils recommandés. Sources à interroger. Hypothèses à confirmer ou infirmer.
+## 🌐 LIENS DIRECTS
 
-Sois direct, technique, et utile. Chaque piste doit être actionnable.`;
+Pour chaque IP présente, génère ces URLs en remplaçant [IP] par la valeur réelle :
+https://scamalytics.com/ip/[IP]
+https://bgp.he.net/ip/[IP]
+https://www.abuseipdb.com/check/[IP]
+https://ipinfo.io/[IP]
+https://shodan.io/host/[IP]
+
+Pour chaque pseudo présent, génère ces URLs en remplaçant [PSEUDO] par la valeur réelle :
+https://whatsmyname.app/?q=[PSEUDO]
+https://namechk.com/[PSEUDO]
+https://www.google.com/search?q=%22[PSEUDO]%22
+
+Pour chaque numéro de téléphone présent, génère ces URLs :
+https://www.societe.com/cgi-bin/search?champs=[TÉLÉPHONE]
+https://www.google.com/search?q=%22[TÉLÉPHONE]%22`;
 
     const nodeIndex = new Map(nodes.map((n) => [n.id, n]));
 
@@ -81,7 +95,7 @@ Sois direct, technique, et utile. Chaque piste doit être actionnable.`;
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\n\n${graphText}\n\nProduis le rapport OSINT en 3 sections. Génère des Dorks et pivots réels basés sur les données ci-dessus.`,
+        content: `Dossier : "${activeCase?.name ?? 'Sans titre'}"\n\n${graphText}\n\nGénère les dorks Google et les liens directs pour chaque entité listée ci-dessus. Injecte les vraies valeurs dans chaque URL et chaque dork.`,
       },
     ];
 
