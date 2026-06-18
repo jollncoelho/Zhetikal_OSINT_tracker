@@ -49,6 +49,7 @@ export interface CaseData {
   edges: Edge[];
   caseNotes?: string;
   caseTitle?: string;
+  projectPath?: string;
 }
 
 export const ENTITY_LABELS: Record<EntityType, string> = {

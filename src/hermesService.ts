@@ -3,35 +3,41 @@ export interface HermesMessage {
   content: string;
 }
 
-interface OllamaResponse {
+interface HermesResponse {
   message: {
     content: string;
   };
 }
 
-// Connexion directe à ton Ollama local (le port 11434 est ouvert chez toi)
-const OLLAMA_URL = 'http://localhost:11434/api/chat';
+// Proxy Hermes Desktop local
+const HERMES_URL = 'http://localhost:62938/api/chat';
 
-export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
+export const queryHermes = async (messages: HermesMessage[], cwd?: string): Promise<string> => {
   try {
-    const response = await fetch(OLLAMA_URL, {
+    const body: Record<string, unknown> = {
+      model: 'gemma4',
+      messages,
+      stream: false,
+    };
+
+    if (cwd) {
+      body.cwd = cwd;
+    }
+
+    const response = await fetch(HERMES_URL, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
+      headers: {
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        model: 'gemma4', // Ajuste le nom si ton modèle s'appelle différemment dans Ollama
-        messages: messages,
-        stream: false 
-      }),
+      body: JSON.stringify(body),
     });
 
-    if (!response.ok) throw new Error(`Erreur Ollama: ${response.status}`);
-    
-    const data: OllamaResponse = await response.json();
+    if (!response.ok) throw new Error(`Erreur Hermes Core: ${response.status}`);
+
+    const data: HermesResponse = await response.json();
     return data.message.content.trim();
   } catch (error) {
     console.error(error);
-    throw new Error('Impossible de joindre Ollama. Assure-toi que l\'application Ollama tourne bien en arrière-plan.');
+    throw new Error('Impossible de joindre Hermes Core. Assure-toi que Hermes Desktop tourne bien en arrière-plan (port 62938).');
   }
 };

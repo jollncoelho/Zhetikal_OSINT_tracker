@@ -3,22 +3,28 @@ import { queryHermes, HermesMessage } from '../hermesService';
 import { useStore } from '../store/useStore';
 
 export const HermesAnalyzer: React.FC = () => {
-  const { nodes, edges } = useStore();
+  const { nodes, edges, activeCase } = useStore();
   const [logs, setLogs] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
   const targetNode =
-    nodes.find((n) => n.data?.entityType === 'Username') ||
-    nodes.find((n) => n.data?.entityType === 'Person') ||
+    nodes.find((n) => n.data?.entityType === 'username') ||
+    nodes.find((n) => n.data?.entityType === 'person') ||
     nodes[0];
 
   const targetValue = targetNode?.data?.label || 'inconnu';
   const targetType = targetNode?.data?.entityType || 'Unknown';
 
+  // Répertoire du projet actif injecté dans la requête Hermes Desktop (champ cwd).
+  const projectCwd: string | undefined = activeCase?.projectPath?.trim() || undefined;
+
   const triggerHermesAnalysis = async () => {
     setIsProcessing(true);
-    setLogs('Initialisation du Moteur Hermes Core...\n');
+    const cwdLabel = projectCwd ?? '(répertoire par défaut Hermes)';
+    setLogs(
+      `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
+    );
 
     const systemPrompt = `Tu es Hermes, un expert OSINT rigoureux et technique. \
 Tu ne génères jamais de fausses données. \
@@ -42,8 +48,20 @@ Suggère des requêtes croisées (autres handles liés, emails probables, noms r
 Réponds exclusivement dans ce format. Sois précis, factuel, et technique.`;
 
     const graphSummary = {
-      nodes: nodes.map((n) => ({ id: n.id, type: n.data?.entityType, label: n.data?.label, notes: n.data?.notes })),
-      edges: edges.map((e) => ({ source: e.source, target: e.target, label: (e as any).label })),
+      caseId: activeCase?.id,
+      caseName: activeCase?.name,
+      projectPath: projectCwd,
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: n.data?.entityType,
+        label: n.data?.label,
+        notes: n.data?.notes,
+      })),
+      edges: edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        label: (e as any).label,
+      })),
     };
 
     const context: HermesMessage[] = [
@@ -56,7 +74,7 @@ Réponds exclusivement dans ce format. Sois précis, factuel, et technique.`;
 
     try {
       setLogs((p) => p + 'Requête envoyée au Moteur Hermes Core...\n');
-      const res = await queryHermes(context);
+      const res = await queryHermes(context, projectCwd);
       setLogs(res);
     } catch (err: any) {
       setLogs((p) => p + '❌ ÉCHEC — Hermes Core.\n' + err.message);
