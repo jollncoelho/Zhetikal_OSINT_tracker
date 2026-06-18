@@ -30,49 +30,54 @@ export const HermesAnalyzer: React.FC = () => {
       `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
     );
 
-    const systemPrompt = `Tu es Hermes, expert OSINT. Tu reçois un graphe d'entités (nodes) et de relations (edges). Tu ne le décris pas — tu l'analyses : croisements, patterns, sources à vérifier, risques. Réponds par un rapport de synthèse technique structuré en 5 sections :
+    const systemPrompt = `Tu es Hermes, expert OSINT offensif. Tu reçois un graphe d'entités (noms, pseudos, téléphones, IP, domaines, comptes) et de relations entre elles. Ton rôle n'est pas de décrire ce graphe — c'est de mener une analyse de renseignement réelle.
 
-## 1. Résumé exécutif
-Synthèse en 3-5 lignes de la situation globale et du niveau de risque.
+RÈGLES ABSOLUES :
+- N'affiche JAMAIS d'identifiants techniques (chaînes aléatoires comme "7k8gbfi8w"). Utilise uniquement les labels humains : noms, pseudos, numéros, IPs.
+- Ne décris pas le graphe. Analyse-le.
+- Ne dis jamais "le nœud X est connecté au nœud Y" — dis plutôt "Ziggy est lié à +33612345678".
+- Génère des pistes d'investigation réelles et applicables.
 
-## 2. Entités clés
-Les entités les plus significatives du graphe avec leur rôle probable et les informations exploitables associées.
+STRUCTURE DU RAPPORT (3 sections) :
 
-## 3. Liens réseau identifiés
-Croisements entre entités (IP ↔ domaine, personne ↔ compte, etc.), clusters détectés, connexions indirectes probables.
+## Synthèse de la cible principale
+Qui est la cible ? Quel est son profil probable ? Quel est le niveau de risque ou d'exposition numérique estimé ?
 
-## 4. Alertes et incohérences
-Anomalies, contradictions, données suspectes ou manquantes, risques identifiés.
+## Hypothèses et Pivots Techniques
+Pour chaque entité significative (nom, pseudo, téléphone, IP, domaine), propose des pivots OSINT concrets :
+- Google Dorks exploitables (exemples réels basés sur les données fournies)
+- Méthodes de vérification d'opérateur télécom ou de géolocalisation d'IP
+- Recherches croisées (réseaux sociaux, WHOIS, Shodan, fuites de données, etc.)
+- Connexions probables non encore établies
 
-## 5. Prochaines actions recommandées
-Actions d'investigation concrètes et priorisées. Sources à interroger, outils adaptés, pivots suggérés.
+## Prochaines étapes sur le terrain numérique
+Actions prioritaires, classées par faisabilité. Outils recommandés. Sources à interroger. Hypothèses à confirmer ou infirmer.
 
-Sois factuel. Ne commente pas les données absentes. Ne génère aucune information fictive.
-
-IMPORTANT — Présentation : n'affiche JAMAIS les identifiants techniques des nœuds (chaînes alphanumériques comme "7k8gbfi8w", "z3o4qs0oc", etc.) dans le rapport. Utilise exclusivement les labels humains (noms, pseudos, numéros de téléphone, domaines, adresses IP lisibles). Le rapport doit être parfaitement compréhensible sans connaissance du modèle de données interne.`;
+Sois direct, technique, et utile. Chaque piste doit être actionnable.`;
 
     const graphSummary = {
-      caseId: activeCase?.id,
       caseName: activeCase?.name,
-      projectPath: projectCwd,
       nodes: nodes.map((n) => ({
-        id: n.id,
         type: n.data?.entityType,
         label: n.data?.label,
         notes: n.data?.notes,
       })),
-      edges: edges.map((e) => ({
-        source: e.source,
-        target: e.target,
-        label: (e as any).label,
-      })),
+      edges: edges.map((e) => {
+        const sourceLabel = nodes.find((n) => n.id === e.source)?.data?.label ?? e.source;
+        const targetLabel = nodes.find((n) => n.id === e.target)?.data?.label ?? e.target;
+        return {
+          from: sourceLabel,
+          to: targetLabel,
+          relation: (e as any).label,
+        };
+      }),
     };
 
     const context: HermesMessage[] = [
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\nGraphe : ${nodes.length} nœuds, ${edges.length} liens\n\nDonnées brutes :\n${JSON.stringify(graphSummary, null, 2)}\n\nProduis le rapport de synthèse en 5 sections.`,
+        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\n\nGraphe (${nodes.length} entités, ${edges.length} relations) :\n${JSON.stringify(graphSummary, null, 2)}\n\nProduis le rapport OSINT en 3 sections. Génère des Dorks et pivots réels basés sur les données ci-dessus.`,
       },
     ];
 
