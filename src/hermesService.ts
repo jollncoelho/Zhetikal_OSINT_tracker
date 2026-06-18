@@ -50,6 +50,8 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
     return data.message.content.trim();
   } catch (error) {
     console.error(error);
-    throw new Error('Impossible de joindre Hermes Core. Assure-toi que Hermes Desktop tourne bien en arrière-plan (port 62938).');
+    const base = 'Impossible de joindre Hermes Core. Assure-toi que Hermes Desktop tourne bien en arrière-plan (port 62938).';
+    const suffix = workdir ? ` — Vérifie que le dossier existe toujours : ${workdir}` : '';
+    throw new Error(base + suffix);
   }
 };
