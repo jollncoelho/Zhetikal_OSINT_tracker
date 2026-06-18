@@ -30,26 +30,7 @@ export const HermesAnalyzer: React.FC = () => {
       `Initialisation du Moteur Hermes Core...\nProjet : ${activeCase?.name ?? 'Sans titre'}\nRépertoire : ${cwdLabel}\n`
     );
 
-    const systemPrompt = `Tu es Hermes, un expert OSINT rigoureux et technique. \
-Tu ne génères jamais de fausses données. \
-Lorsqu'on te demande une analyse de pivots, tu structures TOUJOURS ta réponse en exactement 3 sections numérotées, dans cet ordre strict :
-
-### Pivot 1 — Variation et Canonicalisation
-Génère toutes les variantes orthographiques, phonétiques, numériques et symboliques du handle. \
-Identifie la forme canonique probable (avec ou sans chiffres, underscores, majuscules, séparateurs). \
-Liste les patterns regex utiles pour la recherche automatisée.
-
-### Pivot 2 — Exhaustion Inter-Plateforme
-Dresse la liste des plateformes prioritaires à investiguer (réseaux sociaux, forums, dépôts de code, plateformes créatives, dark/grey web si pertinent). \
-Pour chaque plateforme, indique la méthode de recherche directe (URL pattern, dork, API publique). \
-Classe par probabilité de présence décroissante.
-
-### Pivot 3 — Pivot Sémantique et Structurel
-Décompose le handle en composants sémantiques (racines, préfixes, suffixes, références culturelles, langues). \
-Propose des hypothèses sur l'identité, les centres d'intérêt ou l'origine géographique/culturelle. \
-Suggère des requêtes croisées (autres handles liés, emails probables, noms réels potentiels).
-
-Réponds exclusivement dans ce format. Sois précis, factuel, et technique.`;
+    const systemPrompt = `Tu es Hermes, un expert OSINT rigoureux et technique. Analyse les données du graphe fournies sans jamais inventer de fausses informations.`;
 
     const graphSummary = {
       caseId: activeCase?.id,
@@ -117,40 +98,38 @@ Réponds exclusivement dans ce format. Sois précis, factuel, et technique.`;
         </div>
       )}
 
-      <div className="flex items-center justify-center gap-3 bg-[#0b0f19]/95 border border-purple-900/50 p-2 rounded-xl shadow-2xl backdrop-blur-md">
+      <div className="flex items-center justify-center gap-1 bg-[#0b0f19]/95 border border-purple-900/50 p-2 rounded-xl shadow-2xl backdrop-blur-md">
         <button
           onClick={triggerHermesAnalysis}
           disabled={isProcessing}
-          className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-semibold py-2 px-4 rounded-lg text-xs transition-all border border-purple-400/30 flex items-center gap-2 whitespace-nowrap"
+          title={isProcessing ? 'Analyse en cours...' : "Lancer l'analyse"}
+          className="w-8 h-8 flex items-center justify-center rounded text-purple-300 hover:bg-purple-900/40 disabled:opacity-40 transition-colors text-base"
         >
-          🧬 {isProcessing ? 'Analyse...' : "Lancer l'Analyse Automatique"}
+          🧬
         </button>
-
-        <div className="flex gap-1 items-center px-2 border-l border-purple-900/40">
-          {logs && (
-            <button
-              onClick={() => setIsMinimized(!isMinimized)}
-              title={isMinimized ? 'Agrandir' : 'Minimiser'}
-              className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base leading-none"
-            >
-              —
-            </button>
-          )}
+        <button
+          onClick={handleSaveData}
+          title="Sauvegarder l'analyse"
+          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base"
+        >
+          💾
+        </button>
+        {logs && (
           <button
-            onClick={handleSaveData}
-            title="Sauvegarder l'analyse"
-            className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base"
+            onClick={() => setIsMinimized(!isMinimized)}
+            title={isMinimized ? 'Agrandir' : 'Minimiser'}
+            className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base leading-none"
           >
-            💾
+            —
           </button>
-          <button
-            onClick={() => setLogs('')}
-            title="Effacer l'analyse"
-            className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-red-500/30 hover:text-red-400 transition-colors text-base font-bold"
-          >
-            ✕
-          </button>
-        </div>
+        )}
+        <button
+          onClick={() => setLogs('')}
+          title="Effacer l'analyse"
+          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-red-500/30 hover:text-red-400 transition-colors text-base font-bold"
+        >
+          ✕
+        </button>
       </div>
     </div>
   );

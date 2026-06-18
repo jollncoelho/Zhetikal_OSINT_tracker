@@ -3,14 +3,14 @@ export interface HermesMessage {
   content: string;
 }
 
-interface HermesResponse {
+interface OllamaResponse {
   message: {
     content: string;
   };
 }
 
-// Proxy Hermes Desktop local
-const HERMES_URL = 'http://localhost:62938/api/chat';
+const HERMES_URL = 'http://localhost:11434/api/chat';
+const HERMES_MODEL = 'gemma4';
 
 export const queryHermes = async (messages: HermesMessage[], workdir?: string): Promise<string> => {
   try {
@@ -25,7 +25,7 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
       : messages;
 
     const body: Record<string, unknown> = {
-      model: 'gemma4',
+      model: HERMES_MODEL,
       messages: effectiveMessages,
       stream: false,
     };
@@ -42,13 +42,13 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
       body: JSON.stringify(body),
     });
 
-    if (!response.ok) throw new Error(`Erreur Hermes Core: ${response.status}`);
+    if (!response.ok) throw new Error(`Erreur Ollama: ${response.status}`);
 
-    const data: HermesResponse = await response.json();
+    const data: OllamaResponse = await response.json();
     return data.message.content.trim();
   } catch (error) {
     console.error(error);
-    const base = 'Impossible de joindre Hermes Core. Assure-toi que Hermes Desktop tourne bien en arrière-plan (port 62938).';
+    const base = 'Impossible de joindre Hermes Core. Assure-toi que Ollama tourne bien en arrière-plan (port 11434).';
     const suffix = workdir ? ` — Vérifie que le dossier existe toujours : ${workdir}` : '';
     throw new Error(base + suffix);
   }
