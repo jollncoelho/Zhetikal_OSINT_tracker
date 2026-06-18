@@ -9,7 +9,6 @@ export const HermesAnalyzer: React.FC<HermesAnalyzerProps> = ({ entities = [] })
   const [logs, setLogs] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isOpen, setIsOpen] = useState(true);
 
   // Fonction pour extraire dynamiquement les vrais pseudos/valeurs du graphe pour éviter "Ziggy"
   const targetValue = entities.find(e => e.type === 'Username')?.label || "zhetikal";
@@ -46,9 +45,7 @@ export const HermesAnalyzer: React.FC<HermesAnalyzerProps> = ({ entities = [] })
     URL.revokeObjectURL(url);
   };
 
-  if (!isOpen) return null;
-
-return (
+  return (
     <div 
       style={{
         position: 'absolute',
@@ -82,18 +79,30 @@ return (
           🧬 {isProcessing ? "Analyse..." : "Lancer l'Analyse Automatique"}
         </button>
 
-        {/* Liens de contrôle */}
-        <div className="flex gap-2 text-[11px] text-purple-400 font-medium px-2 border-l border-purple-900/40 whitespace-nowrap">
+        {/* Contrôles icônes */}
+        <div className="flex gap-1 items-center px-2 border-l border-purple-900/40">
           {logs && (
-            <button onClick={() => setIsMinimized(!isMinimized)} className="hover:underline">
-              {isMinimized ? "[ Agrandir ]" : "[ Minimiser ]"}
+            <button
+              onClick={() => setIsMinimized(!isMinimized)}
+              title={isMinimized ? "Agrandir" : "Minimiser"}
+              className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base leading-none"
+            >
+              —
             </button>
           )}
-          <button onClick={handleSaveData} className="hover:underline">
-            [ Sauvegarder ]
+          <button
+            onClick={handleSaveData}
+            title="Sauvegarder l'analyse"
+            className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base"
+          >
+            💾
           </button>
-          <button onClick={() => setIsOpen(false)} className="hover:text-red-400 underline">
-            [ Fermer ]
+          <button
+            onClick={() => setLogs('')}
+            title="Effacer l'analyse"
+            className="w-7 h-7 flex items-center justify-center rounded text-purple-400 hover:bg-red-500/30 hover:text-red-400 transition-colors text-base font-bold"
+          >
+            ✕
           </button>
         </div>
 
