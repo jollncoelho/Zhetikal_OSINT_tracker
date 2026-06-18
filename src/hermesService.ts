@@ -1,55 +1,37 @@
-const HERMES_GATEWAY_URL = 'http://localhost:62938/v1';
+export interface HermesMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
 
-export const queryHermes = async (messages: { role: string; content: string }[]): Promise<string> => {
+interface OllamaResponse {
+  message: {
+    content: string;
+  };
+}
+
+// On cible directement le port stable d'Ollama sur ton PC
+const OLLAMA_URL = 'http://localhost:11434/api/chat';
+
+export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
   try {
-    const response = await fetch(HERMES_GATEWAY_URL, {
+    const response = await fetch(OLLAMA_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'stepfun/step-3.7-flash:free',
-        messages,
-        stream: true,
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        model: 'gemma4', // Met ici le nom exact de ton modèle local (gemma4, etc.)
+        messages: messages,
+        stream: false 
       }),
-      // ─── nécessaire car certificat local auto-signé ───
-      // @ts-ignore Node 18+ only
-      rejectUnauthorized: false,
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Erreur Gateway: ${response.status} — ${text.slice(0, 200)}`);
-    }
-
-    // ─── lecture du flux SSE ───
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('Réponse sans body');
-
-    const decoder = new TextDecoder();
-    let fullText = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-
-      // format: data: {"choices":[{"delta":{"content":"..."}}]}
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data: ')) continue;
-        const payload = line.slice(6).trim();
-        if (payload === '[DONE]') break;
-        try {
-          const parsed = JSON.parse(payload);
-          fullText += parsed.choices?.[0]?.delta?.content ?? '';
-        } catch { /* ignore malformed chunk */ }
-      }
-    }
-
-    return fullText.trim();
+    if (!response.ok) throw new Error(`Ollama Error: ${response.status}`);
+    
+    const data: OllamaResponse = await response.json();
+    return data.message.content.trim();
   } catch (error) {
-    console.error('[Hermes Gateway]', error);
-    throw new Error(
-      "Impossible de joindre Hermes Gateway sur https://localhost:8081/api. " +
-      "Vérifie que Hermes Desktop est lancé et que la Local Gateway est active."
-    );
+    console.error(error);
+    throw new Error('Impossible de joindre Ollama. Vérifie qu\'Ollama tourne bien en arrière-plan.');
   }
 };
