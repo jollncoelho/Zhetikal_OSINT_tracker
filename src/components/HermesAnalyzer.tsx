@@ -17,7 +17,11 @@ export const HermesAnalyzer: React.FC = () => {
   const targetType = targetNode?.data?.entityType || 'Unknown';
 
   // Répertoire du projet actif injecté dans la requête Hermes Desktop (champ cwd).
-  const projectCwd: string | undefined = activeCase?.projectPath?.trim() || undefined;
+  // Priorité : projectPath explicite > chemin dérivé du nom du cas.
+  const projectCwd: string | undefined = activeCase
+    ? (activeCase.projectPath?.trim() ||
+        `~/ghostint-cases/${activeCase.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-.]/g, '')}`)
+    : undefined;
 
   const triggerHermesAnalysis = async () => {
     setIsProcessing(true);
