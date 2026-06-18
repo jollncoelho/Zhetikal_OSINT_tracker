@@ -48,11 +48,21 @@ export const HermesAnalyzer: React.FC<HermesAnalyzerProps> = ({ entities = [] })
 
   if (!isOpen) return null;
 
-  return (
-    /* Positionnement fixe : Centré en bas de la zone du graphe (pile sur ton rond rouge) */
-    <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-40 flex flex-col items-center gap-2 w-full max-w-lg px-4">
+return (
+    <div 
+      style={{
+        position: 'absolute',
+        bottom: '24px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 9999,
+        width: '100%',
+        maxWidth: '500px'
+      }}
+      className="flex flex-col items-center gap-2 px-4"
+    >
       
-      {/* Fenêtre d'analyse textuelle (avec défilement/scroll vertical) */}
+      {/* Fenêtre d'analyse textuelle avec sa scrollbar */}
       {logs && !isMinimized && (
         <div className="w-full h-48 bg-[#0d111c]/95 border border-purple-900/60 rounded-lg p-4 overflow-y-auto text-gray-300 text-xs text-left shadow-2xl backdrop-blur-sm custom-scrollbar">
           <div className="whitespace-pre-wrap font-mono">
@@ -61,19 +71,19 @@ export const HermesAnalyzer: React.FC<HermesAnalyzerProps> = ({ entities = [] })
         </div>
       )}
 
-      {/* Barre d'action contenant le Bouton Principal + les options de contrôle */}
-      <div className="flex flex-wrap items-center justify-center gap-3 bg-[#0b0f19]/90 border border-purple-900/40 p-2 rounded-xl shadow-lg backdrop-blur-md">
+      {/* Barre d'action contenant le Bouton + les contrôles */}
+      <div className="flex items-center justify-center gap-3 bg-[#0b0f19]/95 border border-purple-900/50 p-2 rounded-xl shadow-2xl backdrop-blur-md">
         
         <button
           onClick={triggerJarvisAnalysis}
           disabled={isProcessing}
-          className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-semibold py-2 px-5 rounded-lg text-xs transition-all border border-purple-400/40 flex items-center gap-2"
+          className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800/50 text-white font-semibold py-2 px-4 rounded-lg text-xs transition-all border border-purple-400/30 flex items-center gap-2 whitespace-nowrap"
         >
-          🧬 {isProcessing ? "Analyse en cours..." : "Lancer l'Analyse Automatique"}
+          🧬 {isProcessing ? "Analyse..." : "Lancer l'Analyse Automatique"}
         </button>
 
-        {/* Liens de contrôle alignés proprement à côté du bouton */}
-        <div className="flex gap-3 text-[11px] text-purple-400 font-medium px-2 border-l border-purple-900/40">
+        {/* Liens de contrôle */}
+        <div className="flex gap-2 text-[11px] text-purple-400 font-medium px-2 border-l border-purple-900/40 whitespace-nowrap">
           {logs && (
             <button onClick={() => setIsMinimized(!isMinimized)} className="hover:underline">
               {isMinimized ? "[ Agrandir ]" : "[ Minimiser ]"}
