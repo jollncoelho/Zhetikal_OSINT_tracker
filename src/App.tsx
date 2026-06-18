@@ -755,7 +755,7 @@ export default function App() {
 
       <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 
-      <HermesAnalyzer />
+      <HermesAnalyzer addEntity={addEntity} nodes={nodes} edges={edges} activeCase={activeCase} />
     </div>
   );
 }

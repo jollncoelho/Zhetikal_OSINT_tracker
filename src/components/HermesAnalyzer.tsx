@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { queryHermes, HermesMessage } from '../hermesService';
-import { useStore } from '../store/useStore';
-import type { EntityType } from '../types';
+import type { CaseData, EntityNode, EntityType } from '../types';
+import type { Edge } from '@xyflow/react';
+
+interface Props {
+  nodes: EntityNode[];
+  edges: Edge[];
+  activeCase: CaseData | null;
+  addEntity: (entityType: EntityType, label: string, position?: { x: number; y: number }) => string;
+}
 
 interface SuggestedEntity {
   label: string;
@@ -42,7 +49,6 @@ function parseEntities(text: string): SuggestedEntity[] {
   const results: SuggestedEntity[] = [];
   const seen = new Set<string>();
 
-  // Match lines like: [TYPE] valeur  or  TYPE: valeur  or  **TYPE** valeur
   const linePattern = /\*{0,2}([a-zA-Zéèêàù\s]+?)\*{0,2}\s*[:\-–]\s*(.+)/gi;
   let match;
   while ((match = linePattern.exec(text)) !== null) {
@@ -61,8 +67,7 @@ function parseEntities(text: string): SuggestedEntity[] {
   return results;
 }
 
-export const HermesAnalyzer: React.FC = () => {
-  const { nodes, edges, activeCase, addEntity } = useStore();
+export const HermesAnalyzer: React.FC<Props> = ({ nodes, edges, activeCase, addEntity }) => {
   const [report, setReport] = useState('');
   const [suggestedEntities, setSuggestedEntities] = useState<SuggestedEntity[]>([]);
   const [injected, setInjected] = useState<Set<string>>(new Set());
@@ -161,8 +166,10 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre 
   };
 
   const handleInject = (entity: SuggestedEntity) => {
+    const key = `${entity.entityType}:${entity.label}`;
+    if (injected.has(key)) return;
     addEntity(entity.entityType, entity.label);
-    setInjected((prev) => new Set(prev).add(`${entity.entityType}:${entity.label}`));
+    setInjected((prev) => new Set(prev).add(key));
   };
 
   const handleInjectAll = () => {
@@ -205,12 +212,10 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre 
     >
       {report && !isMinimized && (
         <div className="w-full bg-[#0d111c]/95 border border-purple-900/60 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden">
-          {/* Report text */}
           <div className="h-48 overflow-y-auto p-4 text-gray-300 text-xs custom-scrollbar">
             <div className="whitespace-pre-wrap font-mono">{report}</div>
           </div>
 
-          {/* Inject bar */}
           {suggestedEntities.length > 0 && (
             <div className="border-t border-purple-900/40 p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -233,7 +238,7 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre 
                   return (
                     <button
                       key={key}
-                      onClick={() => !done && handleInject(e)}
+                      onClick={() => handleInject(e)}
                       disabled={done}
                       title={done ? 'Déjà injecté' : `Ajouter au graphe : ${e.entityType}`}
                       className={`text-xs px-2 py-1 rounded border transition-colors max-w-[180px] truncate ${
