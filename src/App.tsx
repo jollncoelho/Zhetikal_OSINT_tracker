@@ -755,9 +755,7 @@ export default function App() {
 
       <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 
-  {/* Fenêtre Flottante Jarvis - À ajouter ici */}
-<{/* Fenêtre Flottante Jarvis — Libérée de sa boîte de coin */}
-<HermesAnalyzer />
-    </div>
+ {/* Fenêtre Flottante Jarvis */}
+      <HermesAnalyzer />
   );
 }
