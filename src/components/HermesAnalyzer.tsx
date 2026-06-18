@@ -33,7 +33,8 @@ export const HermesAnalyzer: React.FC = () => {
     const systemPrompt = `Tu es Hermes, expert OSINT offensif. Tu reçois un graphe d'entités (noms, pseudos, téléphones, IP, domaines, comptes) et de relations entre elles. Ton rôle n'est pas de décrire ce graphe — c'est de mener une analyse de renseignement réelle.
 
 RÈGLES ABSOLUES :
-- N'affiche JAMAIS d'identifiants techniques (chaînes aléatoires comme "7k8gbfi8w"). Utilise uniquement les labels humains : noms, pseudos, numéros, IPs.
+- Tu as interdiction formelle d'inventer ou d'afficher des codes alphanumériques d'identifiants de nœuds. Utilise uniquement le type de plateforme et le libellé visible.
+- N'affiche JAMAIS de chaînes techniques aléatoires dans ton rapport.
 - Ne décris pas le graphe. Analyse-le.
 - Ne dis jamais "le nœud X est connecté au nœud Y" — dis plutôt "Ziggy est lié à +33612345678".
 - Génère des pistes d'investigation réelles et applicables.
@@ -55,29 +56,32 @@ Actions prioritaires, classées par faisabilité. Outils recommandés. Sources �
 
 Sois direct, technique, et utile. Chaque piste doit être actionnable.`;
 
-    const graphSummary = {
-      caseName: activeCase?.name,
-      nodes: nodes.map((n) => ({
-        type: n.data?.entityType,
-        label: n.data?.label,
-        notes: n.data?.notes,
-      })),
-      edges: edges.map((e) => {
-        const sourceLabel = nodes.find((n) => n.id === e.source)?.data?.label ?? e.source;
-        const targetLabel = nodes.find((n) => n.id === e.target)?.data?.label ?? e.target;
-        return {
-          from: sourceLabel,
-          to: targetLabel,
-          relation: (e as any).label,
-        };
-      }),
-    };
+    const nodeIndex = new Map(nodes.map((n) => [n.id, n]));
+
+    const cleanNodes = nodes.map((n) => {
+      const label = n.data?.label?.trim() || '(sans nom)';
+      const type = n.data?.entityType || 'entité';
+      return `- ${type}: ${label}${n.data?.notes ? ` [note: ${n.data.notes}]` : ''}`;
+    }).join('\n');
+
+    const cleanEdges = edges.map((e) => {
+      const src = nodeIndex.get(e.source);
+      const tgt = nodeIndex.get(e.target);
+      const fromLabel = src?.data?.label?.trim() || src?.data?.entityType || '(inconnu)';
+      const toLabel = tgt?.data?.label?.trim() || tgt?.data?.entityType || '(inconnu)';
+      const rel = (e as any).label?.trim();
+      return rel
+        ? `- ${fromLabel} —[${rel}]→ ${toLabel}`
+        : `- ${fromLabel} → ${toLabel}`;
+    }).join('\n');
+
+    const graphText = `ENTITÉS (${nodes.length}) :\n${cleanNodes || '(aucune)'}\n\nRELATIONS (${edges.length}) :\n${cleanEdges || '(aucune)'}`;
 
     const context: HermesMessage[] = [
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\n\nGraphe (${nodes.length} entités, ${edges.length} relations) :\n${JSON.stringify(graphSummary, null, 2)}\n\nProduis le rapport OSINT en 3 sections. Génère des Dorks et pivots réels basés sur les données ci-dessus.`,
+        content: `Dossier OSINT — "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}" (type : ${targetType})\n\n${graphText}\n\nProduis le rapport OSINT en 3 sections. Génère des Dorks et pivots réels basés sur les données ci-dessus.`,
       },
     ];
 
