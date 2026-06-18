@@ -12,9 +12,9 @@ interface HermesGatewayResponse {
   }>;
 }
 
-// L'URL de la passerelle locale par défaut de Hermes Desktop
-// On remplace 127.0.0.1 par localhost
-const HERMES_GATEWAY_URL = 'http://localhost:23406/v1';
+// L'URL officielle confirmée par Hermes
+const HERMES_GATEWAY_URL = 'http://localhost:1001/v1';
+
 export const queryHermes = async (messages: HermesMessage[]): Promise<string> => {
   try {
     const response = await fetch(`${HERMES_GATEWAY_URL}/chat/completions`, {
@@ -29,12 +29,14 @@ export const queryHermes = async (messages: HermesMessage[]): Promise<string> =>
       }),
     });
 
-    if (!response.ok) throw new Error(`Erreur Gateway: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Erreur Gateway: ${response.status} (${response.statusText})`);
+    }
     
     const data: HermesGatewayResponse = await response.json();
     return data.choices[0].message.content.trim();
   } catch (error) {
     console.error(error);
-    throw new Error('Impossible de joindre la passerelle Hermes Desktop. Vérifie que l\'application est bien ouverte.');
+    throw new Error('Impossible de joindre la passerelle Hermes Desktop. Vérifie que la Local Gateway est bien active.');
   }
 };
