@@ -61,18 +61,32 @@ function parseEntities(text: string): SuggestedEntity[] {
   const results: SuggestedEntity[] = [];
   const seen = new Set<string>();
 
+  const add = (label: string, entityType: EntityType, rawType: string) => {
+    const key = `${entityType}:${label}`;
+    if (!seen.has(key)) { seen.add(key); results.push({ label, entityType, rawType }); }
+  };
+
+  // Structured lines: "Type: value"
   const linePattern = /\*{0,2}([a-zA-Zéèêàù\s]+?)\*{0,2}\s*[:\-–]\s*(.+)/gi;
   let match;
   while ((match = linePattern.exec(text)) !== null) {
     const rawType = match[1].trim().toLowerCase();
     const rawLabel = match[2].trim().replace(/[`"'*]/g, '').split(/[,\n]/)[0].trim();
     const entityType = ENTITY_TYPE_MAP[rawType];
-    if (entityType && rawLabel && rawLabel.length > 1 && rawLabel.length < 100) {
-      const key = `${entityType}:${rawLabel}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        results.push({ label: rawLabel, entityType, rawType });
-      }
+    if (entityType && rawLabel && rawLabel.length > 1 && rawLabel.length < 120) {
+      add(rawLabel, entityType, rawType);
+    }
+  }
+
+  // Inline IBAN detection — matches formats like FR76 3000 4000..., BE41, DE89, GB29, CH93…
+  // Format: 2 uppercase letters + 2 digits + up to 30 alphanumeric chars (spaces allowed between groups)
+  const ibanPattern = /\b([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,6}(?:[ ]?[A-Z0-9]{1,4})?)\b/g;
+  let ibanMatch;
+  while ((ibanMatch = ibanPattern.exec(text)) !== null) {
+    const raw = ibanMatch[1].replace(/\s/g, '');
+    // Minimum IBAN length is 15 chars (Norway), maximum 34
+    if (raw.length >= 15 && raw.length <= 34) {
+      add(ibanMatch[1].trim(), 'crypto', 'iban');
     }
   }
 
@@ -153,12 +167,12 @@ Domaine: [domaine lié]
 Organisation: [entreprise ou structure]
 Localisation: [ville, région ou coordonnées]
 URL: [lien direct exploitable]
-IBAN: [numéro IBAN si trouvé]
+IBAN: [numéro IBAN complet — ex: FR76 3000 4028 3798 7654 3210 943, BE41 9967 3978 1516, DE89 3704 0044 0532 0130 00]
 Compte bancaire: [RIB, BIC/SWIFT ou détails compte si trouvé]
 
 Termine par une phrase sur l'angle d'investigation à prioriser.
 
-IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre ligne avec la valeur directement après le deux-points. Ces lignes serviront à injecter les entités dans le graphe.`;
+IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur sa propre ligne avec la valeur directement après le deux-points. Dès qu'un IBAN est détecté (2 lettres pays + 2 chiffres de contrôle + jusqu'à 30 caractères alphanumériques), écris-le intégralement sur une ligne dédiée. Ces lignes serviront à injecter les entités dans le graphe.`;
 
     const context: HermesMessage[] = [
       { role: 'system', content: systemPrompt },
