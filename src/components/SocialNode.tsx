@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Handle, Position } from '@xyflow/react';
-import { Trash2, X, Check, NotebookPen, ChevronDown } from 'lucide-react';
+import { Trash2, X, Check, NotebookPen, ChevronDown, ExternalLink } from 'lucide-react';
 import type { EntityData, SocialPlatform } from '../types';
 import { SOCIAL_PLATFORMS } from '../types';
 
@@ -314,6 +314,29 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
             <NotebookPen size={11} />
           </button>
         )}
+
+        {/* Open profile link — if username or url field populated */}
+        {!renamingLabel && (() => {
+          const fields = data.fields as Record<string, string> | undefined;
+          const url = fields?.url || fields?.profileUrl;
+          if (!url) return null;
+          const href = url.startsWith('http') ? url : `https://${url}`;
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Ouvrir le profil"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+                transition-all duration-150 z-10"
+            >
+              <ExternalLink size={11} />
+            </a>
+          );
+        })()}
 
         {/* Rename confirm */}
         {renamingLabel && (

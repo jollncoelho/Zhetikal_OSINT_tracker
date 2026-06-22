@@ -7,7 +7,7 @@ import {
   type Edge,
   MarkerType,
 } from '@xyflow/react';
-import type { CaseData, EntityData, EntityType, EntityNode } from '../types';
+import type { CaseData, EntityData, EntityType, EntityNode, MapPin, PinLink } from '../types';
 import { ENTITY_COLORS, ENTITY_ICON_NAMES, ENTITY_LABELS, SOCIAL_PLATFORMS } from '../types';
 
 const STORAGE_KEY = 'zhetical-osint-cases';
@@ -49,12 +49,9 @@ export function useStore() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  // Tracks whether the current nodes/edges came from a switchCase load.
-  // While true, the write-back effect is suppressed to avoid overwriting loaded data.
   const switchingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep a ref to current nodes/edges for the beforeunload flush
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const activeCaseIdRef = useRef(activeCaseId);
@@ -67,22 +64,12 @@ export function useStore() {
     [cases, activeCaseId]
   );
 
-  useEffect(() => {
-    saveCases(cases);
-  }, [cases]);
+  useEffect(() => { saveCases(cases); }, [cases]);
+  useEffect(() => { saveActiveCaseId(activeCaseId); }, [activeCaseId]);
 
-  useEffect(() => {
-    saveActiveCaseId(activeCaseId);
-  }, [activeCaseId]);
-
-  // Write-back with debounce: persist nodes/edges after 400ms of inactivity.
-  // Suppressed for one tick after a switchCase to avoid race condition.
   useEffect(() => {
     if (!activeCaseId) return;
-    if (switchingRef.current) {
-      switchingRef.current = false;
-      return;
-    }
+    if (switchingRef.current) { switchingRef.current = false; return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setCases((prev) =>
@@ -94,12 +81,9 @@ export function useStore() {
       );
       setLastSaved(new Date());
     }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [nodes, edges, activeCaseId]);
 
-  // Force immediate save on page unload so no data is lost on tab/browser close
   useEffect(() => {
     const handleUnload = () => {
       const cid = activeCaseIdRef.current;
@@ -116,7 +100,6 @@ export function useStore() {
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
 
-  // On mount: load the active case's nodes/edges if there is one
   useEffect(() => {
     if (!activeCaseId) return;
     const stored = loadCases();
@@ -126,7 +109,6 @@ export function useStore() {
       setNodes(target.nodes);
       setEdges(target.edges);
     }
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,6 +156,8 @@ export function useStore() {
       updatedAt: new Date().toISOString(),
       nodes: [],
       edges: [],
+      locations: [],
+      pinLinks: [],
     };
     setCases((prev) => [...prev, newCase]);
     return newCase.id;
@@ -233,6 +217,8 @@ export function useStore() {
           notes: '',
           color: isSocial ? defaultPlatform.color : ENTITY_COLORS[entityType],
           icon: ENTITY_ICON_NAMES[entityType],
+          fields: {},
+          customIconId: null,
           ...(isSocial && { socialPlatform: defaultPlatform.id }),
         },
       };
@@ -353,6 +339,97 @@ export function useStore() {
     [cases, setNodes, setEdges]
   );
 
+  // ── Pin operations ─────────────────────────────────────────────────────────
+
+  const addPin = useCallback(
+    (pin: Omit<MapPin, 'id' | 'createdAt' | 'updatedAt'>): string => {
+      if (!activeCaseId) return '';
+      const newPin: MapPin = {
+        ...pin,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? { ...c, locations: [...(c.locations ?? []), newPin], updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+      return newPin.id;
+    },
+    [activeCaseId]
+  );
+
+  const updatePin = useCallback(
+    (pinId: string, data: Partial<Omit<MapPin, 'id' | 'createdAt'>>) => {
+      if (!activeCaseId) return;
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? {
+                ...c,
+                locations: (c.locations ?? []).map((p) =>
+                  p.id === pinId ? { ...p, ...data, updatedAt: new Date().toISOString() } : p
+                ),
+                updatedAt: new Date().toISOString(),
+              }
+            : c
+        )
+      );
+    },
+    [activeCaseId]
+  );
+
+  const deletePin = useCallback(
+    (pinId: string) => {
+      if (!activeCaseId) return;
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? {
+                ...c,
+                locations: (c.locations ?? []).filter((p) => p.id !== pinId),
+                pinLinks: (c.pinLinks ?? []).filter((l) => l.pinId !== pinId),
+                updatedAt: new Date().toISOString(),
+              }
+            : c
+        )
+      );
+    },
+    [activeCaseId]
+  );
+
+  const addPinLink = useCallback(
+    (link: Omit<PinLink, 'id'>) => {
+      if (!activeCaseId) return;
+      const newLink: PinLink = { ...link, id: generateId() };
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? { ...c, pinLinks: [...(c.pinLinks ?? []), newLink], updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+    },
+    [activeCaseId]
+  );
+
+  const removePinLink = useCallback(
+    (linkId: string) => {
+      if (!activeCaseId) return;
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === activeCaseId
+            ? { ...c, pinLinks: (c.pinLinks ?? []).filter((l) => l.id !== linkId), updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+    },
+    [activeCaseId]
+  );
+
   return {
     cases,
     activeCase,
@@ -378,5 +455,10 @@ export function useStore() {
     importCase,
     updateCaseNotes,
     updateCaseTitle,
+    addPin,
+    updatePin,
+    deletePin,
+    addPinLink,
+    removePinLink,
   };
 }

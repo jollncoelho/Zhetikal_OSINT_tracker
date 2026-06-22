@@ -32,11 +32,35 @@ export interface EntityData extends Record<string, unknown> {
   color: string;
   icon: string;
   socialPlatform?: SocialPlatform;
+  fields?: Record<string, unknown>;
+  customIconId?: string | null;
 }
 
 export interface EntityNode extends Node {
   type: 'entity' | 'social';
   data: EntityData;
+}
+
+export interface MapPin {
+  id: string;
+  label: string;
+  address: string;
+  lat: number;
+  lng: number;
+  visitedAt?: string;
+  withWho?: string;
+  notes: string;
+  color: string;
+  iconId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PinLink {
+  id: string;
+  pinId: string;
+  identifierId: string;
+  context: string;
 }
 
 export interface CaseData {
@@ -50,6 +74,8 @@ export interface CaseData {
   caseNotes?: string;
   caseTitle?: string;
   projectPath?: string;
+  locations?: MapPin[];
+  pinLinks?: PinLink[];
 }
 
 export const ENTITY_LABELS: Record<EntityType, string> = {
@@ -98,4 +124,87 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   crypto: 'Bitcoin',
   note: 'StickyNote',
   social: 'Share2',
+};
+
+export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; type: 'text' | 'number' }[]> = {
+  ip: [
+    { key: 'asn',     label: 'ASN',          type: 'text' },
+    { key: 'isp',     label: 'ISP',          type: 'text' },
+    { key: 'country', label: 'Country',      type: 'text' },
+    { key: 'city',    label: 'City',         type: 'text' },
+    { key: 'org',     label: 'Organization', type: 'text' },
+  ],
+  domain: [
+    { key: 'registrar',   label: 'Registrar',   type: 'text' },
+    { key: 'created',     label: 'Created',     type: 'text' },
+    { key: 'expires',     label: 'Expires',     type: 'text' },
+    { key: 'registrant',  label: 'Registrant',  type: 'text' },
+    { key: 'nameservers', label: 'Nameservers', type: 'text' },
+  ],
+  email: [
+    { key: 'breach',    label: 'Breach',     type: 'text' },
+    { key: 'provider',  label: 'Provider',   type: 'text' },
+    { key: 'firstName', label: 'First Name', type: 'text' },
+    { key: 'lastName',  label: 'Last Name',  type: 'text' },
+  ],
+  username: [
+    { key: 'platform',  label: 'Platform',    type: 'text' },
+    { key: 'realName',  label: 'Real Name',   type: 'text' },
+    { key: 'url',       label: 'Profile URL', type: 'text' },
+    { key: 'followers', label: 'Followers',   type: 'number' },
+  ],
+  phone: [
+    { key: 'carrier',  label: 'Carrier',  type: 'text' },
+    { key: 'country',  label: 'Country',  type: 'text' },
+    { key: 'location', label: 'Location', type: 'text' },
+    { key: 'type',     label: 'Type',     type: 'text' },
+  ],
+  location: [
+    { key: 'address', label: 'Address',   type: 'text' },
+    { key: 'lat',     label: 'Latitude',  type: 'text' },
+    { key: 'lng',     label: 'Longitude', type: 'text' },
+    { key: 'country', label: 'Country',   type: 'text' },
+    { key: 'city',    label: 'City',      type: 'text' },
+  ],
+  organization: [
+    { key: 'industry',  label: 'Industry',   type: 'text' },
+    { key: 'website',   label: 'Website',    type: 'text' },
+    { key: 'founded',   label: 'Founded',    type: 'text' },
+    { key: 'country',   label: 'Country',    type: 'text' },
+    { key: 'employees', label: 'Employees',  type: 'number' },
+  ],
+  person: [
+    { key: 'dob',         label: 'Date of Birth', type: 'text' },
+    { key: 'nationality', label: 'Nationality',   type: 'text' },
+    { key: 'occupation',  label: 'Occupation',    type: 'text' },
+    { key: 'address',     label: 'Address',       type: 'text' },
+    { key: 'aliases',     label: 'Aliases',       type: 'text' },
+  ],
+  file: [
+    { key: 'hash',     label: 'Hash (MD5/SHA)', type: 'text' },
+    { key: 'size',     label: 'Size',           type: 'text' },
+    { key: 'type',     label: 'File Type',      type: 'text' },
+    { key: 'created',  label: 'Created',        type: 'text' },
+    { key: 'modified', label: 'Modified',       type: 'text' },
+  ],
+  url: [
+    { key: 'status', label: 'HTTP Status', type: 'number' },
+    { key: 'server', label: 'Server',      type: 'text' },
+    { key: 'ip',     label: 'Resolved IP', type: 'text' },
+    { key: 'title',  label: 'Page Title',  type: 'text' },
+  ],
+  crypto: [
+    { key: 'blockchain', label: 'Blockchain',   type: 'text' },
+    { key: 'balance',    label: 'Balance',      type: 'text' },
+    { key: 'txCount',    label: 'Transactions', type: 'number' },
+    { key: 'firstSeen',  label: 'First Seen',   type: 'text' },
+  ],
+  note: [],
+  social: [
+    { key: 'followers', label: 'Followers', type: 'number' },
+    { key: 'following', label: 'Following', type: 'number' },
+    { key: 'joined',    label: 'Joined',    type: 'text' },
+    { key: 'realName',  label: 'Real Name', type: 'text' },
+    { key: 'bio',       label: 'Bio',       type: 'text' },
+  ],
 };

@@ -3,8 +3,10 @@ import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
   FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, NotebookPen,
+  ExternalLink, SlidersHorizontal,
 } from 'lucide-react';
 import type { EntityData } from '../types';
+import { loadIcons } from './IconPicker';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Globe, Mail, User, Phone, MapPin, Building2,
@@ -12,10 +14,18 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
-
-
-// Thickness of the invisible connection strip along each border (px)
+const LINK_TYPES = ['url', 'domain'];
 const HANDLE_THICKNESS = 14;
+
+function buildOpenUrl(entityType: string, label: string): string | null {
+  if (entityType === 'url') {
+    return label.startsWith('http') ? label : `https://${label}`;
+  }
+  if (entityType === 'domain') {
+    return `https://${label}`;
+  }
+  return null;
+}
 
 interface EntityNodeProps {
   id: string;
@@ -27,22 +37,16 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const [renamingLabel, setRenamingLabel] = useState(false);
   const [label, setLabel] = useState(data.label);
   const labelRef = useRef<HTMLInputElement>(null);
+  const icons = loadIcons();
+  const customIcon = data.customIconId ? icons.find((i) => i.id === data.customIconId) : null;
 
+  useEffect(() => { setLabel(data.label); }, [data.label]);
   useEffect(() => {
-    setLabel(data.label);
-  }, [data.label]);
-
-  useEffect(() => {
-    if (renamingLabel && labelRef.current) {
-      labelRef.current.focus();
-      labelRef.current.select();
-    }
+    if (renamingLabel && labelRef.current) { labelRef.current.focus(); labelRef.current.select(); }
   }, [renamingLabel]);
 
   const handleSaveLabel = () => {
-    window.dispatchEvent(
-      new CustomEvent('entity-update', { detail: { id, label, notes: data.notes } })
-    );
+    window.dispatchEvent(new CustomEvent('entity-update', { detail: { id, label, notes: data.notes } }));
     setRenamingLabel(false);
   };
 
@@ -55,104 +59,67 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
     window.dispatchEvent(new CustomEvent('entity-expand-note', { detail: { id } }));
   };
 
+  const handleOpenFields = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('entity-open-fields', { detail: { id } }));
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); handleSaveLabel(); }
     if (e.key === 'Escape') { setLabel(data.label); setRenamingLabel(false); }
   };
 
+  const handleLabelDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.entityType === 'location') {
+      const fields = data.fields as Record<string, string> | undefined;
+      const lat = fields?.lat;
+      const lng = fields?.lng;
+      const query = lat && lng ? `${lat},${lng}` : encodeURIComponent(data.label);
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
+    } else {
+      setRenamingLabel(true);
+    }
+  };
+
+  const openUrl = buildOpenUrl(data.entityType, data.label);
+
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const half = HANDLE_THICKNESS / 2;
 
-  /*
-   * Each Handle is a wide transparent strip sitting flush on its border.
-   * - background: transparent  → invisible
-   * - cursor: crosshair        → tells the user "you can start a connection here"
-   * - pointerEvents handled by React Flow automatically
-   * All four sides are both source AND target (connectionMode="loose" in ReactFlow),
-   * so a connection can start or land anywhere on the perimeter.
-   */
   const handleBase: React.CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 0,
-    cursor: 'crosshair',
+    background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair',
   };
 
   return (
     <div
-      className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${
-        selected ? 'shadow-lg' : ''
-      }`}
+      className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${selected ? 'shadow-lg' : ''}`}
       style={{
         borderColor: selected ? data.color : '#1e3a5f',
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* ── Left border strip ── */}
-      <Handle
-        id="left"
-        type="source"
-        position={Position.Left}
-        style={{
-          ...handleBase,
-          width: HANDLE_THICKNESS,
-          height: '100%',
-          top: 0,
-          left: -half,
-          transform: 'none',
-        }}
-      />
-
-      {/* ── Right border strip ── */}
-      <Handle
-        id="right"
-        type="source"
-        position={Position.Right}
-        style={{
-          ...handleBase,
-          width: HANDLE_THICKNESS,
-          height: '100%',
-          top: 0,
-          right: -half,
-          transform: 'none',
-        }}
-      />
-
-      {/* ── Top border strip ── */}
-      <Handle
-        id="top"
-        type="source"
-        position={Position.Top}
-        style={{
-          ...handleBase,
-          width: '100%',
-          height: HANDLE_THICKNESS,
-          left: 0,
-          top: -half,
-          transform: 'none',
-        }}
-      />
-
-      {/* ── Bottom border strip ── */}
-      <Handle
-        id="bottom"
-        type="source"
-        position={Position.Bottom}
-        style={{
-          ...handleBase,
-          width: '100%',
-          height: HANDLE_THICKNESS,
-          left: 0,
-          bottom: -half,
-          transform: 'none',
-        }}
-      />
+      {/* Handles */}
+      <Handle id="left" type="source" position={Position.Left}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
+      <Handle id="right" type="source" position={Position.Right}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
+      <Handle id="top" type="source" position={Position.Top}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
+      <Handle id="bottom" type="source" position={Position.Bottom}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: `${data.color}22` }}>
-          <IconComponent size={14} style={{ color: data.color }} />
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={{ background: customIcon ? 'transparent' : `${data.color}22` }}
+        >
+          {customIcon ? (
+            <img src={customIcon.dataUrl} alt="" className="w-full h-full object-contain" />
+          ) : (
+            <IconComponent size={14} style={{ color: data.color }} />
+          )}
         </div>
 
         {renamingLabel ? (
@@ -170,47 +137,84 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <span
             className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`}
             style={{ color: data.color }}
-            onDoubleClick={(e) => { e.stopPropagation(); setRenamingLabel(true); }}
-            title="Double-clic pour renommer"
+            onDoubleClick={handleLabelDoubleClick}
+            title={data.entityType === 'location' ? 'Double-clic pour ouvrir Google Maps' : 'Double-clic pour renommer'}
           >
             {data.label}
           </span>
         )}
       </div>
 
+      {/* Location hint */}
+      {data.entityType === 'location' && !renamingLabel && (
+        <div className="px-3 pb-1">
+          <span className="text-[9px] font-mono text-cyber-text-dim/50 italic">↗ double-clic → Google Maps</span>
+        </div>
+      )}
+
       {/* Notes preview */}
-      <div className="px-3 pb-3 pr-10">
+      <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
           {data.notes || <span className="opacity-40">Aucune note...</span>}
         </p>
       </div>
 
-      {/* Open notes button — bottom-left */}
+      {/* Action buttons when not renaming */}
       {!renamingLabel && (
-        <button
-          onClick={handleExpandNote}
-          title="Ouvrir le bloc-notes"
-          className="absolute bottom-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
-            bg-cyber-dark/70 border border-cyber-border
-            text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
-            transition-all duration-150 z-10"
-        >
-          <NotebookPen size={11} />
-        </button>
-      )}
+        <>
+          {/* Delete — top right */}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+            title="Supprimer"
+            className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
+              bg-cyber-dark/70 border border-cyber-border
+              text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40
+              transition-all duration-150 z-10"
+          >
+            <Trash2 size={11} />
+          </button>
 
-      {/* Delete button — always visible, top-right corner */}
-      {!renamingLabel && (
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-          title="Supprimer"
-          className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
-            bg-cyber-dark/70 border border-cyber-border
-            text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40
-            transition-all duration-150 z-10"
-        >
-          <Trash2 size={11} />
-        </button>
+          {/* Open notes — bottom right */}
+          <button
+            onClick={handleExpandNote}
+            title="Ouvrir le bloc-notes"
+            className="absolute bottom-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
+              bg-cyber-dark/70 border border-cyber-border
+              text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+              transition-all duration-150 z-10"
+          >
+            <NotebookPen size={11} />
+          </button>
+
+          {/* Fields button — bottom right - 1 */}
+          <button
+            onClick={handleOpenFields}
+            title="Champs personnalisés"
+            className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center
+              bg-cyber-dark/70 border border-cyber-border
+              text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+              transition-all duration-150 z-10"
+          >
+            <SlidersHorizontal size={11} />
+          </button>
+
+          {/* Open link — only for URL/Domain types */}
+          {LINK_TYPES.includes(data.entityType) && openUrl && (
+            <a
+              href={openUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Ouvrir ${data.entityType === 'domain' ? 'le domaine' : 'le lien'}`}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+                transition-all duration-150 z-10"
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
+        </>
       )}
 
       {/* Rename confirm/cancel row */}

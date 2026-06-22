@@ -177,3 +177,45 @@ button, input, textarea, select {
 .entity-btn:hover {
   filter: brightness(1.15);
 }
+
+/* Shared form input style for modals / map popups */
+.input-cyber {
+  width: 100%;
+  background: rgba(10, 14, 23, 0.6);
+  border: 1px solid var(--cyber-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--cyber-text);
+  outline: none;
+  font-family: 'JetBrains Mono', monospace;
+  transition: border-color 0.15s;
+}
+.input-cyber:focus {
+  border-color: var(--cyber-cyan-dim);
+}
+.input-cyber::placeholder {
+  color: var(--cyber-text-dim);
+  opacity: 0.5;
+}
+
+/* Custom scrollbar shorthand class */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--cyber-border); border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--cyber-cyan-dim); }
+
+/* Leaflet popup — override default styles to match theme */
+.leaflet-popup-content-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+}
+.leaflet-popup-tip-container { display: none !important; }
+.leaflet-popup-close-button { display: none !important; }
