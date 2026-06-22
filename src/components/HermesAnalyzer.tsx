@@ -259,7 +259,7 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur s
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-col gap-1">
                 {suggestedEntities.map((e) => {
                   const key = `${e.entityType}:${e.label}`;
                   const done = injected.has(key);
@@ -269,19 +269,27 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur s
                       key={key}
                       onClick={() => handleInject(e)}
                       disabled={done}
-                      title={`${e.rawType}: ${e.label}`}
-                      className={`text-xs px-2 py-1 rounded border transition-colors text-left break-all whitespace-normal ${
+                      className={`flex items-center justify-between p-2 rounded border text-left transition-colors select-text ${
                         done
-                          ? 'border-green-700/50 bg-green-900/20 text-green-400 cursor-default'
+                          ? 'bg-green-900/20 border-green-700/50 cursor-default'
                           : isFinancial
-                          ? 'border-emerald-600/60 bg-emerald-900/25 text-emerald-300 hover:bg-emerald-700/35 cursor-pointer'
-                          : 'border-purple-700/50 bg-purple-900/20 text-purple-300 hover:bg-purple-700/40 cursor-pointer'
+                          ? 'bg-emerald-900/25 border-emerald-600/60 hover:bg-emerald-800/35 cursor-pointer'
+                          : 'bg-slate-800 border-slate-700 hover:bg-slate-700/60 cursor-pointer'
                       }`}
+                      title={`${e.rawType.toUpperCase()}: ${e.label}`}
                       style={{ userSelect: 'text' }}
                     >
-                      {done ? '✓ ' : '+ '}
-                      <span className="opacity-60 mr-1">[{e.rawType}]</span>
-                      <span style={{ userSelect: 'text' }}>{e.label}</span>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{
+                          color: done ? '#4ade80' : isFinancial ? '#6ee7b7' : '#60a5fa',
+                        }}>
+                          {done ? '✓ ' : '+ '}
+                          {e.rawType === 'iban' ? '🏦 IBAN' : e.rawType}
+                        </span>
+                        <span className="text-sm text-slate-200 break-all whitespace-pre-wrap" style={{ userSelect: 'text' }}>
+                          {e.label}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
