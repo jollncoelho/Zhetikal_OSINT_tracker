@@ -45,13 +45,13 @@ const ENTITY_TYPE_MAP: Record<string, EntityType> = {
   fichier: 'file',
   file: 'file',
   // Financial identifiers
-  iban: 'crypto',
-  'compte bancaire': 'crypto',
-  'bank account': 'crypto',
-  virement: 'crypto',
-  rib: 'crypto',
-  bic: 'crypto',
-  swift: 'crypto',
+  iban: 'iban',
+  'compte bancaire': 'iban',
+  'bank account': 'iban',
+  virement: 'iban',
+  rib: 'iban',
+  bic: 'iban',
+  swift: 'iban',
 };
 
 // Raw types that belong to the "financial" display group (green highlight)
@@ -86,7 +86,7 @@ function parseEntities(text: string): SuggestedEntity[] {
     const raw = ibanMatch[1].replace(/\s/g, '');
     // Minimum IBAN length is 15 chars (Norway), maximum 34
     if (raw.length >= 15 && raw.length <= 34) {
-      add(ibanMatch[1].trim(), 'crypto', 'iban');
+      add(ibanMatch[1].trim(), 'iban', 'iban');
     }
   }
 

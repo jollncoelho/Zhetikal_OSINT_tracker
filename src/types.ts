@@ -12,6 +12,7 @@ export type EntityType =
   | 'file'
   | 'url'
   | 'crypto'
+  | 'iban'
   | 'note'
   | 'social';
 
@@ -90,6 +91,7 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   file: 'File',
   url: 'URL',
   crypto: 'Crypto',
+  iban: 'IBAN',
   note: 'Note',
   social: 'Social Media',
 };
@@ -106,6 +108,7 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   file: '#94a3b8',
   url: '#0ea5e9',
   crypto: '#f59e0b',
+  iban: '#34d399',
   note: '#94a3b8',
   social: '#1877f2',
 };
@@ -122,6 +125,7 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   file: 'FileText',
   url: 'Link',
   crypto: 'Bitcoin',
+  iban: 'Building2',
   note: 'StickyNote',
   social: 'Share2',
 };
@@ -198,6 +202,13 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'balance',    label: 'Balance',      type: 'text' },
     { key: 'txCount',    label: 'Transactions', type: 'number' },
     { key: 'firstSeen',  label: 'First Seen',   type: 'text' },
+  ],
+  iban: [
+    { key: 'bank',    label: 'Bank Name',    type: 'text' },
+    { key: 'bic',     label: 'BIC / SWIFT',  type: 'text' },
+    { key: 'country', label: 'Country',      type: 'text' },
+    { key: 'holder',  label: 'Account Holder', type: 'text' },
+    { key: 'balance', label: 'Balance',      type: 'text' },
   ],
   note: [],
   social: [
