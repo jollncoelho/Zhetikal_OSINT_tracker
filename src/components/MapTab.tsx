@@ -117,6 +117,7 @@ export default function MapTab({
   const isVisible = view === 'map';
 
   const [pendingPin, setPendingPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedPin, setSelectedPin] = useState<MapPin | null>(null);
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
   const [linkPickerPinId, setLinkPickerPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,21 +143,19 @@ export default function MapTab({
 
     console.log('focusPinId changed', pin.id, pin.lat, pin.lng);
 
-    // Clear focusPinId immediately so this effect doesn't re-fire when pins changes
     setFocusPinId(null);
 
     const map = mapRef.current;
     if (!map) return;
 
-    // Cancel any pending popup-open timer from a previous navigation
     if (flyTimerRef.current) {
       clearTimeout(flyTimerRef.current);
       flyTimerRef.current = null;
     }
 
+    setSelectedPin(pin);
     map.flyTo([pin.lat, pin.lng], 14, { animate: true, duration: 1.2 });
 
-    // Capture pin.id in a local const so the closure is stable
     const targetPinId = pin.id;
     flyTimerRef.current = setTimeout(() => {
       flyTimerRef.current = null;
@@ -164,17 +163,36 @@ export default function MapTab({
     }, 1400);
   }, [focusPinId, pins, setFocusPinId]);
 
+  // Keep selectedPin in sync when the underlying pin data changes (e.g. after edit)
+  useEffect(() => {
+    if (!selectedPin) return;
+    const fresh = pins.find((p) => p.id === selectedPin.id);
+    if (fresh && (fresh.label !== selectedPin.label || fresh.address !== selectedPin.address)) {
+      setSelectedPin(fresh);
+    }
+  }, [pins, selectedPin]);
+
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
-    // Ensure correct size on first render
     setTimeout(() => map.invalidateSize({ animate: false }), 80);
   }, []);
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (editingPinId) return;
+    setSelectedPin(null);
     setPendingPin({ lat, lng });
     setForm({ label: '', address: '', notes: '', visitedAt: '', withWho: '', color: '#10b981' });
   }, [editingPinId]);
+
+  const handleMarkerClick = useCallback((pin: MapPin) => {
+    console.log('PIN CLICKED', pin.id, pin.lat, pin.lng, pin.label, pin.address);
+    if (flyTimerRef.current) {
+      clearTimeout(flyTimerRef.current);
+      flyTimerRef.current = null;
+    }
+    setSelectedPin(pin);
+    mapRef.current?.flyTo([pin.lat, pin.lng], 16, { animate: true, duration: 1.5 });
+  }, []);
 
   const handleAddPin = () => {
     if (!pendingPin || !form.label.trim()) return;
@@ -214,6 +232,7 @@ export default function MapTab({
 
   const startEditing = (pin: MapPin) => {
     setEditingPinId(pin.id);
+    setSelectedPin(pin);
     setForm({
       label: pin.label, address: pin.address, notes: pin.notes,
       visitedAt: pin.visitedAt ?? '', withWho: pin.withWho ?? '', color: pin.color,
@@ -273,8 +292,11 @@ export default function MapTab({
         <MapClickHandler onMapClick={handleMapClick} />
 
         {pins.map((pin) => {
+          console.log('RENDER PIN', pin.id, pin.lat, pin.lng);
           const linked = linkedNodeIds(pin.id);
           const isPulsing = linked.some((id) => id === hoveredIdentifierId);
+          // Use selectedPin when it matches so popup always reads from React state, not closure
+          const displayPin = selectedPin?.id === pin.id ? selectedPin : pin;
           return (
             <Marker
               key={pin.id}
@@ -285,25 +307,14 @@ export default function MapTab({
                 else markerRefs.current.delete(pin.id);
               }}
               eventHandlers={{
-                click: () => {
-                  // Cancel any pending auto-open timer so it doesn't steal focus back
-                  if (flyTimerRef.current) {
-                    clearTimeout(flyTimerRef.current);
-                    flyTimerRef.current = null;
-                  }
-                  console.log('marker clicked', pin.id, pin.lat, pin.lng);
-                  mapRef.current?.flyTo([pin.lat, pin.lng], mapRef.current.getZoom(), {
-                    animate: true,
-                    duration: 0.5,
-                  });
-                },
+                click: () => handleMarkerClick(pin),
               }}
             >
               <Popup
                 eventHandlers={{
                   remove: () => {
-                    // Clear edit state when popup closes so it doesn't leak to the next popup
                     setEditingPinId((prev) => (prev === pin.id ? null : prev));
+                    setSelectedPin((prev) => (prev?.id === pin.id ? null : prev));
                   },
                 }}
               >
@@ -312,7 +323,7 @@ export default function MapTab({
                     <PinForm form={form} setForm={setForm} onSave={saveEdit} onCancel={() => setEditingPinId(null)} />
                   ) : (
                     <PinInfo
-                      pin={pin}
+                      pin={displayPin}
                       linkedIds={linked}
                       nodes={nodes}
                       pinLinks={pinLinks}
