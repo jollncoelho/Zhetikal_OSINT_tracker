@@ -239,14 +239,14 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur s
       className="flex flex-col items-center gap-2 px-4"
     >
       {report && !isMinimized && (
-        <div className="w-full bg-[#0d111c]/95 border border-purple-900/60 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden">
+        <div className="w-full bg-[#0d111c]/95 border border-purple-900/60 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden flex flex-col max-h-[80vh]">
           <div className="h-48 overflow-y-auto p-4 text-gray-300 text-xs custom-scrollbar">
             <div className="whitespace-pre-wrap font-mono">{report}</div>
           </div>
 
           {suggestedEntities.length > 0 && (
-            <div className="border-t border-purple-900/40 p-3 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+            <div className="border-t border-purple-900/40 p-3 flex flex-col gap-2 min-h-0">
+              <div className="flex items-center justify-between flex-shrink-0">
                 <span className="text-purple-400 text-xs font-semibold tracking-wide uppercase">
                   {suggestedEntities.length} entité{suggestedEntities.length > 1 ? 's' : ''} détectée{suggestedEntities.length > 1 ? 's' : ''}
                 </span>
@@ -259,7 +259,7 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur s
                   </button>
                 )}
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 overflow-y-auto max-h-[40vh] custom-scrollbar">
                 {suggestedEntities.map((e) => {
                   const key = `${e.entityType}:${e.label}`;
                   const done = injected.has(key);
