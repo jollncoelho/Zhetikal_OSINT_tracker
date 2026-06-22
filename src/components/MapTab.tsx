@@ -163,15 +163,6 @@ export default function MapTab({
     }, 1400);
   }, [focusPinId, pins, setFocusPinId]);
 
-  // Keep selectedPin in sync when the underlying pin data changes (e.g. after edit)
-  useEffect(() => {
-    if (!selectedPin) return;
-    const fresh = pins.find((p) => p.id === selectedPin.id);
-    if (fresh && (fresh.label !== selectedPin.label || fresh.address !== selectedPin.address)) {
-      setSelectedPin(fresh);
-    }
-  }, [pins, selectedPin]);
-
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
     setTimeout(() => map.invalidateSize({ animate: false }), 80);
@@ -179,18 +170,17 @@ export default function MapTab({
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (editingPinId) return;
-    setSelectedPin(null);
     setPendingPin({ lat, lng });
     setForm({ label: '', address: '', notes: '', visitedAt: '', withWho: '', color: '#10b981' });
   }, [editingPinId]);
 
+  // handleMarkerClick receives the full pin object from its own closure — no shared state
   const handleMarkerClick = useCallback((pin: MapPin) => {
     console.log('PIN CLICKED', pin.id, pin.lat, pin.lng, pin.label, pin.address);
     if (flyTimerRef.current) {
       clearTimeout(flyTimerRef.current);
       flyTimerRef.current = null;
     }
-    setSelectedPin(pin);
     mapRef.current?.flyTo([pin.lat, pin.lng], 16, { animate: true, duration: 1.5 });
   }, []);
 
@@ -232,7 +222,6 @@ export default function MapTab({
 
   const startEditing = (pin: MapPin) => {
     setEditingPinId(pin.id);
-    setSelectedPin(pin);
     setForm({
       label: pin.label, address: pin.address, notes: pin.notes,
       visitedAt: pin.visitedAt ?? '', withWho: pin.withWho ?? '', color: pin.color,
@@ -292,11 +281,9 @@ export default function MapTab({
         <MapClickHandler onMapClick={handleMapClick} />
 
         {pins.map((pin) => {
-          console.log('RENDER PIN', pin.id, pin.lat, pin.lng);
+          console.log('MARKER RENDER', pin.id, pin.lat, pin.lng, pin.label);
           const linked = linkedNodeIds(pin.id);
           const isPulsing = linked.some((id) => id === hoveredIdentifierId);
-          // Use selectedPin when it matches so popup always reads from React state, not closure
-          const displayPin = selectedPin?.id === pin.id ? selectedPin : pin;
           return (
             <Marker
               key={pin.id}
@@ -307,15 +294,16 @@ export default function MapTab({
                 else markerRefs.current.delete(pin.id);
               }}
               eventHandlers={{
-                click: () => handleMarkerClick(pin),
+                click: (e) => {
+                  e.originalEvent.preventDefault();
+                  handleMarkerClick(pin);
+                },
               }}
             >
+              {/* pin is read directly from THIS iteration's closure — never shared with other markers */}
               <Popup
                 eventHandlers={{
-                  remove: () => {
-                    setEditingPinId((prev) => (prev === pin.id ? null : prev));
-                    setSelectedPin((prev) => (prev?.id === pin.id ? null : prev));
-                  },
+                  remove: () => setEditingPinId((prev) => (prev === pin.id ? null : prev)),
                 }}
               >
                 <div className="bg-[#0d111c] border border-cyber-border rounded-lg p-3 min-w-[220px] text-xs text-cyber-text">
@@ -323,7 +311,7 @@ export default function MapTab({
                     <PinForm form={form} setForm={setForm} onSave={saveEdit} onCancel={() => setEditingPinId(null)} />
                   ) : (
                     <PinInfo
-                      pin={displayPin}
+                      pin={pin}
                       linkedIds={linked}
                       nodes={nodes}
                       pinLinks={pinLinks}
