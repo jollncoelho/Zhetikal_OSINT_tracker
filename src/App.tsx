@@ -351,14 +351,16 @@ function AppInner() {
         ) : (
           <div className="flex-1 flex min-h-0">
             <MapTab
-  pins={activeCase?.locations || []}
-  onUpdatePins={(pins) => {
-    if (!activeCaseId) return;
-    setCases(prev => prev.map(c =>
-      c.id === activeCaseId ? { ...c, locations: pins } : c
-    ));
-  }}
-/>
+              pins={activeCase?.locations || []}
+              onUpdatePins={(pins) => {
+                if (!activeCaseId) return;
+                setCases(prev => prev.map(c =>
+                  c.id === activeCaseId ? { ...c, locations: pins } : c
+                ));
+              }}
+            />
+          </div>
+        )}
 
         {/* Status bar */}
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
@@ -384,12 +386,14 @@ function AppInner() {
             </span>
           </div>
         </div>
+
+        {/* Toolkit + Analyzer */}
+        <div className="flex flex-col">
+          <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+        </div>
       </div>
-<div className="flex flex-col">
-      <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-       <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
-</div>
-      </>
+
       {/* IdentifierModal — fields editor */}
       {fieldsNode && (
         <IdentifierModal
