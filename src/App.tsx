@@ -48,7 +48,7 @@ function AppInner() {
     removePinLink,
   } = useStore();
 
-  const { view, setView, setFocusPinId } = useNavigation();
+  const { view, setView } = useNavigation();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
@@ -103,7 +103,7 @@ function AppInner() {
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
 
-  // Navigate a location node to its map pin (or auto-create one)
+  // Navigate a location node to its map pin (or auto-create one), then tell MapTab via window event
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
@@ -113,29 +113,42 @@ function AppInner() {
       setView('map');
 
       if (link) {
-        setFocusPinId(link.pinId);
+        const pin = activeCase?.locations?.find((p) => p.id === link.pinId);
+        const lat = pin?.lat ?? 48.8566;
+        const lng = pin?.lng ?? 2.3522;
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
+            detail: { pinId: link.pinId, lat, lng },
+          }));
+        }, 60);
       } else {
         const node = nodes.find((n) => n.id === nodeId);
         if (!node) return;
         const fields = (node.data.fields ?? {}) as Record<string, string>;
         const lat = parseFloat(fields.lat ?? '');
         const lng = parseFloat(fields.lng ?? '');
+        const resolvedLat = isNaN(lat) ? 48.8566 : lat;
+        const resolvedLng = isNaN(lng) ? 2.3522 : lng;
         const pinId = addPin({
           label: node.data.label,
           address: (fields.address ?? '').trim(),
           notes: node.data.notes ?? '',
-          lat: isNaN(lat) ? 48.8566 : lat,
-          lng: isNaN(lng) ? 2.3522 : lng,
+          lat: resolvedLat,
+          lng: resolvedLng,
           color: node.data.color ?? '#10b981',
           iconId: null,
         });
         addPinLink({ pinId, identifierId: nodeId, context: '' });
-        setFocusPinId(pinId);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
+            detail: { pinId, lat: resolvedLat, lng: resolvedLng },
+          }));
+        }, 60);
       }
     };
     window.addEventListener('entity-go-to-map', handleGoToMap);
     return () => window.removeEventListener('entity-go-to-map', handleGoToMap);
-  }, [activeCase, nodes, addPin, addPinLink, setView, setFocusPinId]);
+  }, [activeCase, nodes, addPin, addPinLink, setView]);
 
   useEffect(() => {
     if (cases.length === 0) createCase('Default Case', '');

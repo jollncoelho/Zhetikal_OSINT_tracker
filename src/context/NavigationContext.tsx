@@ -9,8 +9,6 @@ interface NavigationContextValue {
   setHoveredIdentifierId: (id: string | null) => void;
   focusNodeId: string | null;
   setFocusNodeId: (id: string | null) => void;
-  focusPinId: string | null;
-  setFocusPinId: (id: string | null) => void;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
@@ -19,7 +17,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [view, setView] = useState<View>('graph');
   const [hoveredIdentifierId, setHoveredIdentifierId] = useState<string | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
-  const [focusPinId, setFocusPinId] = useState<string | null>(null);
 
   return (
     <NavigationContext.Provider
@@ -27,7 +24,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         view, setView,
         hoveredIdentifierId, setHoveredIdentifierId,
         focusNodeId, setFocusNodeId,
-        focusPinId, setFocusPinId,
       }}
     >
       {children}
