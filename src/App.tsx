@@ -385,10 +385,11 @@ function AppInner() {
           </div>
         </div>
       </div>
-<>
+<div className="flex flex-col">
       <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+       <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+</div>
 
-      <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
       </>
       {/* IdentifierModal — fields editor */}
       {fieldsNode && (
