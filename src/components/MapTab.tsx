@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { Search, Trash2, Link2, X, MapPin as MapPinIcon } from 'lucide-react';
 import type { CaseData, MapPin, EntityNode } from '../types';
 import { useNavigation } from '../context/NavigationContext';

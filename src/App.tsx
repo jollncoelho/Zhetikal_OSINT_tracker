@@ -308,44 +308,46 @@ function AppInner() {
           </div>
         )}
 
-        {/* Tab views — both mounted, toggled via display */}
-        <div style={{ display: view === 'graph' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <ReactFlowProvider>
-            <InfoTab
-              nodes={nodes}
-              edges={edges}
-              selectedEdgeId={selectedEdgeId}
-              selectedNodeId={selectedNodeId}
-              notePanelOpen={notePanelOpen}
+        {/* Tab views — conditional rendering */}
+        {view === 'graph' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ReactFlowProvider>
+              <InfoTab
+                nodes={nodes}
+                edges={edges}
+                selectedEdgeId={selectedEdgeId}
+                selectedNodeId={selectedNodeId}
+                notePanelOpen={notePanelOpen}
+                activeCase={activeCase}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick as any}
+                onPaneClick={handlePaneClick}
+                onSetNotePanelOpen={setNotePanelOpen}
+                onSetSelectedNodeId={setSelectedNodeId}
+                updateNodeData={updateNodeData}
+                updateCaseNotes={updateCaseNotes}
+                updateCaseTitle={updateCaseTitle}
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
+              />
+            </ReactFlowProvider>
+          </div>
+        ) : (
+          <div className="flex-1 flex min-h-0">
+            <MapTab
               activeCase={activeCase}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onEdgeClick={handleEdgeClick}
-              onNodeClick={handleNodeClick as any}
-              onPaneClick={handlePaneClick}
-              onSetNotePanelOpen={setNotePanelOpen}
-              onSetSelectedNodeId={setSelectedNodeId}
-              updateNodeData={updateNodeData}
-              updateCaseNotes={updateCaseNotes}
-              updateCaseTitle={updateCaseTitle}
-              onRegisterExportPng={handleRegisterExportPng}
-              onRegisterExportPdf={handleRegisterExportPdf}
+              nodes={nodes as EntityNodeType[]}
+              addPin={addPin}
+              updatePin={updatePin}
+              deletePin={deletePin}
+              addPinLink={addPinLink}
+              removePinLink={removePinLink}
             />
-          </ReactFlowProvider>
-        </div>
-
-        <div style={{ display: view === 'map' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
-          <MapTab
-            activeCase={activeCase}
-            nodes={nodes as EntityNodeType[]}
-            addPin={addPin}
-            updatePin={updatePin}
-            deletePin={deletePin}
-            addPinLink={addPinLink}
-            removePinLink={removePinLink}
-          />
-        </div>
+          </div>
+        )}
 
         {/* Status bar */}
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
