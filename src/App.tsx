@@ -389,7 +389,6 @@ function AppInner() {
       <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
        <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
 </div>
-
       </>
       {/* IdentifierModal — fields editor */}
       {fieldsNode && (
