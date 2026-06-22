@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
@@ -85,7 +85,7 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
   const [linkPickerPinId, setLinkPickerPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const mapRef = useRef<L.Map | null>(null);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
   const pins: MapPin[] = activeCase?.locations ?? [];
   const pinLinks = activeCase?.pinLinks ?? [];
@@ -130,7 +130,7 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
       if (data.length > 0) {
         const { lat, lon, display_name } = data[0];
         const latlng: [number, number] = [parseFloat(lat), parseFloat(lon)];
-        mapRef.current?.flyTo(latlng, 14, { animate: true, duration: 1.2 });
+        mapInstance?.flyTo(latlng, 14, { animate: true, duration: 1.2 });
         setPendingPin({ lat: latlng[0], lng: latlng[1] });
         setForm((f) => ({ ...f, address: display_name }));
       }
@@ -195,9 +195,9 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
       <MapContainer
         center={[48.8566, 2.3522]}
         zoom={5}
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: 1, minHeight: 0, height: '100%', width: '100%' }}
         className="z-0"
-        ref={mapRef}
+        whenCreated={(map) => setMapInstance(map)}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
