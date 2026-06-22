@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
-import L from 'leaflet';
+import './MapTab.css';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import L from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { Search, Trash2, Link2, X, MapPin as MapPinIcon } from 'lucide-react';
 import type { CaseData, MapPin, EntityNode } from '../types';
 import { useNavigation } from '../context/NavigationContext';
@@ -10,53 +12,76 @@ import LinkPicker from './LinkPicker';
 // Fix Leaflet default icon paths broken by Vite bundling
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
+// ── Inject pulse animation once ────────────────────────────────────────────────
+function injectPulseStyle() {
+  if (document.getElementById('pin-pulse-style')) return;
+  const s = document.createElement('style');
+  s.id = 'pin-pulse-style';
+  s.textContent = `
+    @keyframes pinPulse {
+      0%,100% { box-shadow:0 0 0 0 rgba(255,255,255,0.5),0 2px 8px rgba(0,0,0,0.5); }
+      50%      { box-shadow:0 0 0 10px rgba(255,255,255,0),0 2px 8px rgba(0,0,0,0.5); }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
 function createPinIcon(color: string, pulse = false) {
   return L.divIcon({
     className: '',
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     popupAnchor: [0, -16],
-    html: `
-      <div style="
-        width:28px;height:28px;
-        background:${color};
-        border:3px solid rgba(255,255,255,0.9);
-        border-radius:50% 50% 50% 0;
-        transform:rotate(-45deg);
-        box-shadow:0 2px 8px rgba(0,0,0,0.5);
-        ${pulse ? 'animation:pinPulse 1.2s ease-in-out infinite;' : ''}
-      "></div>
-    `,
+    html: `<div style="
+      width:28px;height:28px;
+      background:${color};
+      border:3px solid rgba(255,255,255,0.9);
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      box-shadow:0 2px 8px rgba(0,0,0,0.5);
+      ${pulse ? 'animation:pinPulse 1.2s ease-in-out infinite;' : ''}
+    "></div>`,
   });
 }
 
-// Injects pulse keyframes once
-function injectPulseStyle() {
-  if (document.getElementById('pin-pulse-style')) return;
-  const style = document.createElement('style');
-  style.id = 'pin-pulse-style';
-  style.textContent = `
-    @keyframes pinPulse {
-      0%,100% { box-shadow:0 0 0 0 rgba(255,255,255,0.5),0 2px 8px rgba(0,0,0,0.5); }
-      50% { box-shadow:0 0 0 10px rgba(255,255,255,0),0 2px 8px rgba(0,0,0,0.5); }
+// ── Child component: captures map instance + invalidates size on tab show ──────
+function MapController({
+  isVisible,
+  onMapReady,
+}: {
+  isVisible: boolean;
+  onMapReady: (map: L.Map) => void;
+}) {
+  const map = useMap();
+  const readyRef = useRef(false);
+
+  // Expose map instance to parent on first mount
+  useEffect(() => {
+    if (!readyRef.current) {
+      readyRef.current = true;
+      onMapReady(map);
     }
-  `;
-  document.head.appendChild(style);
-}
+  }, [map, onMapReady]);
 
-interface MapClickHandlerProps {
-  onMapClick: (lat: number, lng: number) => void;
-}
+  // Re-invalidate whenever the tab becomes visible
+  useEffect(() => {
+    if (!isVisible) return;
+    const timer = setTimeout(() => {
+      map.invalidateSize({ animate: false });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [isVisible, map]);
 
-function MapClickHandler({ onMapClick }: MapClickHandlerProps) {
-  useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng);
-    },
-  });
   return null;
 }
 
+// ── Map click forwarding ────────────────────────────────────────────────────────
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click(e) { onMapClick(e.latlng.lat, e.latlng.lng); } });
+  return null;
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────────
 interface PinFormData {
   label: string;
   address: string;
@@ -78,23 +103,40 @@ interface Props {
   removePinLink: (linkId: string) => void;
 }
 
-export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin, addPinLink, removePinLink }: Props) {
-  const { hoveredIdentifierId, setFocusNodeId } = useNavigation();
+// ── Main component ──────────────────────────────────────────────────────────────
+export default function MapTab({
+  activeCase,
+  nodes,
+  addPin,
+  updatePin,
+  deletePin,
+  addPinLink,
+  removePinLink,
+}: Props) {
+  const { view, hoveredIdentifierId, setFocusNodeId } = useNavigation();
+  const isVisible = view === 'map';
+
   const [pendingPin, setPendingPin] = useState<{ lat: number; lng: number } | null>(null);
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
   const [linkPickerPinId, setLinkPickerPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
 
   const pins: MapPin[] = activeCase?.locations ?? [];
   const pinLinks = activeCase?.pinLinks ?? [];
 
-  useEffect(() => { injectPulseStyle(); }, []);
-
   const [form, setForm] = useState<PinFormData>({
     label: '', address: '', notes: '', visitedAt: '', withWho: '', color: '#10b981',
   });
+
+  useEffect(() => { injectPulseStyle(); }, []);
+
+  const handleMapReady = useCallback((map: L.Map) => {
+    mapRef.current = map;
+    // Ensure correct size on first render
+    setTimeout(() => map.invalidateSize({ animate: false }), 80);
+  }, []);
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (editingPinId) return;
@@ -130,7 +172,7 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
       if (data.length > 0) {
         const { lat, lon, display_name } = data[0];
         const latlng: [number, number] = [parseFloat(lat), parseFloat(lon)];
-        mapInstance?.flyTo(latlng, 14, { animate: true, duration: 1.2 });
+        mapRef.current?.flyTo(latlng, 14, { animate: true, duration: 1.2 });
         setPendingPin({ lat: latlng[0], lng: latlng[1] });
         setForm((f) => ({ ...f, address: display_name }));
       }
@@ -141,12 +183,8 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
   const startEditing = (pin: MapPin) => {
     setEditingPinId(pin.id);
     setForm({
-      label: pin.label,
-      address: pin.address,
-      notes: pin.notes,
-      visitedAt: pin.visitedAt ?? '',
-      withWho: pin.withWho ?? '',
-      color: pin.color,
+      label: pin.label, address: pin.address, notes: pin.notes,
+      visitedAt: pin.visitedAt ?? '', withWho: pin.withWho ?? '', color: pin.color,
     });
     setPendingPin(null);
   };
@@ -154,12 +192,8 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
   const saveEdit = () => {
     if (!editingPinId) return;
     updatePin(editingPinId, {
-      label: form.label.trim(),
-      address: form.address.trim(),
-      notes: form.notes.trim(),
-      visitedAt: form.visitedAt || undefined,
-      withWho: form.withWho || undefined,
-      color: form.color,
+      label: form.label.trim(), address: form.address.trim(), notes: form.notes.trim(),
+      visitedAt: form.visitedAt || undefined, withWho: form.withWho || undefined, color: form.color,
     });
     setEditingPinId(null);
   };
@@ -168,9 +202,9 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
     pinLinks.filter((l) => l.pinId === pinId).map((l) => l.identifierId);
 
   return (
-    <div className="flex-1 flex overflow-hidden min-h-0 relative">
-      {/* Search bar */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex gap-2">
+    <div className="map-tab-root">
+      {/* Search bar — floats above the map */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex gap-2 pointer-events-auto">
         <div className="flex items-center gap-2 bg-cyber-dark/95 border border-cyber-border rounded-xl px-3 py-2 shadow-xl backdrop-blur-sm">
           <MapPinIcon size={13} className="text-cyber-cyan" />
           <input
@@ -191,28 +225,27 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
         </div>
       </div>
 
-      {/* Leaflet map */}
+      {/* Leaflet map — fills the container via .map-leaflet-container */}
       <MapContainer
         center={[48.8566, 2.3522]}
         zoom={5}
-        style={{ flex: 1, minHeight: 0, height: '100%', width: '100%' }}
-        className="z-0"
-        whenCreated={(map) => setMapInstance(map)}
+        className="map-leaflet-container"
       >
+        {/* Controller: exposes map instance + calls invalidateSize on tab show */}
+        <MapController isVisible={isVisible} onMapReady={handleMapReady} />
+
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <MapClickHandler onMapClick={handleMapClick} />
 
-        {/* Existing pins */}
         {pins.map((pin) => {
           const linked = linkedNodeIds(pin.id);
           const isPulsing = linked.some((id) => id === hoveredIdentifierId);
-          const icon = createPinIcon(pin.color, isPulsing);
           return (
-            <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={icon}>
-              <Popup className="cyber-popup">
+            <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={createPinIcon(pin.color, isPulsing)}>
+              <Popup>
                 <div className="bg-[#0d111c] border border-cyber-border rounded-lg p-3 min-w-[220px] text-xs text-cyber-text">
                   {editingPinId === pin.id ? (
                     <PinForm form={form} setForm={setForm} onSave={saveEdit} onCancel={() => setEditingPinId(null)} />
@@ -226,7 +259,7 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
                       onDelete={() => deletePin(pin.id)}
                       onOpenLinkPicker={() => setLinkPickerPinId(pin.id)}
                       onRemoveLink={removePinLink}
-                      onFocusNode={(id) => { setFocusNodeId(id); }}
+                      onFocusNode={setFocusNodeId}
                     />
                   )}
                 </div>
@@ -235,7 +268,6 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
           );
         })}
 
-        {/* Pending pin preview */}
         {pendingPin && (
           <Marker position={[pendingPin.lat, pendingPin.lng]} icon={createPinIcon('#00c8d4')}>
             <Popup>
@@ -247,7 +279,6 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
         )}
       </MapContainer>
 
-      {/* LinkPicker modal */}
       {linkPickerPinId && (
         <LinkPicker
           nodes={nodes}
@@ -261,7 +292,7 @@ export default function MapTab({ activeCase, nodes, addPin, updatePin, deletePin
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 interface PinFormProps {
   form: PinFormData;
@@ -271,17 +302,18 @@ interface PinFormProps {
 }
 
 function PinForm({ form, setForm, onSave, onCancel }: PinFormProps) {
-  const f = (key: keyof PinFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  const f = (key: keyof PinFormData) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
     <div className="flex flex-col gap-2" style={{ minWidth: 220 }}>
       <p className="text-[10px] font-semibold text-cyber-cyan uppercase tracking-wide">Nouveau point</p>
-      <input value={form.label} onChange={f('label')} placeholder="Nom du lieu *" className="input-cyber" autoFocus />
-      <input value={form.address} onChange={f('address')} placeholder="Adresse" className="input-cyber" />
-      <input value={form.visitedAt} onChange={f('visitedAt')} placeholder="Visité le (date)" className="input-cyber" />
-      <input value={form.withWho} onChange={f('withWho')} placeholder="Avec qui" className="input-cyber" />
-      <textarea value={form.notes} onChange={f('notes')} placeholder="Notes" rows={2} className="input-cyber resize-none" />
+      <input value={form.label}     onChange={f('label')}     placeholder="Nom du lieu *"      className="input-cyber" autoFocus />
+      <input value={form.address}   onChange={f('address')}   placeholder="Adresse"            className="input-cyber" />
+      <input value={form.visitedAt} onChange={f('visitedAt')} placeholder="Visité le (date)"  className="input-cyber" />
+      <input value={form.withWho}   onChange={f('withWho')}   placeholder="Avec qui"           className="input-cyber" />
+      <textarea value={form.notes}  onChange={f('notes')}     placeholder="Notes" rows={2}     className="input-cyber resize-none" />
       <div className="flex gap-1 flex-wrap">
         {PIN_COLORS.map((c) => (
           <button
@@ -325,18 +357,28 @@ function PinInfo({ pin, linkedIds, nodes, pinLinks, onEdit, onDelete, onOpenLink
           <span className="font-bold text-cyber-text truncate max-w-[130px]">{pin.label}</span>
         </div>
         <div className="flex gap-1">
-          <button onClick={onEdit} className="w-5 h-5 flex items-center justify-center rounded hover:bg-cyber-cyan/20 text-cyber-text-dim hover:text-cyber-cyan transition-colors" title="Modifier">
+          <button onClick={onEdit} title="Modifier"
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-cyber-cyan/20 text-cyber-text-dim hover:text-cyber-cyan transition-colors">
             ✎
           </button>
-          <button onClick={onDelete} className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/20 text-cyber-text-dim hover:text-red-400 transition-colors">
+          <button onClick={onDelete}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/20 text-cyber-text-dim hover:text-red-400 transition-colors">
             <Trash2 size={10} />
           </button>
         </div>
       </div>
 
       {pin.address && <p className="text-cyber-text-dim text-[10px]">{pin.address}</p>}
-      {pin.visitedAt && <p className="text-[10px] text-cyber-text-dim">Visité : {pin.visitedAt}{pin.withWho ? ` avec ${pin.withWho}` : ''}</p>}
-      {pin.notes && <p className="text-[10px] text-cyber-text-dim italic border-t border-cyber-border pt-1 mt-1">{pin.notes}</p>}
+      {pin.visitedAt && (
+        <p className="text-[10px] text-cyber-text-dim">
+          Visité : {pin.visitedAt}{pin.withWho ? ` avec ${pin.withWho}` : ''}
+        </p>
+      )}
+      {pin.notes && (
+        <p className="text-[10px] text-cyber-text-dim italic border-t border-cyber-border pt-1 mt-1">
+          {pin.notes}
+        </p>
+      )}
 
       <div className="border-t border-cyber-border pt-1.5 mt-0.5">
         <div className="flex items-center justify-between mb-1">
