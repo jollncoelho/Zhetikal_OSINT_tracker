@@ -48,7 +48,7 @@ function AppInner() {
     removePinLink,
   } = useStore();
 
-  const { view, setView } = useNavigation();
+  const { view, setView, setFocusPinId } = useNavigation();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
@@ -102,6 +102,40 @@ function AppInner() {
       window.removeEventListener('entity-open-fields', handleOpenFields);
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
+
+  // Navigate a location node to its map pin (or auto-create one)
+  useEffect(() => {
+    const handleGoToMap = (e: Event) => {
+      const { nodeId } = (e as CustomEvent).detail;
+      const pinLinks = activeCase?.pinLinks ?? [];
+      const link = pinLinks.find((l) => l.identifierId === nodeId);
+
+      setView('map');
+
+      if (link) {
+        setFocusPinId(link.pinId);
+      } else {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (!node) return;
+        const fields = (node.data.fields ?? {}) as Record<string, string>;
+        const lat = parseFloat(fields.lat ?? '');
+        const lng = parseFloat(fields.lng ?? '');
+        const pinId = addPin({
+          label: node.data.label,
+          address: (fields.address ?? '').trim(),
+          notes: node.data.notes ?? '',
+          lat: isNaN(lat) ? 48.8566 : lat,
+          lng: isNaN(lng) ? 2.3522 : lng,
+          color: node.data.color ?? '#10b981',
+          iconId: null,
+        });
+        addPinLink({ pinId, identifierId: nodeId, context: '' });
+        setFocusPinId(pinId);
+      }
+    };
+    window.addEventListener('entity-go-to-map', handleGoToMap);
+    return () => window.removeEventListener('entity-go-to-map', handleGoToMap);
+  }, [activeCase, nodes, addPin, addPinLink, setView, setFocusPinId]);
 
   useEffect(() => {
     if (cases.length === 0) createCase('Default Case', '');

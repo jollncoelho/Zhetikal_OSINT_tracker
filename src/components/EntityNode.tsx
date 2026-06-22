@@ -18,12 +18,8 @@ const LINK_TYPES = ['url', 'domain'];
 const HANDLE_THICKNESS = 14;
 
 function buildOpenUrl(entityType: string, label: string): string | null {
-  if (entityType === 'url') {
-    return label.startsWith('http') ? label : `https://${label}`;
-  }
-  if (entityType === 'domain') {
-    return `https://${label}`;
-  }
+  if (entityType === 'url') return label.startsWith('http') ? label : `https://${label}`;
+  if (entityType === 'domain') return `https://${label}`;
   return null;
 }
 
@@ -69,24 +65,21 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
     if (e.key === 'Escape') { setLabel(data.label); setRenamingLabel(false); }
   };
 
+  // Double-click always renames
   const handleLabelDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (data.entityType === 'location') {
-      const fields = data.fields as Record<string, string> | undefined;
-      const lat = fields?.lat;
-      const lng = fields?.lng;
-      const query = lat && lng ? `${lat},${lng}` : encodeURIComponent(data.label);
-      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank', 'noopener,noreferrer');
-    } else {
-      setRenamingLabel(true);
-    }
+    setRenamingLabel(true);
+  };
+
+  // Dispatched to App.tsx (has store access) to find/create pin then navigate
+  const handleGoToMap = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id } }));
   };
 
   const openUrl = buildOpenUrl(data.entityType, data.label);
-
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const half = HANDLE_THICKNESS / 2;
-
   const handleBase: React.CSSProperties = {
     background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair',
   };
@@ -138,19 +131,12 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`}
             style={{ color: data.color }}
             onDoubleClick={handleLabelDoubleClick}
-            title={data.entityType === 'location' ? 'Double-clic pour ouvrir Google Maps' : 'Double-clic pour renommer'}
+            title="Double-clic pour renommer"
           >
             {data.label}
           </span>
         )}
       </div>
-
-      {/* Location hint */}
-      {data.entityType === 'location' && !renamingLabel && (
-        <div className="px-3 pb-1">
-          <span className="text-[9px] font-mono text-cyber-text-dim/50 italic">↗ double-clic → Google Maps</span>
-        </div>
-      )}
 
       {/* Notes preview */}
       <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
@@ -159,7 +145,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         </p>
       </div>
 
-      {/* Action buttons when not renaming */}
+      {/* Action buttons */}
       {!renamingLabel && (
         <>
           {/* Delete — top right */}
@@ -198,7 +184,21 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <SlidersHorizontal size={11} />
           </button>
 
-          {/* Open link — only for URL/Domain types */}
+          {/* Voir sur la carte — location type only */}
+          {data.entityType === 'location' && (
+            <button
+              onClick={handleGoToMap}
+              title="Voir sur la carte"
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40
+                transition-all duration-150 z-10"
+            >
+              <MapPin size={11} />
+            </button>
+          )}
+
+          {/* Open link — URL/Domain only */}
           {LINK_TYPES.includes(data.entityType) && openUrl && (
             <a
               href={openUrl}
@@ -217,7 +217,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         </>
       )}
 
-      {/* Rename confirm/cancel row */}
+      {/* Rename confirm/cancel */}
       {renamingLabel && (
         <div className="flex gap-1 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
           <button

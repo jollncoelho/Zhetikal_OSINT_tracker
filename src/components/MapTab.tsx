@@ -3,7 +3,7 @@ import 'leaflet/dist/leaflet.css';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { Search, Trash2, Link2, X, MapPin as MapPinIcon } from 'lucide-react';
 import type { CaseData, MapPin, EntityNode } from '../types';
 import { useNavigation } from '../context/NavigationContext';
@@ -113,7 +113,7 @@ export default function MapTab({
   addPinLink,
   removePinLink,
 }: Props) {
-  const { view, hoveredIdentifierId, setFocusNodeId } = useNavigation();
+  const { view, hoveredIdentifierId, setFocusNodeId, focusPinId, setFocusPinId } = useNavigation();
   const isVisible = view === 'map';
 
   const [pendingPin, setPendingPin] = useState<{ lat: number; lng: number } | null>(null);
@@ -122,6 +122,7 @@ export default function MapTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
+  const markerRefs = useRef(new Map<string, L.Marker>());
 
   const pins: MapPin[] = activeCase?.locations ?? [];
   const pinLinks = activeCase?.pinLinks ?? [];
@@ -131,6 +132,23 @@ export default function MapTab({
   });
 
   useEffect(() => { injectPulseStyle(); }, []);
+
+  // When a location node requests "voir sur la carte", fly to the pin and open its popup
+  useEffect(() => {
+    if (!focusPinId) return;
+    const pin = pins.find((p) => p.id === focusPinId);
+    if (!pin) return; // wait — pin might not be in state yet (just created)
+
+    setFocusPinId(null);
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.flyTo([pin.lat, pin.lng], 14, { animate: true, duration: 1.2 });
+    // Open popup after fly animation completes
+    setTimeout(() => {
+      markerRefs.current.get(pin.id)?.openPopup();
+    }, 1400);
+  }, [focusPinId, pins, setFocusPinId]);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
@@ -244,7 +262,15 @@ export default function MapTab({
           const linked = linkedNodeIds(pin.id);
           const isPulsing = linked.some((id) => id === hoveredIdentifierId);
           return (
-            <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={createPinIcon(pin.color, isPulsing)}>
+            <Marker
+              key={pin.id}
+              position={[pin.lat, pin.lng]}
+              icon={createPinIcon(pin.color, isPulsing)}
+              ref={(marker) => {
+                if (marker) markerRefs.current.set(pin.id, marker);
+                else markerRefs.current.delete(pin.id);
+              }}
+            >
               <Popup>
                 <div className="bg-[#0d111c] border border-cyber-border rounded-lg p-3 min-w-[220px] text-xs text-cyber-text">
                   {editingPinId === pin.id ? (
