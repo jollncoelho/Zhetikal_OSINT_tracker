@@ -351,16 +351,14 @@ function AppInner() {
         ) : (
           <div className="flex-1 flex min-h-0">
             <MapTab
-              activeCase={activeCase}
-              nodes={nodes as EntityNodeType[]}
-              addPin={addPin}
-              updatePin={updatePin}
-              deletePin={deletePin}
-              addPinLink={addPinLink}
-              removePinLink={removePinLink}
-            />
-          </div>
-        )}
+  pins={activeCase?.locations || []}
+  onUpdatePins={(pins) => {
+    if (!activeCaseId) return;
+    setCases(prev => prev.map(c =>
+      c.id === activeCaseId ? { ...c, locations: pins } : c
+    ));
+  }}
+/>
 
         {/* Status bar */}
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
