@@ -13,6 +13,7 @@ interface Props {
 interface SuggestedEntity {
   label: string;
   entityType: EntityType;
+  rawType: string;
 }
 
 const ENTITY_TYPE_MAP: Record<string, EntityType> = {
@@ -43,7 +44,18 @@ const ENTITY_TYPE_MAP: Record<string, EntityType> = {
   wallet: 'crypto',
   fichier: 'file',
   file: 'file',
+  // Financial identifiers
+  iban: 'crypto',
+  'compte bancaire': 'crypto',
+  'bank account': 'crypto',
+  virement: 'crypto',
+  rib: 'crypto',
+  bic: 'crypto',
+  swift: 'crypto',
 };
+
+// Raw types that belong to the "financial" display group (green highlight)
+const FINANCIAL_RAW_TYPES = new Set(['iban', 'compte bancaire', 'bank account', 'virement', 'rib', 'bic', 'swift']);
 
 function parseEntities(text: string): SuggestedEntity[] {
   const results: SuggestedEntity[] = [];
@@ -59,7 +71,7 @@ function parseEntities(text: string): SuggestedEntity[] {
       const key = `${entityType}:${rawLabel}`;
       if (!seen.has(key)) {
         seen.add(key);
-        results.push({ label: rawLabel, entityType });
+        results.push({ label: rawLabel, entityType, rawType });
       }
     }
   }
@@ -141,6 +153,8 @@ Domaine: [domaine lié]
 Organisation: [entreprise ou structure]
 Localisation: [ville, région ou coordonnées]
 URL: [lien direct exploitable]
+IBAN: [numéro IBAN si trouvé]
+Compte bancaire: [RIB, BIC/SWIFT ou détails compte si trouvé]
 
 Termine par une phrase sur l'angle d'investigation à prioriser.
 
@@ -235,21 +249,25 @@ IMPORTANT : Chaque "Nom:", "Téléphone:", "IP:", etc. doit être sur sa propre 
                 {suggestedEntities.map((e) => {
                   const key = `${e.entityType}:${e.label}`;
                   const done = injected.has(key);
+                  const isFinancial = FINANCIAL_RAW_TYPES.has(e.rawType);
                   return (
                     <button
                       key={key}
                       onClick={() => handleInject(e)}
                       disabled={done}
-                      title={done ? 'Déjà injecté' : `Ajouter au graphe : ${e.entityType}`}
-                      className={`text-xs px-2 py-1 rounded border transition-colors max-w-[180px] truncate ${
+                      title={`${e.rawType}: ${e.label}`}
+                      className={`text-xs px-2 py-1 rounded border transition-colors text-left break-all whitespace-normal ${
                         done
                           ? 'border-green-700/50 bg-green-900/20 text-green-400 cursor-default'
+                          : isFinancial
+                          ? 'border-emerald-600/60 bg-emerald-900/25 text-emerald-300 hover:bg-emerald-700/35 cursor-pointer'
                           : 'border-purple-700/50 bg-purple-900/20 text-purple-300 hover:bg-purple-700/40 cursor-pointer'
                       }`}
+                      style={{ userSelect: 'text' }}
                     >
                       {done ? '✓ ' : '+ '}
-                      <span className="opacity-60 mr-1">[{e.entityType}]</span>
-                      {e.label}
+                      <span className="opacity-60 mr-1">[{e.rawType}]</span>
+                      <span style={{ userSelect: 'text' }}>{e.label}</span>
                     </button>
                   );
                 })}
