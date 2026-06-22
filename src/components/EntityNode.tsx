@@ -184,6 +184,23 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <SlidersHorizontal size={11} />
           </button>
 
+          {/* Lookup IP — ip type only */}
+          {data.entityType === 'ip' && (
+            <a
+              href={`https://ipinfo.io/${data.label}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Analyser / géolocaliser cette IP"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40
+                transition-all duration-150 z-10"
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
+
           {/* Voir sur la carte — location type only */}
           {data.entityType === 'location' && (
             <button
