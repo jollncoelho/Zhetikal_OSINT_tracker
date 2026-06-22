@@ -123,6 +123,7 @@ export default function MapTab({
   const [searching, setSearching] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
   const markerRefs = useRef(new Map<string, L.Marker>());
+  const flyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pins: MapPin[] = activeCase?.locations ?? [];
   const pinLinks = activeCase?.pinLinks ?? [];
@@ -137,16 +138,29 @@ export default function MapTab({
   useEffect(() => {
     if (!focusPinId) return;
     const pin = pins.find((p) => p.id === focusPinId);
-    if (!pin) return; // wait — pin might not be in state yet (just created)
+    if (!pin) return; // pin may not be in state yet if just created — wait for next render
 
+    console.log('focusPinId changed', pin.id, pin.lat, pin.lng);
+
+    // Clear focusPinId immediately so this effect doesn't re-fire when pins changes
     setFocusPinId(null);
+
     const map = mapRef.current;
     if (!map) return;
 
+    // Cancel any pending popup-open timer from a previous navigation
+    if (flyTimerRef.current) {
+      clearTimeout(flyTimerRef.current);
+      flyTimerRef.current = null;
+    }
+
     map.flyTo([pin.lat, pin.lng], 14, { animate: true, duration: 1.2 });
-    // Open popup after fly animation completes
-    setTimeout(() => {
-      markerRefs.current.get(pin.id)?.openPopup();
+
+    // Capture pin.id in a local const so the closure is stable
+    const targetPinId = pin.id;
+    flyTimerRef.current = setTimeout(() => {
+      flyTimerRef.current = null;
+      markerRefs.current.get(targetPinId)?.openPopup();
     }, 1400);
   }, [focusPinId, pins, setFocusPinId]);
 
@@ -270,8 +284,29 @@ export default function MapTab({
                 if (marker) markerRefs.current.set(pin.id, marker);
                 else markerRefs.current.delete(pin.id);
               }}
+              eventHandlers={{
+                click: () => {
+                  // Cancel any pending auto-open timer so it doesn't steal focus back
+                  if (flyTimerRef.current) {
+                    clearTimeout(flyTimerRef.current);
+                    flyTimerRef.current = null;
+                  }
+                  console.log('marker clicked', pin.id, pin.lat, pin.lng);
+                  mapRef.current?.flyTo([pin.lat, pin.lng], mapRef.current.getZoom(), {
+                    animate: true,
+                    duration: 0.5,
+                  });
+                },
+              }}
             >
-              <Popup>
+              <Popup
+                eventHandlers={{
+                  remove: () => {
+                    // Clear edit state when popup closes so it doesn't leak to the next popup
+                    setEditingPinId((prev) => (prev === pin.id ? null : prev));
+                  },
+                }}
+              >
                 <div className="bg-[#0d111c] border border-cyber-border rounded-lg p-3 min-w-[220px] text-xs text-cyber-text">
                   {editingPinId === pin.id ? (
                     <PinForm form={form} setForm={setForm} onSave={saveEdit} onCancel={() => setEditingPinId(null)} />
