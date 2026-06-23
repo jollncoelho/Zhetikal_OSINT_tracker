@@ -27,7 +27,7 @@ const nodeTypes: NodeTypes = {
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-const edgeTypes = { custom: CustomEdge };
+const edgeTypes = {};
 
 function FlowExporter({
   activeCase,
