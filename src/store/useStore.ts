@@ -212,73 +212,82 @@ export const useStore = create<AppState>()(
           }
         },
 
-        deleteNode: (nodeId) => {
-          set((state) => ({
-            nodes: state.nodes.filter((n) => n.id !== nodeId),
-            edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-          }));
-          // Sync
-          if (state.activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === state.activeCaseId
-                  ? {
-                      ...c,
-                      nodes: c.nodes.filter((n) => n.id !== nodeId),
-                      edges: c.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-                    }
-                  : c
-              ),
-            }));
-          }
-        },
-
-        onConnect: (connection) => {
-          const edge: Edge = {
-            id: crypto.randomUUID(),
-            source: connection.source,
-            target: connection.target,
-            type: 'custom',
-            animated: true,
-          };
-          set((state) => ({ edges: [...state.edges, edge] }));
-          if (state.activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === state.activeCaseId
-                  ? { ...c, edges: [...c.edges, edge] }
-                  : c
-              ),
-            }));
-          }
-        },
-
-        deleteEdge: (edgeId) => {
-          set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
-          if (state.activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === state.activeCaseId
-                  ? { ...c, edges: c.edges.filter((e) => e.id !== edgeId) }
-                  : c
-              ),
-            }));
-          }
-        },
-
-     onNodesChange: (changes) => {
-  set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
+     deleteNode: (nodeId) => {
+  set((state) => ({
+    nodes: state.nodes.filter((n) => n.id !== nodeId),
+    edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+  }));
   const activeCaseId = get().activeCaseId;
   if (activeCaseId) {
     set((state) => ({
       cases: state.cases.map((c) =>
         c.id === activeCaseId
-          ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
+          ? {
+              ...c,
+              nodes: c.nodes.filter((n) => n.id !== nodeId),
+              edges: c.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+            }
           : c
       ),
     }));
   }
 },
+
+     onConnect: (connection) => {
+  const edge: Edge = {
+    id: crypto.randomUUID(),
+    source: connection.source,
+    target: connection.target,
+    type: 'custom',
+    animated: true,
+  };
+  set((state) => ({ edges: [...state.edges, edge] }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, edges: [...c.edges, edge] }
+          : c
+      ),
+    }));
+  }
+},
+       deleteEdge: (edgeId) => {
+  set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, edges: c.edges.filter((e) => e.id !== edgeId) }
+          : c
+      ),
+    }));
+  }
+},
+updateNodeData: (nodeId, data) => {
+  set((state) => ({
+    nodes: state.nodes.map((n) =>
+      n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+    ),
+  }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? {
+              ...c,
+              nodes: c.nodes.map((n) =>
+                n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+              ),
+            }
+          : c
+      ),
+    }));
+  }
+},,
 
 onEdgesChange: (changes) => {
   set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
