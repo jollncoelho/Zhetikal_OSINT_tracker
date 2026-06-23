@@ -137,14 +137,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           </span>
         )}
       </div>
-{/* Photo preview — photo type only */}
-{data.entityType === 'photo' && data.photoUrl && (
-  <div className="px-3 pt-2">
-    <img
-      src={data.photoUrl}
-      alt=""
-      className="w-full h-24 object-cover rounded border border-cyber-border"
-    />
+
   </div>
 )}
       {/* Notes preview */}
