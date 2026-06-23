@@ -13,7 +13,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText, Link, Bitcoin, StickyNote,
 };
 
-const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
+const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone', 'iban'];
 const LINK_TYPES = ['url', 'domain'];
 const HANDLE_THICKNESS = 14;
 
@@ -72,32 +72,53 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const handleGoToMap = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id } }));
+    // Dispatch de l'événement pour forcer la carte à voler vers l'adresse
+    window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id, value: data.label } }));
   };
 
   const openUrl = buildOpenUrl(data.entityType, data.label);
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const half = HANDLE_THICKNESS / 2;
+  
+  // Base de style invisible et propre pour les zones d'ancrage
   const handleBase: React.CSSProperties = {
     background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair',
   };
 
   return (
     <div
+      key={id}
       className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${selected ? 'shadow-lg' : ''}`}
       style={{
         borderColor: selected ? data.color : '#1e3a5f',
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Handles */}
-      <Handle id="left" type="source" position={Position.Left}
+      {/* CORRECTION DES HANDLES : Chaque côté possède désormais un ancrage d'entrée (target) 
+        et un ancrage de sortie (source) superposés pour forcer les flèches à viser le centre exact des côtés !
+      */}
+      {/* Côté Gauche */}
+      <Handle id="left-in" type="target" position={Position.Left}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
-      <Handle id="right" type="source" position={Position.Right}
+      <Handle id="left-out" type="source" position={Position.Left}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
+      
+      {/* Côté Droit */}
+      <Handle id="right-in" type="target" position={Position.Right}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
-      <Handle id="top" type="source" position={Position.Top}
+      <Handle id="right-out" type="source" position={Position.Right}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
+      
+      {/* Côté Supérieur */}
+      <Handle id="top-in" type="target" position={Position.Top}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
-      <Handle id="bottom" type="source" position={Position.Bottom}
+      <Handle id="top-out" type="source" position={Position.Top}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
+      
+      {/* Côté Inférieur */}
+      <Handle id="bottom-in" type="target" position={Position.Bottom}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
+      <Handle id="bottom-out" type="source" position={Position.Bottom}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
 
       {/* Header */}
@@ -135,16 +156,18 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           </span>
         )}
       </div>
-      {/* Photo preview — photo type only */}
-      {data.entityType === 'photo' && data.photoUrl && (
-        <div className="px-3 pt-2">
+
+      {/* Aperçu de la photo si c'est une entité cible ou avec photoUrl configuré */}
+      {data.photoUrl && (
+        <div className="px-3 pt-1 pb-2">
           <img
             src={data.photoUrl}
             alt=""
-            className="w-full h-24 object-cover rounded border border-cyber-border"
+            className="w-full h-28 object-cover rounded-lg border border-cyber-border bg-cyber-dark/40"
           />
         </div>
       )}
+
       {/* Notes preview */}
       <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
@@ -155,7 +178,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       {/* Action buttons */}
       {!renamingLabel && (
         <>
-          {/* Delete — top right */}
+          {/* Supprimer — top right */}
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(); }}
             title="Supprimer"
@@ -167,7 +190,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <Trash2 size={11} />
           </button>
 
-          {/* Open notes — bottom right */}
+          {/* Ouvrir le bloc-notes — bottom right */}
           <button
             onClick={handleExpandNote}
             title="Ouvrir le bloc-notes"
@@ -179,7 +202,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <NotebookPen size={11} />
           </button>
 
-          {/* Fields button — bottom right - 1 */}
+          {/* Champs personnalisés — bottom right - 1 */}
           <button
             onClick={handleOpenFields}
             title="Champs personnalisés"
@@ -191,7 +214,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <SlidersHorizontal size={11} />
           </button>
 
-          {/* Lookup IP — ip type only */}
+          {/* Analyse d'IP */}
           {data.entityType === 'ip' && (
             <a
               href={`https://ipinfo.io/${data.label}`}
