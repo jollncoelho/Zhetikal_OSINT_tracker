@@ -62,23 +62,7 @@ export default function Sidebar({
     t.toLowerCase().includes(typeSearch.toLowerCase()) ||
     ENTITY_LABELS[t].toLowerCase().includes(typeSearch.toLowerCase())
   );
-{selectedType === 'photo' && (
-                  <div>
-                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="mt-1 block w-full text-[10px] text-cyber-text-dim"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => setPhotoDataUrl(reader.result as string);
-                        reader.readAsDataURL(file);
-                      }}
-                    />
-                  </div>
-                )}
+
   const handleCreateCase = () => {
     if (!newCaseName.trim()) return;
     const id = onCreateCase(newCaseName.trim(), newCaseDesc.trim());
@@ -88,7 +72,7 @@ export default function Sidebar({
     setCreatingCase(false);
   };
 
-   const handleAddEntity = (type: EntityType) => {
+  const handleAddEntity = (type: EntityType) => {
     setSelectedType(type);
     const label = entityLabel || ENTITY_LABELS[type];
 
@@ -97,7 +81,6 @@ export default function Sidebar({
         onAddEntity(type, label, { photoUrl: photoDataUrl });
         setPhotoDataUrl('');
       }
-      // Pas de photo = pas de nœud vide créé
     } else {
       onAddEntity(type, label);
     }
@@ -332,7 +315,23 @@ export default function Sidebar({
                   />
                 </div>
 
-                
+                {selectedType === 'photo' && (
+                  <div>
+                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-1 block w-full text-[10px] text-cyber-text-dim"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setPhotoDataUrl(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-1">
                   {filteredTypes.map((type) => {
