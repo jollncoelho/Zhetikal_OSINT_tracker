@@ -1,464 +1,418 @@
-import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import {
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type Connection,
-  type Edge,
-  MarkerType,
-} from '@xyflow/react';
-import type { CaseData, EntityData, EntityType, EntityNode, MapPin, PinLink } from '../types';
-import { ENTITY_COLORS, ENTITY_ICON_NAMES, ENTITY_LABELS, SOCIAL_PLATFORMS } from '../types';
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+import type { CaseData, EntityData, EntityNode, Edge, MapPin, PinLink } from '../types';
 
-const STORAGE_KEY = 'zhetical-osint-cases';
-const ACTIVE_CASE_KEY = 'zhetical-osint-active-case';
+interface AppState {
+  cases: CaseData[];
+  activeCaseId: string | null;
+  nodes: EntityNode[];
+  edges: Edge[];
+  lastSaved: Date | null;
 
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
+  // Case actions
+  createCase: (name: string, description: string) => string;
+  switchCase: (id: string) => void;
+  deleteCase: (id: string) => void;
+  updateCase: (id: string, name: string, description: string, updates?: Partial<CaseData>) => void;
+  closeCase: () => void;
+
+  // Entity actions
+  addEntity: (type: EntityType, label: string, extra?: Partial<EntityData>) => string;
+  updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
+  deleteNode: (nodeId: string) => void;
+
+  // Edge actions
+  onConnect: (connection: any) => void;
+  deleteEdge: (edgeId: string) => void;
+  onNodesChange: (changes: any) => void;
+  onEdgesChange: (changes: any) => void;
+
+  // Global actions
+  clearCanvas: () => void;
+  saveProgress: () => void;
+  exportCase: () => string;
+  importCase: (json: string) => void;
+  updateCaseNotes: (notes: string) => void;
+  updateCaseTitle: (title: string) => void;
+
+  // Map actions
+  addPin: (pin: Omit<MapPin, 'id'>) => string;
+  updatePin: (id: string, updates: Partial<MapPin>) => void;
+  deletePin: (id: string) => void;
+  addPinLink: (link: Omit<PinLink, 'id'>) => string;
+  removePinLink: (id: string) => void;
 }
 
-function loadCases(): CaseData[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+// Helper constants
+const ENTITY_COLORS: Record<string, string> = {
+  ip: '#ef4444',
+  domain: '#f59e0b',
+  email: '#10b981',
+  username: '#8b5cf6',
+  phone: '#06b6d4',
+  location: '#3b82f6',
+  organization: '#6366f1',
+  person: '#ec4899',
+  file: '#64748b',
+  url: '#0ea5e9',
+  crypto: '#eab308',
+  iban: '#14b8a6',
+  note: '#6b7280',
+  social: '#a855f7',
+  photo: '#f43f5e',
+};
 
-function saveCases(cases: CaseData[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
-}
+const ENTITY_ICONS: Record<string, string> = {
+  ip: 'Globe',
+  domain: 'Globe',
+  email: 'Mail',
+  username: 'User',
+  phone: 'Phone',
+  location: 'MapPin',
+  organization: 'Building2',
+  person: 'User',
+  file: 'FileText',
+  url: 'Link',
+  crypto: 'Bitcoin',
+  iban: 'CreditCard',
+  note: 'StickyNote',
+  social: 'Users',
+  photo: 'Camera',
+};
 
-function loadActiveCaseId(): string | null {
-  return localStorage.getItem(ACTIVE_CASE_KEY);
-}
+export const useStore = create<AppState>()(
+  devtools(
+    persist(
+      (set, get) => ({
+        cases: [],
+        activeCaseId: null,
+        nodes: [],
+        edges: [],
+        lastSaved: null,
 
-function saveActiveCaseId(id: string | null) {
-  if (id) {
-    localStorage.setItem(ACTIVE_CASE_KEY, id);
-  } else {
-    localStorage.removeItem(ACTIVE_CASE_KEY);
-  }
-}
-
-export function useStore() {
-  const [cases, setCases] = useState<CaseData[]>(loadCases);
-  const [activeCaseId, setActiveCaseId] = useState<string | null>(loadActiveCaseId);
-  const [nodes, setNodes, onNodesChange] = useNodesState<EntityNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-
-  const switchingRef = useRef(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
-  const activeCaseIdRef = useRef(activeCaseId);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
-  activeCaseIdRef.current = activeCaseId;
-
-  const activeCase = useMemo(
-    () => cases.find((c) => c.id === activeCaseId) ?? null,
-    [cases, activeCaseId]
-  );
-
-  useEffect(() => { saveCases(cases); }, [cases]);
-  useEffect(() => { saveActiveCaseId(activeCaseId); }, [activeCaseId]);
-
-  useEffect(() => {
-    if (!activeCaseId) return;
-    if (switchingRef.current) { switchingRef.current = false; return; }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? { ...c, nodes: nodes as EntityNode[], edges, updatedAt: new Date().toISOString() }
-            : c
-        )
-      );
-      setLastSaved(new Date());
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [nodes, edges, activeCaseId]);
-
-  useEffect(() => {
-    const handleUnload = () => {
-      const cid = activeCaseIdRef.current;
-      if (!cid) return;
-      const storedCases = loadCases();
-      const updated = storedCases.map((c) =>
-        c.id === cid
-          ? { ...c, nodes: nodesRef.current as EntityNode[], edges: edgesRef.current, updatedAt: new Date().toISOString() }
-          : c
-      );
-      saveCases(updated);
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, []);
-
-  useEffect(() => {
-    if (!activeCaseId) return;
-    const stored = loadCases();
-    const target = stored.find((c) => c.id === activeCaseId);
-    if (target) {
-      switchingRef.current = true;
-      setNodes(target.nodes);
-      setEdges(target.edges);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const updateCaseNotes = useCallback(
-    (notes: string) => {
-      if (!activeCaseId) return;
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId ? { ...c, caseNotes: notes, updatedAt: new Date().toISOString() } : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  const updateCaseTitle = useCallback(
-    (title: string) => {
-      if (!activeCaseId) return;
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId ? { ...c, caseTitle: title, updatedAt: new Date().toISOString() } : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  const updateCase = useCallback(
-    (caseId: string, name: string, description: string) => {
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === caseId ? { ...c, name, description, updatedAt: new Date().toISOString() } : c
-        )
-      );
-    },
-    []
-  );
-
-  const createCase = useCallback((name: string, description: string = '') => {
-    const newCase: CaseData = {
-      id: generateId(),
-      name,
-      description,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      nodes: [],
-      edges: [],
-      locations: [],
-      pinLinks: [],
-    };
-    setCases((prev) => [...prev, newCase]);
-    return newCase.id;
-  }, []);
-
-  const switchCase = useCallback(
-    (caseId: string) => {
-      setCases((currentCases) => {
-        const target = currentCases.find((c) => c.id === caseId);
-        if (target) {
-          switchingRef.current = true;
-          setNodes(target.nodes);
-          setEdges(target.edges);
-          setActiveCaseId(caseId);
-        }
-        return currentCases;
-      });
-    },
-    [setNodes, setEdges]
-  );
-
-  const closeCase = useCallback(() => {
-    setActiveCaseId(null);
-    setNodes([]);
-    setEdges([]);
-  }, [setNodes, setEdges]);
-
-  const deleteCase = useCallback(
-    (caseId: string) => {
-      setCases((prev) => {
-        const remaining = prev.filter((c) => c.id !== caseId);
-        if (activeCaseId === caseId) {
-          setActiveCaseId(null);
-          setNodes([]);
-          setEdges([]);
-        }
-        return remaining;
-      });
-    },
-    [activeCaseId, setNodes, setEdges]
-  );
-
-  const addEntity = useCallback(
-    (entityType: EntityType, label: string, position?: { x: number; y: number }) => {
-      const isSocial = entityType === 'social';
-      const defaultPlatform = SOCIAL_PLATFORMS[0];
-      const newNode: EntityNode = {
-        id: generateId(),
-        type: isSocial ? 'social' : 'entity',
-        position: position ?? {
-          x: 100 + Math.random() * 400,
-          y: 100 + Math.random() * 300,
+        createCase: (name, description) => {
+          const id = crypto.randomUUID();
+          const newCase: CaseData = {
+            id,
+            name,
+            description,
+            nodes: [],
+            edges: [],
+            locations: [],
+            pinLinks: [],
+            caseNotes: '',
+            caseTitle: '',
+          };
+          set((state) => ({
+            cases: [...state.cases, newCase],
+            activeCaseId: id,
+            nodes: [],
+            edges: [],
+          }));
+          return id;
         },
-        data: {
-          label: label || ENTITY_LABELS[entityType],
-          entityType,
-          notes: '',
-          color: isSocial ? defaultPlatform.color : ENTITY_COLORS[entityType],
-          icon: ENTITY_ICON_NAMES[entityType],
-          fields: {},
-          customIconId: null,
-          ...(isSocial && { socialPlatform: defaultPlatform.id }),
+
+        switchCase: (id) => {
+          const caseData = get().cases.find((c) => c.id === id);
+          if (!caseData) return;
+          set({
+            activeCaseId: id,
+            nodes: caseData.nodes,
+            edges: caseData.edges,
+          });
         },
-      };
-      setNodes((prev) => [...prev, newNode]);
-      return newNode.id;
-    },
-    [setNodes]
-  );
 
-  const updateNodeData = useCallback(
-    (nodeId: string, data: Partial<EntityData>) => {
-      setNodes((prev) =>
-        prev.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n))
-      );
-    },
-    [setNodes]
-  );
-
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      const newEdge: Edge = {
-        ...connection,
-        id: `e-${generateId()}`,
-        type: 'custom',
-        animated: false,
-        style: { stroke: '#00c8d4', strokeWidth: 3 },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 18,
-          height: 18,
-          color: '#00c8d4',
+        deleteCase: (id) => {
+          set((state) => {
+            const newCases = state.cases.filter((c) => c.id !== id);
+            let newActiveId = state.activeCaseId;
+            let newNodes: EntityNode[] = [];
+            let newEdges: Edge[] = [];
+            if (state.activeCaseId === id) {
+              newActiveId = newCases.length > 0 ? newCases[0].id : null;
+              if (newActiveId) {
+                const activeCase = newCases.find((c) => c.id === newActiveId);
+                newNodes = activeCase?.nodes || [];
+                newEdges = activeCase?.edges || [];
+              }
+            }
+            return {
+              cases: newCases,
+              activeCaseId: newActiveId,
+              nodes: newNodes,
+              edges: newEdges,
+            };
+          });
         },
-      };
-      setEdges((prev) => addEdge(newEdge, prev));
-    },
-    [setEdges]
-  );
 
-  const deleteNode = useCallback(
-    (nodeId: string) => {
-      setNodes((prev) => prev.filter((n) => n.id !== nodeId));
-      setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
-    },
-    [setNodes, setEdges]
-  );
+        updateCase: (id, name, description, updates = {}) => {
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === id ? { ...c, name, description, ...updates } : c
+            ),
+          }));
+        },
 
-  const deleteEdge = useCallback(
-    (edgeId: string) => {
-      setEdges((prev) => prev.filter((e) => e.id !== edgeId));
-    },
-    [setEdges]
-  );
+        closeCase: () => {
+          set({ activeCaseId: null, nodes: [], edges: [] });
+        },
 
-  const clearCanvas = useCallback(() => {
-    if (!activeCaseId) return;
-    setNodes([]);
-    setEdges([]);
-  }, [activeCaseId, setNodes, setEdges]);
-
-  const saveProgress = useCallback(() => {
-    if (!activeCase) return;
-    const snapshot: CaseData = {
-      ...activeCase,
-      nodes: nodes as EntityNode[],
-      edges,
-      updatedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${activeCase.name.replace(/\s+/g, '_')}_save.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [activeCase, nodes, edges]);
-
-  const exportCase = useCallback(() => {
-    if (!activeCase) return;
-    const blob = new Blob([JSON.stringify(activeCase, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${activeCase.name.replace(/\s+/g, '_')}_export.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [activeCase]);
-
-  const importCase = useCallback(
-    (jsonString: string) => {
-      try {
-        const data: CaseData = JSON.parse(jsonString);
-        const existing = cases.find((c) => c.name === data.name);
-        if (existing) {
-          setCases((prev) =>
-            prev.map((c) =>
-              c.id === existing.id
-                ? { ...data, id: existing.id, updatedAt: new Date().toISOString() }
+        addEntity: (type, label, extra = {}) => {
+          const id = crypto.randomUUID();
+          const newNode: EntityNode = {
+            id,
+            type: 'entity',
+            position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
+            data: {
+              entityType: type,
+              label,
+              notes: '',
+              color: ENTITY_COLORS[type] || '#10b981',
+              icon: ENTITY_ICONS[type] || 'Globe',
+              ...extra,
+            } as EntityData,
+          };
+          set((state) => {
+            if (!state.activeCaseId) return state;
+            const updatedCases = state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? { ...c, nodes: [...c.nodes, newNode] }
                 : c
-            )
-          );
-          switchingRef.current = true;
-          setNodes(data.nodes);
-          setEdges(data.edges);
-          setActiveCaseId(existing.id);
-        } else {
-          const newId = generateId();
-          const imported: CaseData = { ...data, id: newId, updatedAt: new Date().toISOString() };
-          setCases((prev) => [...prev, imported]);
-          switchingRef.current = true;
-          setNodes(imported.nodes);
-          setEdges(imported.edges);
-          setActiveCaseId(newId);
-        }
-      } catch {
-        alert('Invalid case file format.');
+            );
+            return {
+              cases: updatedCases,
+              nodes: [...state.nodes, newNode],
+            };
+          });
+          return id;
+        },
+
+        updateNodeData: (nodeId, data) => {
+          set((state) => ({
+            nodes: state.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+            ),
+          }));
+          // Also sync to case
+          const activeCaseId = state.activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? {
+                      ...c,
+                      nodes: c.nodes.map((n) =>
+                        n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+                      ),
+                    }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        deleteNode: (nodeId) => {
+          set((state) => ({
+            nodes: state.nodes.filter((n) => n.id !== nodeId),
+            edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+          }));
+          // Sync
+          if (state.activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? {
+                      ...c,
+                      nodes: c.nodes.filter((n) => n.id !== nodeId),
+                      edges: c.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+                    }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        onConnect: (connection) => {
+          const edge: Edge = {
+            id: crypto.randomUUID(),
+            source: connection.source,
+            target: connection.target,
+            type: 'custom',
+            animated: true,
+          };
+          set((state) => ({ edges: [...state.edges, edge] }));
+          if (state.activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? { ...c, edges: [...c.edges, edge] }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        deleteEdge: (edgeId) => {
+          set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
+          if (state.activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? { ...c, edges: c.edges.filter((e) => e.id !== edgeId) }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        onNodesChange: (changes) => {
+          set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
+          if (state.activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        onEdgesChange: (changes) => {
+          set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
+          if (state.activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        clearCanvas: () => {
+          set({ nodes: [], edges: [] });
+          if (get().activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === state.activeCaseId
+                  ? { ...c, nodes: [], edges: [], locations: [], pinLinks: [] }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        saveProgress: () => {
+          set({ lastSaved: new Date() });
+          // Persist is handled automatically by zustand persist
+        },
+
+        exportCase: () => {
+          const state = get();
+          const caseData = state.cases.find((c) => c.id === state.activeCaseId);
+          if (!caseData) return '';
+          return JSON.stringify(caseData, null, 2);
+        },
+
+        importCase: (json) => {
+          try {
+            const caseData = JSON.parse(json) as CaseData;
+            set((state) => ({
+              cases: [...state.cases, caseData],
+            }));
+          } catch (e) {
+            console.error('Invalid JSON', e);
+          }
+        },
+
+        updateCaseNotes: (notes) => {
+          const activeCaseId = get().activeCaseId;
+          if (!activeCaseId) return;
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === activeCaseId ? { ...c, caseNotes: notes } : c
+            ),
+          }));
+        },
+
+        updateCaseTitle: (title) => {
+          const activeCaseId = get().activeCaseId;
+          if (!activeCaseId) return;
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === activeCaseId ? { ...c, caseTitle: title } : c
+            ),
+          }));
+        },
+
+        addPin: (pin) => {
+          const id = crypto.randomUUID();
+          set((state) => {
+            if (!state.activeCaseId) return state;
+            const updatedCases = state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? { ...c, locations: [...c.locations, { ...pin, id }] }
+                : c
+            );
+            return { cases: updatedCases };
+          });
+          return id;
+        },
+
+        updatePin: (id, updates) => {
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? {
+                    ...c,
+                    locations: c.locations.map((p) =>
+                      p.id === id ? { ...p, ...updates } : p
+                    ),
+                  }
+                : c
+            ),
+          }));
+        },
+
+        deletePin: (id) => {
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? { ...c, locations: c.locations.filter((p) => p.id !== id) }
+                : c
+            ),
+          }));
+        },
+
+        addPinLink: (link) => {
+          const id = crypto.randomUUID();
+          set((state) => {
+            if (!state.activeCaseId) return state;
+            const updatedCases = state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? { ...c, pinLinks: [...c.pinLinks, { ...link, id }] }
+                : c
+            );
+            return { cases: updatedCases };
+          });
+          return id;
+        },
+
+        removePinLink: (id) => {
+          set((state) => ({
+            cases: state.cases.map((c) =>
+              c.id === state.activeCaseId
+                ? { ...c, pinLinks: c.pinLinks.filter((l) => l.id !== id) }
+                : c
+            ),
+          }));
+        },
+      }),
+      {
+        name: 'ghostint-storage',
       }
-    },
-    [cases, setNodes, setEdges]
-  );
-
-  // ── Pin operations ─────────────────────────────────────────────────────────
-
-  const addPin = useCallback(
-    (pin: Omit<MapPin, 'id' | 'createdAt' | 'updatedAt'>): string => {
-      if (!activeCaseId) return '';
-      const newPin: MapPin = {
-        ...pin,
-        id: generateId(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? { ...c, locations: [...(c.locations ?? []), newPin], updatedAt: new Date().toISOString() }
-            : c
-        )
-      );
-      return newPin.id;
-    },
-    [activeCaseId]
-  );
-
-  const updatePin = useCallback(
-    (pinId: string, data: Partial<Omit<MapPin, 'id' | 'createdAt'>>) => {
-      if (!activeCaseId) return;
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? {
-                ...c,
-                locations: (c.locations ?? []).map((p) =>
-                  p.id === pinId ? { ...p, ...data, updatedAt: new Date().toISOString() } : p
-                ),
-                updatedAt: new Date().toISOString(),
-              }
-            : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  const deletePin = useCallback(
-    (pinId: string) => {
-      if (!activeCaseId) return;
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? {
-                ...c,
-                locations: (c.locations ?? []).filter((p) => p.id !== pinId),
-                pinLinks: (c.pinLinks ?? []).filter((l) => l.pinId !== pinId),
-                updatedAt: new Date().toISOString(),
-              }
-            : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  const addPinLink = useCallback(
-    (link: Omit<PinLink, 'id'>) => {
-      if (!activeCaseId) return;
-      const newLink: PinLink = { ...link, id: generateId() };
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? { ...c, pinLinks: [...(c.pinLinks ?? []), newLink], updatedAt: new Date().toISOString() }
-            : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  const removePinLink = useCallback(
-    (linkId: string) => {
-      if (!activeCaseId) return;
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === activeCaseId
-            ? { ...c, pinLinks: (c.pinLinks ?? []).filter((l) => l.id !== linkId), updatedAt: new Date().toISOString() }
-            : c
-        )
-      );
-    },
-    [activeCaseId]
-  );
-
-  return {
-    cases,
-    activeCase,
-    activeCaseId,
-    nodes,
-    edges,
-    lastSaved,
-    onNodesChange,
-    onEdgesChange,
-    createCase,
-    switchCase,
-    closeCase,
-    deleteCase,
-    updateCase,
-    addEntity,
-    updateNodeData,
-    onConnect,
-    deleteNode,
-    deleteEdge,
-    clearCanvas,
-    saveProgress,
-    exportCase,
-    importCase,
-    updateCaseNotes,
-    updateCaseTitle,
-    addPin,
-    updatePin,
-    deletePin,
-    addPinLink,
-    removePinLink,
-  };
-}
+    )
+  )
+);
