@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, memo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -288,12 +288,6 @@ export default function InfoTab({
     (nodeId: string, notes: string) => updateNodeData(nodeId, { notes }),
     [updateNodeData]
   );
-
-  const styledEdges = edges.map((e) => ({
-    ...e,
-    selected: e.id === selectedEdgeId,
-    style: e.id === selectedEdgeId ? { stroke: '#ef4444' } : { stroke: '#00c8d4' },
-  }));
 
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
