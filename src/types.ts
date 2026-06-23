@@ -1,7 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
 
 export type EntityType =
-  export type EntityType =
   | 'ip'
   | 'domain'
   | 'email'
