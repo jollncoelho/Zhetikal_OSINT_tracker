@@ -55,6 +55,7 @@ export default function Sidebar({
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
+  const [photoDataUrl, setPhotoDataUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredTypes = ENTITY_TYPES.filter((t) =>
@@ -302,6 +303,23 @@ export default function Sidebar({
                     onChange={(e) => setTypeSearch(e.target.value)}
                     placeholder="Search types..."
                     className="w-full bg-cyber-dark border border-cyber-border rounded pl-6 pr-2 py-1 text-[10px] text-cyber-text outline-none focus:border-cyber-cyan"
+                      {selectedType === 'photo' && (
+                  <div className="col-span-2">
+                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-1 block w-full text-[10px] text-cyber-text-dim"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setPhotoDataUrl(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </div>
+                )}
                   />
                 </div>
 
