@@ -316,23 +316,7 @@ export default function Sidebar({
                   />
                 </div>
 
-                {selectedType === 'photo' && (
-                  <div>
-                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="mt-1 block w-full text-[10px] text-cyber-text-dim"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => setPhotoDataUrl(reader.result as string);
-                        reader.readAsDataURL(file);
-                      }}
-                    />
-                  </div>
-                )}
+                
 
                 <div className="grid grid-cols-2 gap-1">
                   {filteredTypes.map((type) => {
