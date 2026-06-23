@@ -8,7 +8,7 @@ interface AppState {
   activeCaseId: string | null;
   nodes: EntityNode[];
   edges: Edge[];
-  lastSaved: Date | null;
+  lastSaved: string | null;
 
   createCase: (name: string, description: string) => string;
   switchCase: (id: string) => void;
@@ -304,7 +304,7 @@ export const useStore = create<AppState>()(
         },
 
         saveProgress: () => {
-          set({ lastSaved: new Date() });
+          set({ lastSaved: new Date().toISOString() });
         },
 
         exportCase: () => {
