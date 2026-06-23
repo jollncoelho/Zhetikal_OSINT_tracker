@@ -316,9 +316,8 @@ export default function InfoTab({
   defaultViewport={{ x: 0, y: 0, zoom: 1 }}
   proOptions={{ hideAttribution: true }}
   className="bg-cyber-black"
->
-        >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
+      >
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
           <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
           <MiniMap nodeColor={miniMapNodeColor} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
           <FlowExporter
