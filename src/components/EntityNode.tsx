@@ -13,7 +13,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText, Link, Bitcoin, StickyNote,
 };
 
-const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone', 'iban'];
+const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
 const LINK_TYPES = ['url', 'domain'];
 const HANDLE_THICKNESS = 14;
 
@@ -72,7 +72,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const handleGoToMap = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id, value: data.label } }));
+    window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id } }));
   };
 
   const openUrl = buildOpenUrl(data.entityType, data.label);
@@ -90,8 +90,15 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
-      <Handle type="source" position={Position.Right} style={{ ...handleBase, width: 10, height: 10 }} />
+      {/* Handles */}
+      <Handle id="left" type="source" position={Position.Left}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
+      <Handle id="right" type="source" position={Position.Right}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
+      <Handle id="top" type="source" position={Position.Top}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
+      <Handle id="bottom" type="source" position={Position.Bottom}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
@@ -128,18 +135,16 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           </span>
         )}
       </div>
-
-      {/* Photo preview — Conserve tes précieuses photos configurées ! */}
-      {data.photoUrl && (
-        <div className="px-3 pt-1 pb-2">
+      {/* Photo preview — photo type only */}
+      {data.entityType === 'photo' && data.photoUrl && (
+        <div className="px-3 pt-2">
           <img
             src={data.photoUrl}
             alt=""
-            className="w-full h-28 object-cover rounded-lg border border-cyber-border bg-cyber-dark/40"
+            className="w-full h-24 object-cover rounded border border-cyber-border"
           />
         </div>
       )}
-
       {/* Notes preview */}
       <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
@@ -150,7 +155,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       {/* Action buttons */}
       {!renamingLabel && (
         <>
-          {/* Bouton de suppression qui va se débloquer */}
+          {/* Delete — top right */}
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(); }}
             title="Supprimer"
@@ -162,6 +167,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <Trash2 size={11} />
           </button>
 
+          {/* Open notes — bottom right */}
           <button
             onClick={handleExpandNote}
             title="Ouvrir le bloc-notes"
@@ -173,6 +179,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <NotebookPen size={11} />
           </button>
 
+          {/* Fields button — bottom right - 1 */}
           <button
             onClick={handleOpenFields}
             title="Champs personnalisés"
@@ -184,6 +191,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <SlidersHorizontal size={11} />
           </button>
 
+          {/* Lookup IP — ip type only */}
           {data.entityType === 'ip' && (
             <a
               href={`https://ipinfo.io/${data.label}`}
@@ -200,6 +208,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             </a>
           )}
 
+          {/* Voir sur la carte — location type only */}
           {data.entityType === 'location' && (
             <button
               onClick={handleGoToMap}
@@ -213,6 +222,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             </button>
           )}
 
+          {/* Open link — URL/Domain only */}
           {LINK_TYPES.includes(data.entityType) && openUrl && (
             <a
               href={openUrl}
