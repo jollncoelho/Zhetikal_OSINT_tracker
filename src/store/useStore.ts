@@ -1,3 +1,4 @@
+import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { CaseData, EntityData, EntityNode, Edge, MapPin, PinLink } from '../types';
