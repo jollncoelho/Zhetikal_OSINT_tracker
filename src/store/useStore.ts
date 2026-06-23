@@ -261,33 +261,33 @@ export const useStore = create<AppState>()(
           }
         },
 
-       onNodesChange: (changes) => {
-  set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
-          : c
-      ),
-    }));
-  }
-},
+        onNodesChange: (changes) => {
+          set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
+                  : c
+              ),
+            }));
+          }
+        },
 
-onEdgesChange: (changes) => {
-  set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
-          : c
-      ),
-    }));
-  }
-},
+        onEdgesChange: (changes) => {
+          set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
+                  : c
+              ),
+            }));
+          }
+        },
 
         clearCanvas: () => {
           set({ nodes: [], edges: [] });
@@ -303,22 +303,22 @@ onEdgesChange: (changes) => {
           }
         },
 
-       saveProgress: () => {
-  const state = get();
-  const caseData = state.cases.find((c) => c.id === state.activeCaseId);
-  if (!caseData) return;
+        saveProgress: () => {
+          const state = get();
+          const caseData = state.cases.find((c) => c.id === state.activeCaseId);
+          if (!caseData) return;
 
-  const json = JSON.stringify(caseData, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+          const json = JSON.stringify(caseData, null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
 
-  set({ lastSaved: new Date().toISOString() });
-},
+          set({ lastSaved: new Date().toISOString() });
+        },
 
         exportCase: () => {
           const state = get();
