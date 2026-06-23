@@ -300,7 +300,7 @@ export default function InfoTab({
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
         <ReactFlow
           nodes={nodes}
-          edges={styledEdges}
+          edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
