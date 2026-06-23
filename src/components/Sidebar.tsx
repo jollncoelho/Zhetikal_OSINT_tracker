@@ -62,7 +62,23 @@ export default function Sidebar({
     t.toLowerCase().includes(typeSearch.toLowerCase()) ||
     ENTITY_LABELS[t].toLowerCase().includes(typeSearch.toLowerCase())
   );
-
+{selectedType === 'photo' && (
+                  <div>
+                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-1 block w-full text-[10px] text-cyber-text-dim"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => setPhotoDataUrl(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </div>
+                )}
   const handleCreateCase = () => {
     if (!newCaseName.trim()) return;
     const id = onCreateCase(newCaseName.trim(), newCaseDesc.trim());
