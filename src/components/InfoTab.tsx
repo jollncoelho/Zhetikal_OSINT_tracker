@@ -23,8 +23,8 @@ import SocialNodeComponent from './SocialNode';
 import CustomEdge from './CustomEdge';
 
 const nodeTypes: NodeTypes = {
-  entity: EntityNodeComponent as NodeTypes['entity'],
-  social: SocialNodeComponent as NodeTypes['social'],
+  entity: () => <div style={{width: 200, height: 100, background: '#1e3a5f', border: '1px solid #00c8d4'}} />,
+  social: () => <div style={{width: 200, height: 100, background: '#1e3a5f', border: '1px solid #00c8d4'}} />,
 };
 
 const edgeTypes = {};
