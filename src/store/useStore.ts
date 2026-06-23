@@ -261,33 +261,33 @@ export const useStore = create<AppState>()(
           }
         },
 
-        onNodesChange: (changes) => {
-          set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
-          const activeCaseId = get().activeCaseId;
-          if (activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === activeCaseId
-                  ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
-                  : c
-              ),
-            }));
-          }
-        },
+       onNodesChange: (changes) => {
+  set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
+          : c
+      ),
+    }));
+  }
+},
 
-        onEdgesChange: (changes) => {
-          set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
-          const activeCaseId = get().activeCaseId;
-          if (activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === activeCaseId
-                  ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
-                  : c
-              ),
-            }));
-          }
-        },
+onEdgesChange: (changes) => {
+  set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
+          : c
+      ),
+    }));
+  }
+},
 
         clearCanvas: () => {
           set({ nodes: [], edges: [] });
