@@ -72,12 +72,16 @@ export default function Sidebar({
     setCreatingCase(false);
   };
 
-  const handleAddEntity = (type: EntityType) => {
+   const handleAddEntity = (type: EntityType) => {
     setSelectedType(type);
     const label = entityLabel || ENTITY_LABELS[type];
-    if (type === 'photo' && photoDataUrl) {
-      onAddEntity(type, label, { photoUrl: photoDataUrl });
-      setPhotoDataUrl('');
+
+    if (type === 'photo') {
+      if (photoDataUrl) {
+        onAddEntity(type, label, { photoUrl: photoDataUrl });
+        setPhotoDataUrl('');
+      }
+      // Pas de photo = pas de nœud vide créé
     } else {
       onAddEntity(type, label);
     }
