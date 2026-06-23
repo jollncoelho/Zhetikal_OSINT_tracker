@@ -78,26 +78,24 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const openUrl = buildOpenUrl(data.entityType, data.label);
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const half = HANDLE_THICKNESS / 2;
-  
   const handleBase: React.CSSProperties = {
     background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair',
   };
 
   return (
     <div
-      key={id}
       className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${selected ? 'shadow-lg' : ''}`}
       style={{
         borderColor: selected ? data.color : '#1e3a5f',
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Configuration standard des 4 côtés cardinaux */}
-      <Handle id="left" type="target" position={Position.Left}
+      {/* RETOUR AUX HANDLES D'ORIGINE POUR TOUT DÉBLOQUER */}
+      <Handle id="left" type="source" position={Position.Left}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
       <Handle id="right" type="source" position={Position.Right}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
-      <Handle id="top" type="target" position={Position.Top}
+      <Handle id="top" type="source" position={Position.Top}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
       <Handle id="bottom" type="source" position={Position.Bottom}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
@@ -138,7 +136,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         )}
       </div>
 
-      {/* Aperçu de la photo */}
+      {/* Photo preview */}
       {data.photoUrl && (
         <div className="px-3 pt-1 pb-2">
           <img
