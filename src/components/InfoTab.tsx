@@ -289,18 +289,13 @@ export default function InfoTab({
     [updateNodeData]
   );
 
-  const styledEdges = edges.map((e) => ({
-    ...e,
-    selected: e.id === selectedEdgeId,
-    style: e.id === selectedEdgeId ? { stroke: '#ef4444' } : { stroke: '#00c8d4' },
-  }));
 
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
         <ReactFlow
           nodes={nodes}
-          edges={styledEdges}
+          edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -311,8 +306,6 @@ export default function InfoTab({
           edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
           deleteKeyCode={null}
-          fitView
-          defaultEdgeOptions={{ type: 'custom', style: { stroke: '#00c8d4' } }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
