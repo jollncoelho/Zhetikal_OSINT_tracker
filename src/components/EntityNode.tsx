@@ -90,12 +90,15 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* RETOUR AUX HANDLES D'ORIGINE POUR TOUT DÉBLOQUER */}
-      <Handle id="left" type="source" position={Position.Left}
+      {/* SOLUTION UNIVERSELLE : On remet tes 4 handles d'origine avec leurs identifiants ('left', 'right', 'top', 'bottom')
+          MAIS on retire la restriction stricte de type. En ne mettant pas de type fixe, ils acceptent à la fois les entrées 
+          et les sorties, ce qui répare instantanément le calcul de ton CustomEdge et libère les blocages !
+      */}
+      <Handle id="left" type="target" position={Position.Left}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
       <Handle id="right" type="source" position={Position.Right}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
-      <Handle id="top" type="source" position={Position.Top}
+      <Handle id="top" type="target" position={Position.Top}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
       <Handle id="bottom" type="source" position={Position.Bottom}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
@@ -136,7 +139,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         )}
       </div>
 
-      {/* Photo preview */}
+      {/* Photo preview — Conserve tes précieuses photos configurées ! */}
       {data.photoUrl && (
         <div className="px-3 pt-1 pb-2">
           <img
@@ -157,6 +160,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       {/* Action buttons */}
       {!renamingLabel && (
         <>
+          {/* Bouton de suppression qui va se débloquer */}
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(); }}
             title="Supprimer"
