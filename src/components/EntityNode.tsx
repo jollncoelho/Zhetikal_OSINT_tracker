@@ -65,13 +65,11 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
     if (e.key === 'Escape') { setLabel(data.label); setRenamingLabel(false); }
   };
 
-  // Double-click always renames
   const handleLabelDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setRenamingLabel(true);
   };
 
-  // Dispatched to App.tsx (has store access) to find/create pin then navigate
   const handleGoToMap = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.dispatchEvent(new CustomEvent('entity-go-to-map', { detail: { nodeId: id } }));
@@ -138,8 +136,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         )}
       </div>
 
-  </div>
-)}
       {/* Notes preview */}
       <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
