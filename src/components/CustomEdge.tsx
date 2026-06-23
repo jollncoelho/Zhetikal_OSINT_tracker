@@ -12,7 +12,6 @@ export default memo(function CustomEdge({
   style = {},
   markerEnd,
 }: EdgeProps) {
-  // Cette fonction calcule la trajectoire exacte entre le centre des handles source et target
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -30,7 +29,7 @@ export default memo(function CustomEdge({
       style={{
         ...style,
         strokeWidth: 2,
-        stroke: '#ffffff', // Force la flèche en blanc propre comme sur ton image
+        stroke: '#ffffff',
         opacity: 0.8,
       }}
     />
