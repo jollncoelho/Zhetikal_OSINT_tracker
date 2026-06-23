@@ -4,7 +4,7 @@ import {
   ChevronRight, Search, X, FileText, Image, Save, Pencil, Check, Eraser,
   AlertTriangle,
 } from 'lucide-react';
-import type { CaseData, EntityType } from '../types';
+import type { CaseData, EntityType, EntityData } from '../types';
 import { ENTITY_COLORS, ENTITY_LABELS } from '../types';
 
 interface SidebarProps {
@@ -15,7 +15,7 @@ interface SidebarProps {
   onCloseCase: () => void;
   onDeleteCase: (id: string) => void;
   onUpdateCase: (id: string, name: string, description: string) => void;
-  onAddEntity: (type: EntityType, label: string) => void;
+  onAddEntity: (type: EntityType, label: string, extra?: Partial<EntityData>) => void;
   onSaveProgress: () => void;
   onExport: () => void;
   onExportPdf: () => Promise<void>;
@@ -74,7 +74,13 @@ export default function Sidebar({
 
   const handleAddEntity = (type: EntityType) => {
     setSelectedType(type);
-    onAddEntity(type, entityLabel || ENTITY_LABELS[type]);
+    const label = entityLabel || ENTITY_LABELS[type];
+    if (type === 'photo' && photoDataUrl) {
+      onAddEntity(type, label, { photoUrl: photoDataUrl });
+      setPhotoDataUrl('');
+    } else {
+      onAddEntity(type, label);
+    }
     setEntityLabel('');
   };
 
@@ -303,8 +309,11 @@ export default function Sidebar({
                     onChange={(e) => setTypeSearch(e.target.value)}
                     placeholder="Search types..."
                     className="w-full bg-cyber-dark border border-cyber-border rounded pl-6 pr-2 py-1 text-[10px] text-cyber-text outline-none focus:border-cyber-cyan"
-                      {selectedType === 'photo' && (
-                  <div className="col-span-2">
+                  />
+                </div>
+
+                {selectedType === 'photo' && (
+                  <div>
                     <label className="text-[10px] text-cyber-text-dim">Photo</label>
                     <input
                       type="file"
@@ -320,8 +329,6 @@ export default function Sidebar({
                     />
                   </div>
                 )}
-                  />
-                </div>
 
                 <div className="grid grid-cols-2 gap-1">
                   {filteredTypes.map((type) => {
