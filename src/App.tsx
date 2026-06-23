@@ -377,7 +377,7 @@ function AppInner() {
             {lastSaved && (
               <span className="flex items-center gap-1 text-cyber-green/70">
                 <span className="w-1 h-1 rounded-full bg-cyber-green" />
-                Saved {lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+               Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             )}
             <span>
