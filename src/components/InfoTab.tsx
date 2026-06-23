@@ -27,7 +27,7 @@ const nodeTypes: NodeTypes = {
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-const edgeTypes = {};
+const edgeTypes = { custom: CustomEdge };
 
 function FlowExporter({
   activeCase,
@@ -289,8 +289,9 @@ export default function InfoTab({
     [updateNodeData]
   );
 
+
   return (
-    <div className="flex flex-1 overflow-hidden min-h-0">
+    <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
         <ReactFlow
           nodes={nodes}
