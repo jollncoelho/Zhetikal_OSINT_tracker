@@ -155,7 +155,7 @@ function AppInner() {
   }, [cases.length, createCase]);
 
   const handleAddEntity = useCallback(
-    (type: EntityType, label: string) => addEntity(type, label),
+    (type: EntityType, label: string, extra?: Partial<EntityData>) => addEntity(type, label, extra),
     [addEntity]
   );
 
@@ -354,9 +354,8 @@ function AppInner() {
               pins={activeCase?.locations || []}
               onUpdatePins={(pins) => {
                 if (!activeCaseId) return;
-                setCases(prev => prev.map(c =>
-                  c.id === activeCaseId ? { ...c, locations: pins } : c
-                ));
+                // Note: this will need to match your store update pattern
+                updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
             />
           </div>
