@@ -1,6 +1,7 @@
 import type { Node, Edge } from '@xyflow/react';
 
 export type EntityType =
+  export type EntityType =
   | 'ip'
   | 'domain'
   | 'email'
@@ -14,8 +15,8 @@ export type EntityType =
   | 'crypto'
   | 'iban'
   | 'note'
-  | 'social';
-  | 'photo'
+  | 'social'
+  | 'photo';
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin' | 'x';
 
 export const SOCIAL_PLATFORMS: { id: SocialPlatform; label: string; color: string }[] = [
