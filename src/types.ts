@@ -95,6 +95,7 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   iban: 'IBAN',
   note: 'Note',
   social: 'Social Media',
+  photo: 'Photo',
 };
 
 export const ENTITY_COLORS: Record<EntityType, string> = {
@@ -112,6 +113,7 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   iban: '#34d399',
   note: '#94a3b8',
   social: '#1877f2',
+  photo: '#f43f5e',
 };
 
 export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
@@ -220,38 +222,4 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'bio',       label: 'Bio',       type: 'text' },
   ],
 };
-export const ENTITY_LABELS: Record<EntityType, string> = {
-  ip: 'IP Address',
-  domain: 'Domain',
-  email: 'Email',
-  username: 'Username',
-  phone: 'Phone',
-  location: 'Location',
-  organization: 'Organization',
-  person: 'Person',
-  file: 'File',
-  url: 'URL',
-  crypto: 'Crypto',
-  iban: 'IBAN',
-  note: 'Note',
-  social: 'Social Media',
-  photo: 'Photo',
-};
 
-export const ENTITY_COLORS: Record<EntityType, string> = {
-  ip: '#ef4444',
-  domain: '#3b82f6',
-  email: '#f59e0b',
-  username: '#8b5cf6',
-  phone: '#06b6d4',
-  location: '#10b981',
-  organization: '#6366f1',
-  person: '#ec4899',
-  file: '#64748b',
-  url: '#0ea5e9',
-  crypto: '#eab308',
-  iban: '#14b8a6',
-  note: '#6b7280',
-  social: '#a855f7',
-  photo: '#f43f5e',
-};
