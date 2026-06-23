@@ -1,3 +1,16 @@
+async function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  const w = bitmap.width * scale;
+  const h = bitmap.height * scale;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
 import { useRef, useState } from 'react';
 import {
   Plus, FolderOpen, FolderX, Trash2, Download, Upload, ChevronDown,
@@ -322,12 +335,11 @@ export default function Sidebar({
                       type="file"
                       accept="image/*"
                       className="mt-1 block w-full text-[10px] text-cyber-text-dim"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => setPhotoDataUrl(reader.result as string);
-                        reader.readAsDataURL(file);
+                        const compressed = await compressImage(file, 800, 0.7);
+                        setPhotoDataUrl(compressed);
                       }}
                     />
                   </div>
