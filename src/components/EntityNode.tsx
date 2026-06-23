@@ -91,7 +91,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       }}
     >
       {/* Handles */}
-          <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
       <Handle type="source" position={Position.Right} style={{ ...handleBase, width: 10, height: 10 }} />
       <Handle type="target" position={Position.Top} style={{ ...handleBase, width: 10, height: 10 }} />
       <Handle type="source" position={Position.Bottom} style={{ ...handleBase, width: 10, height: 10 }} />
