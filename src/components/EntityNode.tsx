@@ -91,10 +91,8 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       }}
     >
             {/* Handles */}
-      <Handle id="left" ... />
-      <Handle id="right" ... />
-      <Handle id="top" ... />
-      <Handle id="bottom" ... />
+      <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
+      <Handle type="source" position={Position.Right} style={{ ...handleBase, width: 10, height: 10 }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
