@@ -15,7 +15,7 @@ export type EntityType =
   | 'iban'
   | 'note'
   | 'social';
-
+  | 'photo'
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin' | 'x';
 
 export const SOCIAL_PLATFORMS: { id: SocialPlatform; label: string; color: string }[] = [
@@ -35,6 +35,7 @@ export interface EntityData extends Record<string, unknown> {
   socialPlatform?: SocialPlatform;
   fields?: Record<string, unknown>;
   customIconId?: string | null;
+  photoUrl?: string;
 }
 
 export interface EntityNode extends Node {
