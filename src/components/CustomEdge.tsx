@@ -93,7 +93,7 @@ export default function CustomEdge({
         strokeDasharray="6 4"
         markerEnd={`url(#${markerId})`}
         style={{
-          pointerEvents: 'none',
+          pointerEvents: 'stroke',
           transition: 'stroke 0.15s ease, stroke-width 0.15s ease',
           animation: 'flow-dash 1.6s linear infinite',
         }}
