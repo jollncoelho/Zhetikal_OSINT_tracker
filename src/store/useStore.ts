@@ -1,6 +1,6 @@
-import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
+import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { CaseData, EntityData, EntityNode, Edge, MapPin, PinLink } from '../types';
 
 interface AppState {
@@ -10,25 +10,21 @@ interface AppState {
   edges: Edge[];
   lastSaved: Date | null;
 
-  // Case actions
   createCase: (name: string, description: string) => string;
   switchCase: (id: string) => void;
   deleteCase: (id: string) => void;
   updateCase: (id: string, name: string, description: string, updates?: Partial<CaseData>) => void;
   closeCase: () => void;
 
-  // Entity actions
-  addEntity: (type: EntityType, label: string, extra?: Partial<EntityData>) => string;
+  addEntity: (type: string, label: string, extra?: Partial<EntityData>) => string;
   updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
   deleteNode: (nodeId: string) => void;
 
-  // Edge actions
   onConnect: (connection: any) => void;
   deleteEdge: (edgeId: string) => void;
   onNodesChange: (changes: any) => void;
   onEdgesChange: (changes: any) => void;
 
-  // Global actions
   clearCanvas: () => void;
   saveProgress: () => void;
   exportCase: () => string;
@@ -36,7 +32,6 @@ interface AppState {
   updateCaseNotes: (notes: string) => void;
   updateCaseTitle: (title: string) => void;
 
-  // Map actions
   addPin: (pin: Omit<MapPin, 'id'>) => string;
   updatePin: (id: string, updates: Partial<MapPin>) => void;
   deletePin: (id: string) => void;
@@ -44,14 +39,13 @@ interface AppState {
   removePinLink: (id: string) => void;
 }
 
-// Helper constants
 const ENTITY_COLORS: Record<string, string> = {
   ip: '#ef4444',
-  domain: '#f59e0b',
-  email: '#10b981',
+  domain: '#3b82f6',
+  email: '#f59e0b',
   username: '#8b5cf6',
   phone: '#06b6d4',
-  location: '#3b82f6',
+  location: '#10b981',
   organization: '#6366f1',
   person: '#ec4899',
   file: '#64748b',
@@ -194,8 +188,7 @@ export const useStore = create<AppState>()(
               n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
             ),
           }));
-          // Also sync to case
-          const activeCaseId = state.activeCaseId;
+          const activeCaseId = get().activeCaseId;
           if (activeCaseId) {
             set((state) => ({
               cases: state.cases.map((c) =>
@@ -212,103 +205,97 @@ export const useStore = create<AppState>()(
           }
         },
 
-     deleteNode: (nodeId) => {
-  set((state) => ({
-    nodes: state.nodes.filter((n) => n.id !== nodeId),
-    edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-  }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? {
-              ...c,
-              nodes: c.nodes.filter((n) => n.id !== nodeId),
-              edges: c.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-            }
-          : c
-      ),
-    }));
-  }
-},
-
-     onConnect: (connection) => {
-  const edge: Edge = {
-    id: crypto.randomUUID(),
-    source: connection.source,
-    target: connection.target,
-    type: 'custom',
-    animated: true,
-  };
-  set((state) => ({ edges: [...state.edges, edge] }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, edges: [...c.edges, edge] }
-          : c
-      ),
-    }));
-  }
-},
-       deleteEdge: (edgeId) => {
-  set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, edges: c.edges.filter((e) => e.id !== edgeId) }
-          : c
-      ),
-    }));
-  }
-},
-updateNodeData: (nodeId, data) => {
-  set((state) => ({
-    nodes: state.nodes.map((n) =>
-      n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
-    ),
-  }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? {
-              ...c,
-              nodes: c.nodes.map((n) =>
-                n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+        deleteNode: (nodeId) => {
+          set((state) => ({
+            nodes: state.nodes.filter((n) => n.id !== nodeId),
+            edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+          }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? {
+                      ...c,
+                      nodes: c.nodes.filter((n) => n.id !== nodeId),
+                      edges: c.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+                    }
+                  : c
               ),
-            }
-          : c
-      ),
-    }));
-  }
-},,
+            }));
+          }
+        },
 
-onEdgesChange: (changes) => {
-  set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
-  const activeCaseId = get().activeCaseId;
-  if (activeCaseId) {
-    set((state) => ({
-      cases: state.cases.map((c) =>
-        c.id === activeCaseId
-          ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
-          : c
-      ),
-    }));
-  }
-},
+        onConnect: (connection) => {
+          const edge: Edge = {
+            id: crypto.randomUUID(),
+            source: connection.source,
+            target: connection.target,
+            type: 'custom',
+            animated: true,
+          };
+          set((state) => ({ edges: [...state.edges, edge] }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, edges: [...c.edges, edge] }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        deleteEdge: (edgeId) => {
+          set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, edges: c.edges.filter((e) => e.id !== edgeId) }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        onNodesChange: (changes) => {
+          set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, nodes: applyNodeChanges(changes, c.nodes) }
+                  : c
+              ),
+            }));
+          }
+        },
+
+        onEdgesChange: (changes) => {
+          set((state) => ({ edges: applyEdgeChanges(changes, state.edges) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, edges: applyEdgeChanges(changes, c.edges) }
+                  : c
+              ),
+            }));
+          }
+        },
 
         clearCanvas: () => {
           set({ nodes: [], edges: [] });
-          if (get().activeCaseId) {
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
             set((state) => ({
               cases: state.cases.map((c) =>
-                c.id === state.activeCaseId
+                c.id === activeCaseId
                   ? { ...c, nodes: [], edges: [], locations: [], pinLinks: [] }
                   : c
               ),
@@ -318,7 +305,6 @@ onEdgesChange: (changes) => {
 
         saveProgress: () => {
           set({ lastSaved: new Date() });
-          // Persist is handled automatically by zustand persist
         },
 
         exportCase: () => {
@@ -422,9 +408,7 @@ onEdgesChange: (changes) => {
           }));
         },
       }),
-      {
-        name: 'ghostint-storage',
-      }
+      { name: 'ghostint-storage' }
     )
   )
 );
