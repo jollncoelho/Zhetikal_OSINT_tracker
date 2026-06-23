@@ -90,7 +90,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-          <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
+      <Handle type="target" position={Position.Left} style={{ ...handleBase, width: 10, height: 10 }} />
       <Handle type="source" position={Position.Right} style={{ ...handleBase, width: 10, height: 10 }} />
 
       {/* Header */}
