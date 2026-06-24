@@ -226,15 +226,12 @@ export const useStore = create<AppState>()(
           }
         },
 
-      onConnect: (connection) => {
+     onConnect: (connection) => {
           const activeCaseId = get().activeCaseId;
           set((state) => {
-            // On configure uniquement le type pour charger la croix, mais on laisse les points d'ancrage totalement libres !
             const customConnection = {
               ...connection,
-              type: 'custom',
-              sourceHandle: connection.sourceHandle || null,
-              targetHandle: connection.targetHandle || null
+              type: 'custom' // Uniquement le type ici aussi !
             };
             const updatedEdges = addEdge(customConnection, state.edges);
             
