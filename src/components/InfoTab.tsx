@@ -20,12 +20,15 @@ import type { CaseData, EntityData, EntityNode } from '../types';
 import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
+import CustomEdge from './CustomEdge'; // <-- CORRECTION 1 : Ajout de l'import manquant
 
 const nodeTypes: NodeTypes = {
   entity: EntityNodeComponent as NodeTypes['entity'],
   social: SocialNodeComponent as NodeTypes['social'],
 };
-const edgeTypes = {};
+
+// <-- CORRECTION 2 : Une seule déclaration propre pour edgeTypes
+const edgeTypes = { custom: CustomEdge };
 
 function FlowExporter({
   activeCase,
