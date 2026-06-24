@@ -47,7 +47,11 @@ function AppInner() {
     addPinLink,
     removePinLink,
   } = useStore();
-
+const onConnect = useCallback((params: any) => {
+    if (useStore.getState().onConnect) {
+      useStore.getState().onConnect(params);
+    }
+  }, []);
   const { view, setView } = useNavigation();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
@@ -320,7 +324,12 @@ function AppInner() {
             </div>
           </div>
         )}
+const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
+  const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
 
+  const handleRegisterExportPng = useCallback((fn: () => Promise<void>) => setExportPngFn(() => fn), []);
+  const handleRegisterExportPdf = useCallback((fn: () => Promise<void>) => setExportPdfFn(() => fn), []);
+    
         {/* Tab views — conditional rendering */}
         {view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
