@@ -217,7 +217,6 @@ function AppInner() {
       <div className="flex-1 flex flex-col relative min-w-0">
         {/* Top bar */}
         <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
-          {/* Left: logo + case name */}
           <div className="flex items-center gap-3 min-w-0">
             <img
               src="/photo_2026-05-04_13-46-20.jpg"
@@ -237,7 +236,6 @@ function AppInner() {
             </div>
           </div>
 
-          {/* Center: tabs */}
           <div className="flex items-center gap-1 bg-cyber-black/60 rounded-xl border border-cyber-border p-1">
             <button
               onClick={() => setView('graph')}
@@ -261,7 +259,6 @@ function AppInner() {
             </button>
           </div>
 
-          {/* Right: action buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setStatsOpen(!statsOpen)}
@@ -321,7 +318,7 @@ function AppInner() {
           </div>
         )}
 
-        {/* Tab views — conditional rendering */}
+        {/* Tab views */}
         {view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
@@ -334,7 +331,12 @@ function AppInner() {
                 activeCase={activeCase}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
+                /* CORRECTION ICI : On intercepte les paramètres pour y injecter de force la position des handles */
+                onConnect={(params) => onConnect({
+                  ...params,
+                  sourceHandle: params.sourceHandle,
+                  targetHandle: params.targetHandle
+                })}
                 onEdgeClick={handleEdgeClick}
                 onNodeClick={handleNodeClick as any}
                 onPaneClick={handlePaneClick}
@@ -354,7 +356,6 @@ function AppInner() {
               pins={activeCase?.locations || []}
               onUpdatePins={(pins) => {
                 if (!activeCaseId) return;
-                // Note: this will need to match your store update pattern
                 updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
             />
@@ -365,51 +366,4 @@ function AppInner() {
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
-              OPSEC: Local Storage Only
-            </span>
-            <span className="text-cyber-border">|</span>
-            <span className="text-cyber-text-dim/60">Usage éthique et légal requis</span>
-            <span className="text-cyber-border">|</span>
-            <span>Ghostint / CyberZ7 — OSINT Tracker</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {lastSaved && (
-              <span className="flex items-center gap-1 text-cyber-green/70">
-                <span className="w-1 h-1 rounded-full bg-cyber-green" />
-               Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            )}
-            <span>
-              {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
-        </div>
-
-        {/* Toolkit + Analyzer */}
-        <div className="flex flex-col">
-          <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
-        </div>
-      </div>
-
-      {/* IdentifierModal — fields editor */}
-      {fieldsNode && (
-        <IdentifierModal
-          nodeId={fieldsNode.id}
-          data={fieldsNode.data}
-          onUpdate={updateNodeData}
-          onClose={() => setFieldsNodeId(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-export default function App() {
-  return (
-    <NavigationProvider>
-      <AppInner />
-    </NavigationProvider>
-  );
-}
+              <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse"
