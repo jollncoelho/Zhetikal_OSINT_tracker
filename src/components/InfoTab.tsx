@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, memo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -20,14 +20,13 @@ import type { CaseData, EntityData, EntityNode } from '../types';
 import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
-import CustomEdge from './CustomEdge';
 
 const nodeTypes: NodeTypes = {
   entity: EntityNodeComponent as NodeTypes['entity'],
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-const edgeTypes = { custom: CustomEdge };
+const edgeTypes = {};
 
 function FlowExporter({
   activeCase,
@@ -288,16 +287,6 @@ export default function InfoTab({
     (nodeId: string, notes: string) => updateNodeData(nodeId, { notes }),
     [updateNodeData]
   );
-
-   const visibleEdges = useMemo(() => edges.map((e) => ({
-    ...e,
-    selected: e.id === selectedEdgeId,
-    style: {
-      ...e.style,
-      stroke: e.id === selectedEdgeId ? '#ef4444' : '#00c8d4',
-      strokeWidth: 2,
-    },
-  })), [edges, selectedEdgeId]);
 
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
