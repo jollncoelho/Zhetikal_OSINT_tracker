@@ -343,8 +343,8 @@ function AppInner() {
                 updateNodeData={updateNodeData}
                 updateCaseNotes={updateCaseNotes}
                 updateCaseTitle={updateCaseTitle}
-                onRegisterExportPng={handleRegisterExportPng}
-                onRegisterExportPdf={handleRegisterExportPdf}
+                onRegisterExportPng={handleRegisterExportPng} // <-- AJOUTE CETTE LIGNE
+                onRegisterExportPdf={handleRegisterExportPdf} // <-- AJOUTE CETTE LIGNE
               />
             </ReactFlowProvider>
           </div>
