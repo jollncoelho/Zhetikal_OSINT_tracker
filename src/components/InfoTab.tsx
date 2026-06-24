@@ -40,9 +40,18 @@ function FlowExporter({
 }) {
   const { getNodes } = useReactFlow();
 
-  const captureViewport = useCallback(async (): Promise<string> => {
-    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
-    if (!viewport) throw new Error('Viewport non trouvé');
+ const captureViewport = useCallback(async (): Promise<string> => {
+    // On cherche d'abord la classe standard, et sinon on prend le conteneur global du flow
+    let viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!viewport) {
+      viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
+    }
+    if (!viewport) {
+      viewport = document.querySelector('.react-flow') as HTMLElement | null;
+    }
+    
+    if (!viewport) throw new Error('Conteneur React Flow introuvable');
+    
     return toPng(viewport, {
       cacheBust: true,
       pixelRatio: 2,
