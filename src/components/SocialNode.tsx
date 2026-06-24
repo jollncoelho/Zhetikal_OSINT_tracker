@@ -213,14 +213,15 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
         }}
       >
         {/* Handles */}
-        <Handle id="left" type="source" position={Position.Left}
-          style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
-        <Handle id="right" type="source" position={Position.Right}
-          style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
-        <Handle id="top" type="source" position={Position.Top}
-          style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
-        <Handle id="bottom" type="source" position={Position.Bottom}
-          style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
+        {/* Configuration des ancrages harmonisée pour le CustomEdge */}
+      <Handle id="left" type="target" position={Position.Left}
+        style={{ background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair', width: 14, height: '100%', top: 0, left: -7, transform: 'none' }} />
+      <Handle id="right" type="source" position={Position.Right}
+        style={{ background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair', width: 14, height: '100%', top: 0, right: -7, transform: 'none' }} />
+      <Handle id="top" type="target" position={Position.Top}
+        style={{ background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair', width: '100%', height: 14, left: 0, top: -7, transform: 'none' }} />
+      <Handle id="bottom" type="source" position={Position.Bottom}
+        style={{ background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair', width: '100%', height: 14, left: 0, bottom: -7, transform: 'none' }} />
 
         {/* Delete button */}
         {!renamingLabel && (
