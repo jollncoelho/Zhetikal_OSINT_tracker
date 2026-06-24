@@ -6,10 +6,12 @@ import {
   MiniMap,
   BackgroundVariant,
   ConnectionMode,
-  useReactFlow,
+  EdgeLabelRenderer,
+  getBezierPath,
   type NodeTypes,
   type Node,
   type Edge,
+  type EdgeProps,
   type OnNodesChange,
   type OnEdgesChange,
   type Connection,
@@ -21,12 +23,93 @@ import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
 
+// 1. Notre flèche personnalisée intégrée directement pour éviter les conflits
+const CustomEdge = memo(function CustomEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  selected,
+}: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <path
+        id={id}
+        className="react-flow__edge-path"
+        d={edgePath}
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          strokeWidth: 2,
+          stroke: selected ? '#ef4444' : '#ffffff', // Devient rouge si sélectionné !
+          strokeDasharray: '5,5',
+          opacity: selected ? 1 : 0.6,
+        }}
+      />
+      {selected && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              fontSize: 10,
+              pointerEvents: 'all',
+              zIndex: 1000,
+            }}
+            className="nodrag nopan"
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
+              }}
+              style={{
+                width: '18px',
+                height: '18px',
+                backgroundColor: '#1a202c',
+                border: '1px solid #ef4444',
+                color: '#ef4444',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+});
+
 const nodeTypes: NodeTypes = {
   entity: EntityNodeComponent as NodeTypes['entity'],
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-// Gestionnaire d'exportation réinitialisé et robuste
+const edgeTypes = { custom: CustomEdge };
+
+// 2. Le module d'exportation d'images sécurisé
 function FlowExporter({
   activeCase,
   onRegisterExportPng,
@@ -37,16 +120,10 @@ function FlowExporter({
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
   const captureViewport = useCallback(async (): Promise<string> => {
-    // Recherche large pour éviter l'erreur "Viewport non trouvé"
     let viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
-    if (!viewport) {
-      viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
-    }
-    if (!viewport) {
-      viewport = document.querySelector('.react-flow') as HTMLElement | null;
-    }
-    
-    if (!viewport) throw new Error('Conteneur de graphique introuvable');
+    if (!viewport) viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
+    if (!viewport) viewport = document.querySelector('.react-flow') as HTMLElement | null;
+    if (!viewport) throw new Error('Graphique introuvable');
     
     return toPng(viewport, {
       cacheBust: true,
@@ -71,9 +148,7 @@ function FlowExporter({
         link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
         link.href = dataUrl;
         link.click();
-      } catch (err) {
-        console.error("Erreur Export PNG:", err);
-      }
+      } catch (err) { console.error(err); }
     };
 
     const exportPdf = async () => {
@@ -85,9 +160,7 @@ function FlowExporter({
         pdf.rect(0, 0, 297, 210, 'F');
         pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
         pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
-      } catch (err) {
-        console.error("Erreur Export PDF:", err);
-      }
+      } catch (err) { console.error(err); }
     };
 
     onRegisterExportPng(exportPng);
@@ -142,16 +215,6 @@ export default function InfoTab({
 }: InfoTabProps) {
   const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNode | undefined) ?? null;
 
-  const miniMapNodeColor = useCallback((node: Node) => {
-    const data = node.data as EntityData | undefined;
-    return data?.color || '#1e3a5f';
-  }, []);
-
-  const handleUpdateEntityNotes = useCallback(
-    (nodeId: string, notes: string) => updateNodeData(nodeId, { notes }),
-    [updateNodeData]
-  );
-
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
@@ -165,14 +228,15 @@ export default function InfoTab({
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes} // Rebranche la flèche personnalisée
           connectionMode={ConnectionMode.Loose}
-          edgesSelectable={true}
+          edgesSelectable={true} // Force l'activation de la sélection
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
           <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
-          <MiniMap nodeColor={miniMapNodeColor} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
+          <MiniMap nodeColor={() => '#1e3a5f'} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
           <FlowExporter
             activeCase={activeCase}
             onRegisterExportPng={onRegisterExportPng}
@@ -187,7 +251,7 @@ export default function InfoTab({
           caseNotes={activeCase?.caseNotes ?? ''}
           caseTitle={activeCase?.caseTitle ?? ''}
           caseDescription={activeCase?.description}
-          onUpdateEntityNotes={handleUpdateEntityNotes}
+          onUpdateEntityNotes={(id, notes) => updateNodeData(id, { notes })}
           onUpdateCaseNotes={updateCaseNotes}
           onUpdateCaseTitle={updateCaseTitle}
           onClose={() => { onSetNotePanelOpen(false); onSetSelectedNodeId(null); }}
