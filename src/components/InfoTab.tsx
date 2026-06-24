@@ -38,10 +38,9 @@ function FlowExporter({
   onRegisterExportPng: (fn: () => Promise<void>) => void;
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
-  const { getNodes } = useReactFlow();
+  const reactFlowInstance = useReactFlow();
 
- const captureViewport = useCallback(async (): Promise<string> => {
-    // On cherche d'abord la classe standard, et sinon on prend le conteneur global du flow
+  const captureViewport = useCallback(async (): Promise<string> => {
     let viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewport) {
       viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
@@ -64,7 +63,7 @@ function FlowExporter({
         return true;
       },
     });
-  }, [getNodes]);
+  }, []);
 
   useEffect(() => {
     const exportPng = async () => {
@@ -99,6 +98,7 @@ function FlowExporter({
   }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf]);
 
   return null;
+}
 }
 
 interface InfoTabProps {
