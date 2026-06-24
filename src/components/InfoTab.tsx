@@ -1,262 +1,147 @@
-import { useCallback, useEffect, memo } from 'react';
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  BackgroundVariant,
-  ConnectionMode,
-  EdgeLabelRenderer,
-  getBezierPath,
-  type NodeTypes,
-  type Node,
-  type Edge,
-  type EdgeProps,
-  type OnNodesChange,
-  type OnEdgesChange,
-  type Connection,
-} from '@xyflow/react';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
-import type { CaseData, EntityData, EntityNode } from '../types';
-import NotePanel from './NotePanel';
-import EntityNodeComponent from './EntityNode';
-import SocialNodeComponent from './SocialNode';
+import { HermesAnalyzer } from './components/HermesAnalyzer';
+import { useCallback, useEffect, useState } from 'react';
+import { ReactFlowProvider } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { Ghost, Activity, Home, Network, Map } from 'lucide-react';
 
-// 1. Notre flèche personnalisée intégrée directement pour éviter les conflits
-const CustomEdge = memo(function CustomEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  style = {},
-  markerEnd,
-  selected,
-}: EdgeProps) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+import Sidebar from './components/Sidebar';
+import ToolkitPanel from './components/ToolkitPanel';
+import DisclaimerModal from './components/DisclaimerModal';
+import InfoTab from './components/InfoTab';
+import MapTab from './components/MapTab';
+import IdentifierModal from './components/IdentifierModal';
+import { NavigationProvider, useNavigation } from './context/NavigationContext';
+import { useStore } from './store/useStore';
+import type { EntityData, EntityNode as EntityNodeType, EntityType } from './types';
+import type { Edge } from '@xyflow/react';
 
-  return (
-    <>
-      <path
-        id={id}
-        className="react-flow__edge-path"
-        d={edgePath}
-        markerEnd={markerEnd}
-        style={{
-          ...style,
-          strokeWidth: 2,
-          stroke: selected ? '#ef4444' : '#ffffff', // Devient rouge si sélectionné !
-          strokeDasharray: '5,5',
-          opacity: selected ? 1 : 0.6,
-        }}
-      />
-      {selected && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 10,
-              pointerEvents: 'all',
-              zIndex: 1000,
-            }}
-            className="nodrag nopan"
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
-              }}
-              style={{
-                width: '18px',
-                height: '18px',
-                backgroundColor: '#1a202c',
-                border: '1px solid #ef4444',
-                color: '#ef4444',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
-                padding: 0,
-              }}
-            >
-              ×
-            </button>
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
+function AppInner() {
+  const {
+    cases,
+    activeCase,
+    activeCaseId,
+    nodes,
+    edges,
+    lastSaved,
+    onNodesChange,
+    onEdgesChange,
+    createCase,
+    switchCase,
+    deleteCase,
+    addEntity,
+    updateNodeData,
+    onConnect: storeOnConnect,
+    deleteNode,
+    deleteEdge,
+    clearCanvas,
+    saveProgress,
+    exportCase,
+    importCase,
+    updateCaseNotes,
+    updateCaseTitle,
+    closeCase,
+    updateCase,
+    addPin,
+    updatePin,
+    deletePin,
+    addPinLink,
+    removePinLink,
+  } = useStore();
+
+  const { view, setView } = useNavigation();
+
+  // Connexion standard pour laisser les flèches libres
+  const onConnect = useCallback((params: any) => {
+    if (storeOnConnect) {
+      storeOnConnect(params);
+    }
+  }, [storeOnConnect]);
+
+  const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [notePanelOpen, setNotePanelOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(
+    () => sessionStorage.getItem('ghostint-disclaimer') === 'accepted'
   );
-});
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
+  const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
+  const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
 
-const nodeTypes: NodeTypes = {
-  entity: EntityNodeComponent as NodeTypes['entity'],
-  social: SocialNodeComponent as NodeTypes['social'],
-};
-
-const edgeTypes = { custom: CustomEdge };
-
-// 2. Le module d'exportation d'images sécurisé
-function FlowExporter({
-  activeCase,
-  onRegisterExportPng,
-  onRegisterExportPdf,
-}: {
-  activeCase: CaseData | null;
-  onRegisterExportPng: (fn: () => Promise<void>) => void;
-  onRegisterExportPdf: (fn: () => Promise<void>) => void;
-}) {
-  const captureViewport = useCallback(async (): Promise<string> => {
-    let viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
-    if (!viewport) viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
-    if (!viewport) viewport = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!viewport) throw new Error('Graphique introuvable');
-    
-    return toPng(viewport, {
-      cacheBust: true,
-      pixelRatio: 2,
-      backgroundColor: '#0a0e17',
-      filter: (node) => {
-        if (node instanceof Element) {
-          if (node.classList.contains('react-flow__controls')) return false;
-          if (node.classList.contains('react-flow__minimap')) return false;
-        }
-        return true;
-      },
-    });
-  }, []);
+  const fieldsNode = fieldsNodeId
+    ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
+    : null;
 
   useEffect(() => {
-    const exportPng = async () => {
-      if (!activeCase) return;
-      try {
-        const dataUrl = await captureViewport();
-        const link = document.createElement('a');
-        link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
-        link.href = dataUrl;
-        link.click();
-      } catch (err) { console.error(err); }
+    const handleUpdate = (e: Event) => {
+      const { id, label, notes, socialPlatform, color } = (e as CustomEvent).detail;
+      updateNodeData(id, { label, notes, ...(socialPlatform !== undefined && { socialPlatform }), ...(color !== undefined && { color }) });
     };
-
-    const exportPdf = async () => {
-      if (!activeCase) return;
-      try {
-        const dataUrl = await captureViewport();
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        pdf.setFillColor(10, 14, 23);
-        pdf.rect(0, 0, 297, 210, 'F');
-        pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
-        pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
-      } catch (err) { console.error(err); }
+    const handleDeleteNode = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      deleteNode(id);
     };
+    
+    // Correction ici : On nettoie l'état du Edge sélectionné à chaque suppression
+    const handleDeleteEdge = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      deleteEdge(id);
+      setSelectedEdgeId(null); 
+    };
+    
+    const handleExpandNote = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      setSelectedNodeId(id);
+      setNotePanelOpen(true);
+    };
+    const handleOpenFields = (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      setFieldsNodeId(id);
+    };
+    window.addEventListener('entity-update', handleUpdate);
+    window.addEventListener('entity-delete', handleDeleteNode);
+    window.addEventListener('edge-delete', handleDeleteEdge);
+    window.addEventListener('entity-expand-note', handleExpandNote);
+    window.addEventListener('entity-open-fields', handleOpenFields);
+    return () => {
+      window.removeEventListener('entity-update', handleUpdate);
+      window.removeEventListener('entity-delete', handleDeleteNode);
+      window.removeEventListener('edge-delete', handleDeleteEdge);
+      window.removeEventListener('entity-expand-note', handleExpandNote);
+      window.removeEventListener('entity-open-fields', handleOpenFields);
+    };
+  }, [updateNodeData, deleteNode, deleteEdge]);
 
-    onRegisterExportPng(exportPng);
-    onRegisterExportPdf(exportPdf);
-  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf]);
+  useEffect(() => {
+    const handleGoToMap = (e: Event) => {
+      const { nodeId } = (e as CustomEvent).detail;
+      const pinLinks = activeCase?.pinLinks ?? [];
+      const link = pinLinks.find((l) => l.identifierId === nodeId);
 
-  return null;
-}
+      setView('map');
 
-interface InfoTabProps {
-  nodes: EntityNode[];
-  edges: Edge[];
-  selectedEdgeId: string | null;
-  selectedNodeId: string | null;
-  notePanelOpen: boolean;
-  activeCase: CaseData | null;
-  onNodesChange: OnNodesChange<EntityNode>;
-  onEdgesChange: OnEdgesChange;
-  onConnect: (connection: Connection) => void;
-  onEdgeClick: (e: React.MouseEvent, edge: Edge) => void;
-  onNodeClick: (e: React.MouseEvent, node: Node) => void;
-  onPaneClick: () => void;
-  onSetNotePanelOpen: (open: boolean) => void;
-  onSetSelectedNodeId: (id: string | null) => void;
-  updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
-  updateCaseNotes: (notes: string) => void;
-  updateCaseTitle: (title: string) => void;
-  onRegisterExportPng: (fn: () => Promise<void>) => void;
-  onRegisterExportPdf: (fn: () => Promise<void>) => void;
-}
-
-export default function InfoTab({
-  nodes,
-  edges,
-  selectedEdgeId,
-  selectedNodeId,
-  notePanelOpen,
-  activeCase,
-  onNodesChange,
-  onEdgesChange,
-  onConnect,
-  onEdgeClick,
-  onNodeClick,
-  onPaneClick,
-  onSetNotePanelOpen,
-  onSetSelectedNodeId,
-  updateNodeData,
-  updateCaseNotes,
-  updateCaseTitle,
-  onRegisterExportPng,
-  onRegisterExportPdf,
-}: InfoTabProps) {
-  const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNode | undefined) ?? null;
-
-  return (
-    <div className="flex-1 flex overflow-hidden min-h-0">
-      <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onEdgeClick={onEdgeClick}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes} // Rebranche la flèche personnalisée
-          connectionMode={ConnectionMode.Loose}
-          edgesSelectable={true} // Force l'activation de la sélection
-          proOptions={{ hideAttribution: true }}
-          className="bg-cyber-black"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
-          <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
-          <MiniMap nodeColor={() => '#1e3a5f'} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
-          <FlowExporter
-            activeCase={activeCase}
-            onRegisterExportPng={onRegisterExportPng}
-            onRegisterExportPdf={onRegisterExportPdf}
-          />
-        </ReactFlow>
-      </div>
-
-      {notePanelOpen && (
-        <NotePanel
-          selectedNode={selectedNode}
-          caseNotes={activeCase?.caseNotes ?? ''}
-          caseTitle={activeCase?.caseTitle ?? ''}
-          caseDescription={activeCase?.description}
-          onUpdateEntityNotes={(id, notes) => updateNodeData(id, { notes })}
-          onUpdateCaseNotes={updateCaseNotes}
-          onUpdateCaseTitle={updateCaseTitle}
-          onClose={() => { onSetNotePanelOpen(false); onSetSelectedNodeId(null); }}
-        />
-      )}
-    </div>
-  );
-}
+      if (link) {
+        const pin = activeCase?.locations?.find((p) => p.id === link.pinId);
+        const lat = pin?.lat ?? 48.8566;
+        const lng = pin?.lng ?? 2.3522;
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
+            detail: { pinId: link.pinId, lat, lng },
+          }));
+        }, 60);
+      } else {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (!node) return;
+        const fields = (node.data.fields ?? {}) as Record<string, string>;
+        const lat = parseFloat(fields.lat ?? '');
+        const lng = parseFloat(fields.lng ?? '');
+        const resolvedLat = isNaN(lat) ? 48.8566 : lat;
+        const resolvedLng = isNaN(lng) ? 2.3522 : lng;
+        const pinId = addPin({
+          label: node.data.label,
+          address: (fields.address ?? '').trim(),
+          notes: node.data.notes ?? '',
+          lat: resolvedLat,
+          lng: resolvedLng,
+          color: node.data.color ?? '#10b981
