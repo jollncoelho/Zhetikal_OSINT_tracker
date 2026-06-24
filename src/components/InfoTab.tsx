@@ -27,7 +27,6 @@ const nodeTypes: NodeTypes = {
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-// <-- CORRECTION 2 : Une seule déclaration propre pour edgeTypes
 const edgeTypes = { custom: CustomEdge };
 
 function FlowExporter({
