@@ -304,6 +304,7 @@ export default function InfoTab({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes} // C'est ici que ton CustomEdge avec la croix (X) s'active !
           defaultEdgeOptions={{ type: 'custom' }}
+          edgesSelectable={true}
           connectionMode={ConnectionMode.Strict} 
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
