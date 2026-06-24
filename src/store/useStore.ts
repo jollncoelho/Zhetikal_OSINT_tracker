@@ -228,14 +228,13 @@ export const useStore = create<AppState>()(
 
         // FIX: sourceHandle et targetHandle forcés à null
         // → empêche le snap aux coins, la flèche se pose là où tu lâches
-        onConnect: (connection) => {
+       onConnect: (connection) => {
           const activeCaseId = get().activeCaseId;
           set((state) => {
+            // On force le type 'custom' pour charger notre fichier, mais SANS bloquer les handles
             const customConnection = {
               ...connection,
-              type: 'custom',
-              sourceHandle: null,  // ← FIX snap aux coins
-              targetHandle: null,  // ← FIX snap aux coins
+              type: 'custom'
             };
             const updatedEdges = addEdge(customConnection, state.edges);
             return {
@@ -244,7 +243,7 @@ export const useStore = create<AppState>()(
                 ? state.cases.map((c) =>
                     c.id === activeCaseId ? { ...c, edges: updatedEdges } : c
                   )
-                : state.cases,
+                : state.cases
             };
           });
         },
