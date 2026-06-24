@@ -304,7 +304,7 @@ export default function InfoTab({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes} // C'est ici que ton CustomEdge avec la croix (X) s'active !
           defaultEdgeOptions={{ type: 'custom' }}
-          connectionMode={ConnectionMode.Loose} // Permet aux flèches de s'aimanter sur n'importe quel handle
+          connectionMode={ConnectionMode.Strict} 
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
