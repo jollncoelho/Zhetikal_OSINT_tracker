@@ -289,11 +289,15 @@ export default function InfoTab({
     [updateNodeData]
   );
 
-  const styledEdges = edges.map((e) => ({
+   const visibleEdges = useMemo(() => edges.map((e) => ({
     ...e,
     selected: e.id === selectedEdgeId,
-    style: e.id === selectedEdgeId ? { stroke: '#ef4444' } : { stroke: '#00c8d4' },
-  }));
+    style: {
+      ...e.style,
+      stroke: e.id === selectedEdgeId ? '#ef4444' : '#00c8d4',
+      strokeWidth: 2,
+    },
+  })), [edges, selectedEdgeId]);
 
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
