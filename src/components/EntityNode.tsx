@@ -91,13 +91,14 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       }}
     >
       
-                <Handle type="target" position={Position.Left}
+             {/* Handles */}
+      <Handle id="left" type="target" position={Position.Left}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half }} />
-      <Handle type="source" position={Position.Right}
+      <Handle id="right" type="source" position={Position.Right}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half }} />
-      <Handle type="target" position={Position.Top}
+      <Handle id="top" type="target" position={Position.Top}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half }} />
-      <Handle type="source" position={Position.Bottom}
+      <Handle id="bottom" type="source" position={Position.Bottom}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half }} />
 
       {/* Header */}
