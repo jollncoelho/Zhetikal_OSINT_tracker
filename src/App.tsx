@@ -85,9 +85,10 @@ function AppInner() {
       const { id } = (e as CustomEvent).detail;
       deleteNode(id);
     };
-    const handleDeleteEdge = (e: Event) => {
+   const handleDeleteEdge = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       deleteEdge(id);
+      setSelectedEdgeId(null); // <-- AJOUTE CETTE LIGNE ICI
     };
     const handleExpandNote = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
