@@ -51,7 +51,7 @@ const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
       storeOnConnect(params);
     }
-  }, []);
+  }, [storeOnConnect]);
   const { view, setView } = useNavigation();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
