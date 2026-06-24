@@ -308,10 +308,9 @@ export default function InfoTab({
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
+          edgeTypes={{}}
           connectionMode={ConnectionMode.Loose}
           deleteKeyCode={null}
-          defaultEdgeOptions={{ type: 'custom', style: { stroke: '#00c8d4' } }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
