@@ -20,7 +20,6 @@ import type { CaseData, EntityData, EntityNode } from '../types';
 import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
-import CustomEdge from './CustomEdge';
 
 const nodeTypes: NodeTypes = {
   entity: EntityNodeComponent as NodeTypes['entity'],
