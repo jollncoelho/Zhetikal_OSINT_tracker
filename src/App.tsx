@@ -50,14 +50,14 @@ function AppInner() {
 
   const { view, setView } = useNavigation();
 
-  // Correction de la liaison : on déclare correctement onConnect ici
+  // Intercepteur de connexion sécurisé
   const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
       storeOnConnect({
         ...params,
         type: 'custom',
-        sourceHandle: params.sourceHandle || 'right',
-        targetHandle: params.targetHandle || 'left'
+        sourceHandle: params.sourceHandle,
+        targetHandle: params.targetHandle
       });
     }
   }, [storeOnConnect]);
@@ -78,7 +78,6 @@ function AppInner() {
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
 
-  // Custom events from nodes
   useEffect(() => {
     const handleUpdate = (e: Event) => {
       const { id, label, notes, socialPlatform, color } = (e as CustomEvent).detail;
@@ -115,7 +114,6 @@ function AppInner() {
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
 
-  // Navigate a location node to its map pin
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
