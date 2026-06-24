@@ -218,7 +218,7 @@ export default function InfoTab({
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-        <ReactFlow
+     <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -230,7 +230,6 @@ export default function InfoTab({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
-          edgesSelectable={true}
           defaultEdgeOptions={{ type: 'custom' }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
