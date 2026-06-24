@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
-import { applyNodeChanges, applyEdgeChanges, addEdge } from '@xyflow/react';
+import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { CaseData, EntityData, EntityNode, Edge, MapPin, PinLink } from '../types';
 
 interface AppState {
@@ -226,26 +226,25 @@ export const useStore = create<AppState>()(
           }
         },
 
-        // FIX: sourceHandle et targetHandle forcés à null
-        // → empêche le snap aux coins, la flèche se pose là où tu lâches
-       onConnect: (connection) => {
+        onConnect: (connection) => {
+          const edge: Edge = {
+            id: crypto.randomUUID(),
+            source: connection.source,
+            target: connection.target,
+            type: 'custom',
+            animated: true,
+          };
+          set((state) => ({ edges: [...state.edges, edge] }));
           const activeCaseId = get().activeCaseId;
-          set((state) => {
-            // On force le type 'custom' pour charger notre fichier, mais SANS bloquer les handles
-            const customConnection = {
-              ...connection,
-              type: 'custom'
-            };
-            const updatedEdges = addEdge(customConnection, state.edges);
-            return {
-              edges: updatedEdges,
-              cases: activeCaseId
-                ? state.cases.map((c) =>
-                    c.id === activeCaseId ? { ...c, edges: updatedEdges } : c
-                  )
-                : state.cases
-            };
-          });
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId
+                  ? { ...c, edges: [...c.edges, edge] }
+                  : c
+              ),
+            }));
+          }
         },
 
         deleteEdge: (edgeId) => {
@@ -304,20 +303,22 @@ export const useStore = create<AppState>()(
           }
         },
 
-        saveProgress: () => {
-          const state = get();
-          const caseData = state.cases.find((c) => c.id === state.activeCaseId);
-          if (!caseData) return;
-          const json = JSON.stringify(caseData, null, 2);
-          const blob = new Blob([json], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
-          a.click();
-          URL.revokeObjectURL(url);
-          set({ lastSaved: new Date().toISOString() });
-        },
+       saveProgress: () => {
+  const state = get();
+  const caseData = state.cases.find((c) => c.id === state.activeCaseId);
+  if (!caseData) return;
+
+  const json = JSON.stringify(caseData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  set({ lastSaved: new Date().toISOString() });
+},
 
         exportCase: () => {
           const state = get();

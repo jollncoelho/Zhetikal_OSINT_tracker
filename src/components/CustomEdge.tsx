@@ -1,7 +1,11 @@
-import { memo } from 'react';
-import { EdgeProps, getBezierPath, EdgeLabelRenderer } from '@xyflow/react';
+import { useState } from 'react';
+import {
+  EdgeLabelRenderer,
+  getBezierPath,
+  type EdgeProps,
+} from '@xyflow/react';
 
-export default memo(function CustomEdge({
+export default function CustomEdge({
   id,
   sourceX,
   sourceY,
@@ -9,10 +13,11 @@ export default memo(function CustomEdge({
   targetY,
   sourcePosition,
   targetPosition,
-  style = {},
-  markerEnd,
-  selected, // <-- React Flow nous dit ici si la flèche est sélectionnée (rouge) !
+  style,
+  selected,
 }: EdgeProps) {
+  const [hovered, setHovered] = useState(false);
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -20,59 +25,124 @@ export default memo(function CustomEdge({
     targetX,
     targetY,
     targetPosition,
+    curvature: 0.35,
   });
+
+  const isActive = hovered || selected;
+  const strokeColor = isActive ? '#ff6b6b' : (style?.stroke as string) || '#00c8d4';
+  const markerId = `arrow-${id}`;
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
+  };
 
   return (
     <>
+      {/* Custom arrowhead marker */}
+      <defs>
+        <marker
+          id={markerId}
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path
+            d="M 0 1.5 L 8.5 5 L 0 8.5"
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </marker>
+      </defs>
+
+      {/* Wide invisible hit area */}
       <path
-        id={id}
-        className="react-flow__edge-path"
         d={edgePath}
-        markerEnd={markerEnd}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        style={{ cursor: 'pointer' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      />
+
+      {/* Glow layer on active */}
+      {isActive && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={6}
+          opacity={0.18}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
+      {/* Animated flow line */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={isActive ? 2.2 : 1.6}
+        strokeDasharray="6 4"
+        markerEnd={`url(#${markerId})`}
         style={{
-          ...style,
-          strokeWidth: 2,
-          stroke: selected ? '#ef4444' : '#ffffff', // Rouge si sélectionné, blanc sinon
-          strokeDasharray: '5,5',
-          opacity: selected ? 1 : 0.6,
+          pointerEvents: 'none',
+          transition: 'stroke 0.15s ease, stroke-width 0.15s ease',
+          animation: 'flow-dash 1.6s linear infinite',
         }}
       />
-      
-      {/* On affiche la croix UNIQUEMENT si la flèche est sélectionnée (rouge) */}
-      {selected && (
+
+      {/* Solid base line (partial opacity so dash shows motion) */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={isActive ? 2.2 : 1.6}
+        opacity={0.3}
+        style={{
+          pointerEvents: 'none',
+          transition: 'stroke 0.15s ease, stroke-width 0.15s ease',
+        }}
+      />
+
+      {/* Delete button at midpoint */}
+      {hovered && (
         <EdgeLabelRenderer>
           <div
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 10,
-              pointerEvents: 'all', // Permet le clic
-              zIndex: 1000,
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'all',
+              zIndex: 10,
             }}
-            className="nodrag nopan"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
           >
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // Envoie le signal de suppression que App.tsx écoute
-                window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
-              }}
+              onClick={handleDelete}
               style={{
-                width: '18px',
-                height: '18px',
-                backgroundColor: '#1a202c',
-                border: '1px solid #ef4444',
-                color: '#ef4444',
+                width: 20,
+                height: 20,
                 borderRadius: '50%',
-                cursor: 'pointer',
+                background: '#ef4444',
+                border: '2px solid #0d1321',
+                color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 'bold',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
-                padding: 0,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1,
+                boxShadow: '0 0 8px rgba(239,68,68,0.7)',
               }}
-              title="Supprimer ce lien"
             >
               ×
             </button>
@@ -81,4 +151,4 @@ export default memo(function CustomEdge({
       )}
     </>
   );
-});
+}

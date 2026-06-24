@@ -1,4 +1,4 @@
-import { useCallback, useEffect, memo } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -154,11 +154,11 @@ function FlowExporter({
             pdf.setDrawColor(...C.border); pdf.setLineWidth(0.2); pdf.rect(margin, ry, contentW, rowH);
             pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8.5); pdf.setTextColor(...C.darkGray);
             pdf.text(label, margin + 3, ry + 6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...C.black);
-            pdf.text(val, margin + colW * 3, ry + 6);
+            pdf.text(val, margin + colW + 3, ry + 6);
             if (i === 0) {
               pdf.setFont('helvetica', 'normal'); pdf.setTextColor(...C.midGray);
               const trimmed = activeCase.name.length > 28 ? activeCase.name.slice(0, 26) + '…' : activeCase.name;
-              pdf.text(trimmed, margin + colW + 3, ry + 6);
+              pdf.text(trimmed, margin + colW * 2 + 3, ry + 6);
             }
           });
           y = tableY + rowH + stats.length * rowH + 4;
@@ -289,23 +289,30 @@ export default function InfoTab({
     [updateNodeData]
   );
 
+  const styledEdges = edges.map((e) => ({
+    ...e,
+    selected: e.id === selectedEdgeId,
+    style: e.id === selectedEdgeId ? { stroke: '#ef4444' } : { stroke: '#00c8d4' },
+  }));
+
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
         <ReactFlow
           nodes={nodes}
-          edges={edges}
+          edges={styledEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect} // Assure-toi que c'est bien la fonction corrigée d'App.tsx qui est appelée ici
+          onConnect={onConnect}
           onEdgeClick={onEdgeClick}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes} // C'est ici que ton CustomEdge avec la croix (X) s'active !
-          defaultEdgeOptions={{ type: 'custom' }}
-          edgesSelectable={true}
-          connectionMode={ConnectionMode.Loose} 
+          edgeTypes={edgeTypes}
+          connectionMode={ConnectionMode.Loose}
+          deleteKeyCode={null}
+          fitView
+          defaultEdgeOptions={{ type: 'custom', style: { stroke: '#00c8d4' } }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >

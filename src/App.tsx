@@ -30,7 +30,7 @@ function AppInner() {
     deleteCase,
     addEntity,
     updateNodeData,
-    onConnect: storeOnConnect,
+    onConnect,
     deleteNode,
     deleteEdge,
     clearCanvas,
@@ -50,16 +50,6 @@ function AppInner() {
 
   const { view, setView } = useNavigation();
 
-  // Intercepteur de connexion sécurisé
- const onConnect = useCallback((params: any) => {
-    if (storeOnConnect) {
-      storeOnConnect({
-        ...params,
-        type: 'custom' // On garde uniquement le type pour la croix de suppression
-      });
-    }
-  }, [storeOnConnect]);
-
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -76,6 +66,7 @@ function AppInner() {
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
 
+  // Custom events from nodes
   useEffect(() => {
     const handleUpdate = (e: Event) => {
       const { id, label, notes, socialPlatform, color } = (e as CustomEvent).detail;
@@ -85,10 +76,9 @@ function AppInner() {
       const { id } = (e as CustomEvent).detail;
       deleteNode(id);
     };
-   const handleDeleteEdge = (e: Event) => {
+    const handleDeleteEdge = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       deleteEdge(id);
-      setSelectedEdgeId(null); // <-- AJOUTE CETTE LIGNE ICI
     };
     const handleExpandNote = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
@@ -113,6 +103,7 @@ function AppInner() {
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
 
+  // Navigate a location node to its map pin (or auto-create one), then tell MapTab via window event
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
@@ -211,14 +202,14 @@ function AppInner() {
         activeCaseId={activeCaseId}
         onCreateCase={createCase}
         onSwitchCase={switchCase}
-        onCloseCase={() => { if (closeCase) closeCase(); setNotePanelOpen(false); setSelectedNodeId(null); }}
+        onCloseCase={() => { closeCase(); setNotePanelOpen(false); setSelectedNodeId(null); }}
         onDeleteCase={deleteCase}
         onUpdateCase={updateCase}
         onAddEntity={handleAddEntity}
         onSaveProgress={saveProgress}
-        onExport={() => { if (exportCase) exportCase(); }}
-        onExportPdf={async () => { if (exportPdfFn) await exportPdfFn(); }}
-        onExportPng={async () => { if (exportPngFn) await exportPngFn(); }}
+        onExport={exportCase}
+        onExportPdf={exportPdfFn}
+        onExportPng={exportPngFn}
         onImport={importCase}
         onClearCanvas={clearCanvas}
       />
@@ -226,6 +217,7 @@ function AppInner() {
       <div className="flex-1 flex flex-col relative min-w-0">
         {/* Top bar */}
         <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
+          {/* Left: logo + case name */}
           <div className="flex items-center gap-3 min-w-0">
             <img
               src="/photo_2026-05-04_13-46-20.jpg"
@@ -245,6 +237,7 @@ function AppInner() {
             </div>
           </div>
 
+          {/* Center: tabs */}
           <div className="flex items-center gap-1 bg-cyber-black/60 rounded-xl border border-cyber-border p-1">
             <button
               onClick={() => setView('graph')}
@@ -268,6 +261,7 @@ function AppInner() {
             </button>
           </div>
 
+          {/* Right: action buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setStatsOpen(!statsOpen)}
@@ -327,7 +321,7 @@ function AppInner() {
           </div>
         )}
 
-        {/* Tab views */}
+        {/* Tab views — conditional rendering */}
         {view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
@@ -360,6 +354,7 @@ function AppInner() {
               pins={activeCase?.locations || []}
               onUpdatePins={(pins) => {
                 if (!activeCaseId) return;
+                // Note: this will need to match your store update pattern
                 updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
             />
@@ -382,7 +377,7 @@ function AppInner() {
             {lastSaved && (
               <span className="flex items-center gap-1 text-cyber-green/70">
                 <span className="w-1 h-1 rounded-full bg-cyber-green" />
-                Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+               Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             )}
             <span>
@@ -398,7 +393,7 @@ function AppInner() {
         </div>
       </div>
 
-      {/* IdentifierModal */}
+      {/* IdentifierModal — fields editor */}
       {fieldsNode && (
         <IdentifierModal
           nodeId={fieldsNode.id}

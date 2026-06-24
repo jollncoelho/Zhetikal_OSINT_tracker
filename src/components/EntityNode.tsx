@@ -90,16 +90,15 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      
-           {/* Handles — tous en "source" + loose mode = connexion libre depuis n'importe où */}
-<Handle id="left" type="source" position={Position.Left}
-  style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half }} />
-<Handle id="right" type="source" position={Position.Right}
-  style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half }} />
-<Handle id="top" type="source" position={Position.Top}
-  style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half }} />
-<Handle id="bottom" type="source" position={Position.Bottom}
-  style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half }} />
+      {/* Handles */}
+      <Handle id="left" type="source" position={Position.Left}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
+      <Handle id="right" type="source" position={Position.Right}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
+      <Handle id="top" type="source" position={Position.Top}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
+      <Handle id="bottom" type="source" position={Position.Bottom}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
