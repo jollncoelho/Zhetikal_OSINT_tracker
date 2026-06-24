@@ -226,15 +226,15 @@ export const useStore = create<AppState>()(
           }
         },
 
-        onConnect: (connection) => {
+      onConnect: (connection) => {
           const activeCaseId = get().activeCaseId;
           set((state) => {
-            // Forçage chirurgical du type 'custom' pour appliquer ton tracé et le bouton X
+            // On configure uniquement le type pour charger la croix, mais on laisse les points d'ancrage totalement libres !
             const customConnection = {
               ...connection,
               type: 'custom',
-              sourceHandle: connection.sourceHandle,
-              targetHandle: connection.targetHandle
+              sourceHandle: connection.sourceHandle || null,
+              targetHandle: connection.targetHandle || null
             };
             const updatedEdges = addEdge(customConnection, state.edges);
             
@@ -248,7 +248,6 @@ export const useStore = create<AppState>()(
             };
           });
         },
-
         deleteEdge: (edgeId) => {
           set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
           const activeCaseId = get().activeCaseId;
