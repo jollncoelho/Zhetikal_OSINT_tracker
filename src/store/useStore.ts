@@ -231,7 +231,7 @@ export const useStore = create<AppState>()(
             id: crypto.randomUUID(),
             source: connection.source,
             target: connection.target,
-            type: custom',
+            type: 'custom',
             animated: true,
           };
           set((state) => ({ edges: [...state.edges, edge] }));
