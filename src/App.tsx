@@ -30,7 +30,7 @@ function AppInner() {
     deleteCase,
     addEntity,
     updateNodeData,
-    onConnect,
+    onConnect: storeOnConnect
     deleteNode,
     deleteEdge,
     clearCanvas,
