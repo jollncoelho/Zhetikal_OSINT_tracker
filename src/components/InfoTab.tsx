@@ -297,13 +297,13 @@ export default function InfoTab({
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={onConnect} // Assure-toi que c'est bien la fonction corrigée d'App.tsx qui est appelée ici
           onEdgeClick={onEdgeClick}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionMode={ConnectionMode.Loose}
+          edgeTypes={edgeTypes} // C'est ici que ton CustomEdge avec la croix (X) s'active !
+          connectionMode={ConnectionMode.Loose} // Permet aux flèches de s'aimanter sur n'importe quel handle
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
