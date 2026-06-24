@@ -207,7 +207,7 @@ function AppInner() {
     <div className="h-screen w-screen flex overflow-hidden bg-cyber-black">
       {!disclaimerAccepted && <DisclaimerModal onAccept={handleAcceptDisclaimer} />}
 
-      <Sidebar
+   <Sidebar
         cases={cases}
         activeCaseId={activeCaseId}
         onCreateCase={createCase}
@@ -217,9 +217,28 @@ function AppInner() {
         onUpdateCase={updateCase}
         onAddEntity={handleAddEntity}
         onSaveProgress={saveProgress}
-        onExport={exportCase}
-        onExportPdf={exportPdfFn}
-        onExportPng={exportPngFn}
+        /* CORRECTION EXPORTS : On force l'exécution directe des fonctions du store et des fonctions enregistrées */
+        onExport={() => {
+          if (exportCase) {
+            exportCase();
+          } else {
+            console.error("La fonction exportCase du store n'est pas prête.");
+          }
+        }}
+        onExportPdf={async () => {
+          if (exportPdfFn) {
+            await exportPdfFn();
+          } else {
+            alert("L'export PDF est en cours de centralisation, réessayez dans un instant.");
+          }
+        }}
+        onExportPng={async () => {
+          if (exportPngFn) {
+            await exportPngFn();
+          } else {
+            alert("L'export PNG est en cours de centralisation, réessayez dans un instant.");
+          }
+        }}
         onImport={importCase}
         onClearCanvas={clearCanvas}
       />
