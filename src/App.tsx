@@ -51,13 +51,11 @@ function AppInner() {
   const { view, setView } = useNavigation();
 
   // Intercepteur de connexion sécurisé
-  const onConnect = useCallback((params: any) => {
+ const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
       storeOnConnect({
         ...params,
-        type: 'custom',
-        sourceHandle: params.sourceHandle,
-        targetHandle: params.targetHandle
+        type: 'custom' // On garde uniquement le type pour la croix de suppression
       });
     }
   }, [storeOnConnect]);
