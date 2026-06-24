@@ -23,8 +23,8 @@ import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
 
-// Flèche personnalisée intégrée
-const CustomEdge = memo(function CustomEdge({
+// Déclaration explicite du composant de flèche interactive
+const CustomEdgeComponent = memo(function CustomEdgeComponent({
   id,
   sourceX,
   sourceY,
@@ -47,6 +47,16 @@ const CustomEdge = memo(function CustomEdge({
 
   return (
     <>
+      {/* Ligne invisible plus large pour faciliter le clic à la souris */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        style={{ cursor: 'pointer' }}
+        className="react-flow__edge-interaction"
+      />
+      {/* La flèche visible */}
       <path
         id={id}
         className="react-flow__edge-path"
@@ -54,10 +64,11 @@ const CustomEdge = memo(function CustomEdge({
         markerEnd={markerEnd}
         style={{
           ...style,
-          strokeWidth: 2,
-          stroke: selected ? '#ef4444' : '#ffffff',
+          strokeWidth: 2.5,
+          stroke: selected ? '#ef4444' : '#1e3a5f',
           strokeDasharray: '5,5',
-          opacity: selected ? 1 : 0.6,
+          opacity: selected ? 1 : 0.75,
+          transition: 'stroke 0.15s, opacity 0.15s',
         }}
       />
       {selected && (
@@ -68,7 +79,7 @@ const CustomEdge = memo(function CustomEdge({
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               fontSize: 10,
               pointerEvents: 'all',
-              zIndex: 1000,
+              zIndex: 1001,
             }}
             className="nodrag nopan"
           >
@@ -78,9 +89,9 @@ const CustomEdge = memo(function CustomEdge({
                 window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
               }}
               style={{
-                width: '18px',
-                height: '18px',
-                backgroundColor: '#1a202c',
+                width: '20px',
+                height: '20px',
+                backgroundColor: '#0a0e17',
                 border: '1px solid #ef4444',
                 color: '#ef4444',
                 borderRadius: '50%',
@@ -89,7 +100,7 @@ const CustomEdge = memo(function CustomEdge({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 'bold',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.5)',
                 padding: 0,
               }}
             >
@@ -107,9 +118,11 @@ const nodeTypes: NodeTypes = {
   social: SocialNodeComponent as NodeTypes['social'],
 };
 
-const edgeTypes = { custom: CustomEdge };
+const edgeTypes = {
+  custom: CustomEdgeComponent,
+};
 
-// Module d'exportation d'images sécurisé
+// Module indépendant de capture d'écran pour les exports
 function FlowExporter({
   activeCase,
   onRegisterExportPng,
@@ -120,12 +133,12 @@ function FlowExporter({
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
   const captureViewport = useCallback(async (): Promise<string> => {
-    let viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
-    if (!viewport) viewport = document.querySelector('.react-flow__renderer') as HTMLElement | null;
-    if (!viewport) viewport = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!viewport) throw new Error('Graphique introuvable');
+    let container = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!container) container = document.querySelector('.react-flow__renderer') as HTMLElement | null;
+    if (!container) container = document.querySelector('.react-flow') as HTMLElement | null;
+    if (!container) throw new Error('Élément graphique introuvable');
     
-    return toPng(viewport, {
+    return toPng(container, {
       cacheBust: true,
       pixelRatio: 2,
       backgroundColor: '#0a0e17',
@@ -140,7 +153,7 @@ function FlowExporter({
   }, []);
 
   useEffect(() => {
-    const exportPng = async () => {
+    onRegisterExportPng(async () => {
       if (!activeCase) return;
       try {
         const dataUrl = await captureViewport();
@@ -148,10 +161,12 @@ function FlowExporter({
         link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
         link.href = dataUrl;
         link.click();
-      } catch (err) { console.error(err); }
-    };
+      } catch (err) {
+        console.error("Erreur durant l'export PNG:", err);
+      }
+    });
 
-    const exportPdf = async () => {
+    onRegisterExportPdf(async () => {
       if (!activeCase) return;
       try {
         const dataUrl = await captureViewport();
@@ -160,11 +175,10 @@ function FlowExporter({
         pdf.rect(0, 0, 297, 210, 'F');
         pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
         pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
-      } catch (err) { console.error(err); }
-    };
-
-    onRegisterExportPng(exportPng);
-    onRegisterExportPdf(exportPdf);
+      } catch (err) {
+        console.error("Erreur durant l'export PDF:", err);
+      }
+    });
   }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf]);
 
   return null;
@@ -218,7 +232,7 @@ export default function InfoTab({
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-     <ReactFlow
+        <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
