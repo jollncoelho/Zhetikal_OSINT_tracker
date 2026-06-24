@@ -298,9 +298,9 @@ export default function InfoTab({
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
       <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-        <ReactFlow
+      <ReactFlow
           nodes={nodes}
-          edges={styledEdges}
+          edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -308,11 +308,8 @@ export default function InfoTab({
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionMode={ConnectionMode.Loose}
-          deleteKeyCode={null}
-          fitView
-          defaultEdgeOptions={{ type: 'custom', style: { stroke: '#00c8d4' } }}
+          edgeTypes={edgeTypes} // <-- Vérifie bien que cette ligne est là
+          connectionMode={ConnectionMode.Loose} // <-- Remet Loose ici
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
         >
