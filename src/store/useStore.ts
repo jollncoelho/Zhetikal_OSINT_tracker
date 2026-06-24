@@ -226,14 +226,9 @@ export const useStore = create<AppState>()(
           }
         },
 
-        onConnect: (connection) => {
-          const edge: Edge = {
-            id: crypto.randomUUID(),
-            source: connection.source,
-            target: connection.target,
-            type: 'default',
-            animated: true,
-          };
+        onConnect: (connection) => set((state) => ({
+  edges: addEdge(connection, state.edges),
+})),
           set((state) => ({ edges: [...state.edges, edge] }));
           const activeCaseId = get().activeCaseId;
           if (activeCaseId) {
