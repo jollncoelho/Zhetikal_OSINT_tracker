@@ -226,25 +226,29 @@ export const useStore = create<AppState>()(
           }
         },
 
-     onConnect: (connection) => {
+        // FIX: sourceHandle et targetHandle forcés à null
+        // → empêche le snap aux coins, la flèche se pose là où tu lâches
+        onConnect: (connection) => {
           const activeCaseId = get().activeCaseId;
           set((state) => {
             const customConnection = {
               ...connection,
-              type: 'custom' // Uniquement le type ici aussi !
+              type: 'custom',
+              sourceHandle: null,  // ← FIX snap aux coins
+              targetHandle: null,  // ← FIX snap aux coins
             };
             const updatedEdges = addEdge(customConnection, state.edges);
-            
             return {
               edges: updatedEdges,
               cases: activeCaseId
                 ? state.cases.map((c) =>
                     c.id === activeCaseId ? { ...c, edges: updatedEdges } : c
                   )
-                : state.cases
+                : state.cases,
             };
           });
         },
+
         deleteEdge: (edgeId) => {
           set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
           const activeCaseId = get().activeCaseId;
@@ -305,7 +309,6 @@ export const useStore = create<AppState>()(
           const state = get();
           const caseData = state.cases.find((c) => c.id === state.activeCaseId);
           if (!caseData) return;
-
           const json = JSON.stringify(caseData, null, 2);
           const blob = new Blob([json], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
@@ -314,7 +317,6 @@ export const useStore = create<AppState>()(
           a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
           a.click();
           URL.revokeObjectURL(url);
-
           set({ lastSaved: new Date().toISOString() });
         },
 
