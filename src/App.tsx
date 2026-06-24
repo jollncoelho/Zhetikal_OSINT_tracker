@@ -48,8 +48,8 @@ function AppInner() {
     removePinLink,
   } = useStore();
 const onConnect = useCallback((params: any) => {
-    if (useStore.getState().onConnect) {
-      useStore.getState().onConnect(params);
+    if (storeOnConnect) {
+      storeOnConnect(params);
     }
   }, []);
   const { view, setView } = useNavigation();
