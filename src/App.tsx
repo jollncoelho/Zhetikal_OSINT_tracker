@@ -30,7 +30,7 @@ function AppInner() {
     deleteCase,
     addEntity,
     updateNodeData,
-    onConnect,
+    onConnect: storeOnConnect, // Renommé proprement pour éviter le conflit
     deleteNode,
     deleteEdge,
     clearCanvas,
@@ -47,11 +47,14 @@ function AppInner() {
     addPinLink,
     removePinLink,
   } = useStore();
-const onConnect = useCallback((params: any) => {
+
+  // 1. Correction du Magnétisme : Intercepteur de connexion fluide et libre
+  const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
       storeOnConnect(params);
     }
   }, [storeOnConnect]);
+
   const { view, setView } = useNavigation();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
@@ -62,8 +65,14 @@ const onConnect = useCallback((params: any) => {
   );
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  
+  // 2. Initialisation propre des Hooks d'exportation en haut du composant
   const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
   const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
+
+  const handleRegisterExportPng = useCallback((fn: () => Promise<void>) => setExportPngFn(() => fn), []);
+  const handleRegisterExportPdf = useCallback((fn: () => Promise<void>) => setExportPdfFn(() => fn), []);
+  
   const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
 
   const fieldsNode = fieldsNodeId
@@ -80,10 +89,14 @@ const onConnect = useCallback((params: any) => {
       const { id } = (e as CustomEvent).detail;
       deleteNode(id);
     };
+    
+    // Correction de la mémoire : On nettoie l'identifiant de sélection lors de la suppression
     const handleDeleteEdge = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       deleteEdge(id);
+      setSelectedEdgeId(null);
     };
+    
     const handleExpandNote = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       setSelectedNodeId(id);
@@ -163,9 +176,6 @@ const onConnect = useCallback((params: any) => {
     [addEntity]
   );
 
-  const handleRegisterExportPng = useCallback((fn: () => Promise<void>) => setExportPngFn(() => fn), []);
-  const handleRegisterExportPdf = useCallback((fn: () => Promise<void>) => setExportPdfFn(() => fn), []);
-
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
   }, []);
@@ -221,7 +231,6 @@ const onConnect = useCallback((params: any) => {
       <div className="flex-1 flex flex-col relative min-w-0">
         {/* Top bar */}
         <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
-          {/* Left: logo + case name */}
           <div className="flex items-center gap-3 min-w-0">
             <img
               src="/photo_2026-05-04_13-46-20.jpg"
@@ -324,12 +333,7 @@ const onConnect = useCallback((params: any) => {
             </div>
           </div>
         )}
-const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
-  const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
 
-  const handleRegisterExportPng = useCallback((fn: () => Promise<void>) => setExportPngFn(() => fn), []);
-  const handleRegisterExportPdf = useCallback((fn: () => Promise<void>) => setExportPdfFn(() => fn), []);
-    
         {/* Tab views — conditional rendering */}
         {view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
@@ -352,8 +356,8 @@ const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async 
                 updateNodeData={updateNodeData}
                 updateCaseNotes={updateCaseNotes}
                 updateCaseTitle={updateCaseTitle}
-                onRegisterExportPng={handleRegisterExportPng} // <-- AJOUTE CETTE LIGNE
-                onRegisterExportPdf={handleRegisterExportPdf} // <-- AJOUTE CETTE LIGNE
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
               />
             </ReactFlowProvider>
           </div>
@@ -363,7 +367,6 @@ const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async 
               pins={activeCase?.locations || []}
               onUpdatePins={(pins) => {
                 if (!activeCaseId) return;
-                // Note: this will need to match your store update pattern
                 updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
             />
@@ -386,7 +389,7 @@ const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async 
             {lastSaved && (
               <span className="flex items-center gap-1 text-cyber-green/70">
                 <span className="w-1 h-1 rounded-full bg-cyber-green" />
-               Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             )}
             <span>
