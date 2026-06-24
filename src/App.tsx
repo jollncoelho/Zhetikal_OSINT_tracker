@@ -30,7 +30,7 @@ function AppInner() {
     deleteCase,
     addEntity,
     updateNodeData,
-    onConnect: storeOnConnect
+    onConnect: storeOnConnect, // Correction : ajout de la virgule pour la destructuration
     deleteNode,
     deleteEdge,
     clearCanvas,
@@ -49,6 +49,16 @@ function AppInner() {
   } = useStore();
 
   const { view, setView } = useNavigation();
+
+  // Interception de la création de liaison pour forcer l'alignement sur les bords cardinaux (tracé rouge)
+  const onConnect = useCallback((params: any) => {
+    storeOnConnect({
+      ...params,
+      type: 'custom',
+      sourceHandle: params.sourceHandle || 'right',
+      targetHandle: params.targetHandle || 'left'
+    });
+  }, [storeOnConnect]);
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
@@ -331,12 +341,7 @@ function AppInner() {
                 activeCase={activeCase}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                /* CORRECTION ICI : On intercepte les paramètres pour y injecter de force la position des handles */
-                onConnect={(params) => onConnect({
-                  ...params,
-                  sourceHandle: params.sourceHandle,
-                  targetHandle: params.targetHandle
-                })}
+                onConnect={onConnect}
                 onEdgeClick={handleEdgeClick}
                 onNodeClick={handleNodeClick as any}
                 onPaneClick={handlePaneClick}
@@ -366,4 +371,51 @@ function AppInner() {
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse"
+              <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
+              OPSEC: Local Storage Only
+            </span>
+            <span className="text-cyber-border">|</span>
+            <span className="text-cyber-text-dim/60">Usage éthique et légal requis</span>
+            <span className="text-cyber-border">|</span>
+            <span>Ghostint / CyberZ7 — OSINT Tracker</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastSaved && (
+              <span className="flex items-center gap-1 text-cyber-green/70">
+                <span className="w-1 h-1 rounded-full bg-cyber-green" />
+                Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
+            <span>
+              {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+            </span>
+          </div>
+        </div>
+
+        {/* Toolkit + Analyzer */}
+        <div className="flex flex-col">
+          <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+        </div>
+      </div>
+
+      {/* IdentifierModal */}
+      {fieldsNode && (
+        <IdentifierModal
+          nodeId={fieldsNode.id}
+          data={fieldsNode.data}
+          onUpdate={updateNodeData}
+          onClose={() => setFieldsNodeId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <NavigationProvider>
+      <AppInner />
+    </NavigationProvider>
+  );
+}
