@@ -311,7 +311,6 @@ export default function InfoTab({
           edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
           deleteKeyCode={null}
-          fitView
           defaultEdgeOptions={{ type: 'custom', style: { stroke: '#00c8d4' } }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
