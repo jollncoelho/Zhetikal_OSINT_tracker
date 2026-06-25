@@ -47,12 +47,17 @@ function AppInner() {
     addPinLink,
     removePinLink,
   } = useStore();
+  
   const {
   cases,
   activeCaseId,
   nodes,
   edges,
-  // ... le reste
+  // ... autres variables du store
+} = useStore();
+
+// ✅ activeCase calculé ICI (en dehors du useStore) :
+const activeCase = cases.find((c) => c.id === activeCaseId) ?? null;  
 } = useStore();
 
 // ✅ AJOUTE CETTE LIGNE :
