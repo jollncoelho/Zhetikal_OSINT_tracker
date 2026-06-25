@@ -85,21 +85,20 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Handles simples - 4 côtés */}
+      {/* Handles TRÈS GRANDS sur toute la longueur des bords */}
       <Handle
         type="source"
         position={Position.Left}
         id="l"
         style={{
-          width: 8,
-          height: '40%',
-          left: -4,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          background: selected ? data.color : '#1e3a5f',
-          border: '2px solid #0a0e17',
-          borderRadius: 2,
-          opacity: selected ? 1 : 0.3,
+          width: 16,
+          height: '100%',
+          left: -8,
+          top: 0,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'crosshair',
+          zIndex: 100,
         }}
       />
       <Handle
@@ -107,15 +106,14 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         position={Position.Right}
         id="r"
         style={{
-          width: 8,
-          height: '40%',
-          right: -4,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          background: selected ? data.color : '#1e3a5f',
-          border: '2px solid #0a0e17',
-          borderRadius: 2,
-          opacity: selected ? 1 : 0.3,
+          width: 16,
+          height: '100%',
+          right: -8,
+          top: 0,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'crosshair',
+          zIndex: 100,
         }}
       />
       <Handle
@@ -123,15 +121,14 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         position={Position.Top}
         id="t"
         style={{
-          width: '40%',
-          height: 8,
-          top: -4,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: selected ? data.color : '#1e3a5f',
-          border: '2px solid #0a0e17',
-          borderRadius: 2,
-          opacity: selected ? 1 : 0.3,
+          width: '100%',
+          height: 16,
+          top: -8,
+          left: 0,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'crosshair',
+          zIndex: 100,
         }}
       />
       <Handle
@@ -139,15 +136,14 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         position={Position.Bottom}
         id="b"
         style={{
-          width: '40%',
-          height: 8,
-          bottom: -4,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: selected ? data.color : '#1e3a5f',
-          border: '2px solid #0a0e17',
-          borderRadius: 2,
-          opacity: selected ? 1 : 0.3,
+          width: '100%',
+          height: 16,
+          bottom: -8,
+          left: 0,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'crosshair',
+          zIndex: 100,
         }}
       />
 
