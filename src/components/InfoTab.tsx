@@ -182,6 +182,7 @@ function FlowExporter({
         return;
       }
       try {
+        // Capturer le graphe
         const element = document.querySelector('.react-flow') as HTMLElement | null;
         if (!element) throw new Error('Graphique non trouvé');
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -203,42 +204,46 @@ function FlowExporter({
           },
         });
 
+        // Créer le PDF
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
         const margin = 15;
-        let y = margin;
-
+        
+        // ========== PAGE 1: COUVERTURE + GRAPHE ==========
         // En-tête bleu
         pdf.setFillColor(30, 58, 138);
         pdf.rect(0, 0, pageWidth, 25, 'F');
+        
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(16);
         pdf.setFont('helvetica', 'bold');
         pdf.text("Rapport d'Investigation OSINT", margin, 15);
-
-        y = 35;
+        
+        let y = 35;
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(14);
         pdf.setFont('helvetica', 'bold');
         pdf.text(activeCase.name, margin, y);
         y += 8;
+        
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'normal');
         pdf.text(`Dossier: ${activeCase.name}`, margin, y);
         y += 15;
-
+        
         // Image du graphe
         const imgWidth = pageWidth - (margin * 2);
         const imgHeight = (element.offsetHeight / element.offsetWidth) * imgWidth;
-        pdf.addImage(graphImage, 'PNG', margin, y, imgWidth, Math.min(imgHeight, 120));
-        y += Math.min(imgHeight, 120) + 10;
-
+        pdf.addImage(graphImage, 'PNG', margin, y, imgWidth, Math.min(imgHeight, 100));
+        y += Math.min(imgHeight, 100) + 10;
+        
         // Légende
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
         pdf.text(`Graphe d'investigation — ${nodes.length} entités, ${edges.length} liens`, pageWidth / 2, y, { align: 'center' });
         y += 15;
-
+        
         // Tableau statistiques
         pdf.setFillColor(30, 58, 138);
         pdf.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
@@ -248,143 +253,14 @@ function FlowExporter({
         pdf.text('Statistique', margin + 2, y + 5);
         pdf.text('Valeur', pageWidth / 2, y + 5);
         pdf.text('Dossier', pageWidth - margin - 2, y + 5, { align: 'right' });
-
+        
         y += 10;
         pdf.setTextColor(0, 0, 0);
         pdf.setFont('helvetica', 'normal');
-
+        
         pdf.setFillColor(240, 240, 250);
         pdf.rect(margin, y, pageWidth - (margin * 2), 7, 'F');
         pdf.text('Entités', margin + 2, y + 5);
         pdf.setFont('helvetica', 'bold');
         pdf.text(String(nodes.length), pageWidth / 2, y + 5);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(activeCase.name, pageWidth - margin - 2, y + 5, { align: 'right' });
-        y += 7;
-
-        pdf.text('Liens', margin + 2, y + 5);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(String(edges.length), pageWidth / 2, y + 5);
-        pdf.setFont('helvetica', 'normal');
-        y += 7;
-
-        pdf.text('Date', margin + 2, y + 5);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(new Date().toLocaleDateString('fr-FR'), pageWidth / 2, y + 5);
-        pdf.setFont('helvetica', 'normal');
-        y += 15;
-
-        const personNode = nodes.find(n => (n.data as EntityData).entityType === 'person');
-        if (personNode) {
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'italic');
-          pdf.text(`Nom: ${(personNode.data as EntityData).label}`, margin, y);
-        }
-
-        pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_rapport.pdf`);
-      } catch (err) {
-        console.error("Erreur export PDF:", err);
-        alert('Erreur export PDF: ' + (err as Error).message);
-      }
-    };
-
-    onRegisterExportPng(exportPng);
-    onRegisterExportPdf(exportPdf);
-  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf, nodes, edges]);
-
-  return null;
-}
-
-interface InfoTabProps {
-  nodes: EntityNode[];
-  edges: Edge[];
-  selectedEdgeId: string | null;
-  selectedNodeId: string | null;
-  notePanelOpen: boolean;
-  activeCase: CaseData | null;
-  onNodesChange: OnNodesChange<EntityNode>;
-  onEdgesChange: OnEdgesChange;
-  onConnect: (connection: Connection) => void;
-  onEdgeClick: (e: React.MouseEvent, edge: Edge) => void;
-  onNodeClick: (e: React.MouseEvent, node: Node) => void;
-  onPaneClick: () => void;
-  onSetNotePanelOpen: (open: boolean) => void;
-  onSetSelectedNodeId: (id: string | null) => void;
-  updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
-  updateCaseNotes: (notes: string) => void;
-  updateCaseTitle: (title: string) => void;
-  onRegisterExportPng: (fn: () => Promise<void>) => void;
-  onRegisterExportPdf: (fn: () => Promise<void>) => void;
-}
-
-export default function InfoTab({
-  nodes,
-  edges,
-  selectedEdgeId,
-  selectedNodeId,
-  notePanelOpen,
-  activeCase,
-  onNodesChange,
-  onEdgesChange,
-  onConnect,
-  onEdgeClick,
-  onNodeClick,
-  onPaneClick,
-  onSetNotePanelOpen,
-  onSetSelectedNodeId,
-  updateNodeData,
-  updateCaseNotes,
-  updateCaseTitle,
-  onRegisterExportPng,
-  onRegisterExportPdf,
-}: InfoTabProps) {
-  const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNode | undefined) ?? null;
-
-  return (
-    <div className="flex-1 flex overflow-hidden min-h-0">
-      <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onEdgeClick={onEdgeClick}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionMode={ConnectionMode.Loose}
-          connectionLineType={ConnectionLineType.Bezier}
-          defaultEdgeOptions={{ type: 'custom' }}
-          proOptions={{ hideAttribution: true }}
-          className="bg-cyber-black"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
-          <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
-          <MiniMap nodeColor={() => '#1e3a5f'} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
-          <FlowExporter
-            activeCase={activeCase}
-            nodes={nodes}
-            edges={edges}
-            onRegisterExportPng={onRegisterExportPng}
-            onRegisterExportPdf={onRegisterExportPdf}
-          />
-        </ReactFlow>
-      </div>
-
-      {notePanelOpen && (
-        <NotePanel
-          selectedNode={selectedNode}
-          caseNotes={activeCase?.caseNotes ?? ''}
-          caseTitle={activeCase?.caseTitle ?? ''}
-          caseDescription={activeCase?.description}
-          onUpdateEntityNotes={(id, notes) => updateNodeData(id, { notes })}
-          onUpdateCaseNotes={updateCaseNotes}
-          onUpdateCaseTitle={updateCaseTitle}
-          onClose={() => { onSetNotePanelOpen(false); onSetSelectedNodeId(null); }}
-        />
-      )}
-    </div>
-  );
-}
+        pdf.setFont('hel
