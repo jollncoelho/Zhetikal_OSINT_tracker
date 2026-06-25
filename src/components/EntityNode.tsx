@@ -85,69 +85,15 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-     // Remplace TOUS les Handles dans EntityNode.tsx par ceux-ci (4 seulement) :
+      <Handle type="source" position={Position.Left} id="left" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Left} id="left-in" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Right} id="right" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Right} id="right-in" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Top} id="top" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Top} id="top-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
 
-<Handle
-  type="source"
-  position={Position.Left}
-  id="left"
-  style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="target"
-  position={Position.Left}
-  id="left-in"
-  style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="source"
-  position={Position.Right}
-  id="right"
-  style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="target"
-  position={Position.Right}
-  id="right-in"
-  style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="source"
-  position={Position.Top}
-  id="top"
-  style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="target"
-  position={Position.Top}
-  id="top-in"
-  style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="source"
-  position={Position.Bottom}
-  id="bottom"
-  style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-<Handle
-  type="target"
-  position={Position.Bottom}
-  id="bottom-in"
-  style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
-/>
-      
-      {/* Handles TARGETS - Anciens + Nouveaux */}
-      <Handle type="target" position={Position.Left} id="left-target" style={{ width: 8, height: 8, left: -4, top: '75%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Right} id="right-target" style={{ width: 8, height: 8, right: -4, top: '75%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Top} id="top-target" style={{ width: 8, height: 8, top: -4, left: '75%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-target" style={{ width: 8, height: 8, bottom: -4, left: '75%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      
-      <Handle type="target" position={Position.Left} id="l-in" style={{ width: 8, height: 8, left: -4, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Right} id="r-in" style={{ width: 8, height: 8, right: -4, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Top} id="t-in" style={{ width: 8, height: 8, top: -4, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Bottom} id="b-in" style={{ width: 8, height: 8, bottom: -4, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-
-      {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
@@ -182,13 +128,13 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           </span>
         )}
       </div>
-      
+
       {data.entityType === 'photo' && data.photoUrl && (
         <div className="px-3 pt-2">
           <img src={data.photoUrl} alt="" className="w-full h-24 object-cover rounded border border-cyber-border" />
         </div>
       )}
-      
+
       <div className={`px-3 pb-3 ${!renamingLabel ? 'pr-10' : ''}`}>
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
           {data.notes || <span className="opacity-40">Aucune note...</span>}
@@ -200,27 +146,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} title="Supprimer" className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40 transition-all duration-150 z-10">
             <Trash2 size={11} />
           </button>
-
           <button onClick={handleExpandNote} title="Ouvrir le bloc-notes" className="absolute bottom-2 right-2 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
             <NotebookPen size={11} />
           </button>
-
           <button onClick={handleOpenFields} title="Champs personnalisés" className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
             <SlidersHorizontal size={11} />
           </button>
-
           {data.entityType === 'ip' && (
             <a href={`https://ipinfo.io/${data.label}`} target="_blank" rel="noopener noreferrer" title="Analyser / géolocaliser cette IP" onClick={(e) => e.stopPropagation()} className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all duration-150 z-10">
               <ExternalLink size={11} />
             </a>
           )}
-
           {data.entityType === 'location' && (
             <button onClick={handleGoToMap} title="Voir sur la carte" className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40 transition-all duration-150 z-10">
               <MapPin size={11} />
             </button>
           )}
-
           {LINK_TYPES.includes(data.entityType) && openUrl && (
             <a href={openUrl} target="_blank" rel="noopener noreferrer" title={`Ouvrir ${data.entityType === 'domain' ? 'le domaine' : 'le lien'}`} onClick={(e) => e.stopPropagation()} className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
               <ExternalLink size={11} />
