@@ -90,14 +90,24 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Handles */}
-      <Handle id="left" type="source" position={Position.Left}
+      {/* Handles - Source (sortie) */}
+      <Handle id="left-source" type="source" position={Position.Left}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
-      <Handle id="right" type="source" position={Position.Right}
+      <Handle id="right-source" type="source" position={Position.Right}
         style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
-      <Handle id="top" type="source" position={Position.Top}
+      <Handle id="top-source" type="source" position={Position.Top}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
-      <Handle id="bottom" type="source" position={Position.Bottom}
+      <Handle id="bottom-source" type="source" position={Position.Bottom}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
+
+      {/* Handles - Target (entrée) */}
+      <Handle id="left-target" type="target" position={Position.Left}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, left: -half, transform: 'none' }} />
+      <Handle id="right-target" type="target" position={Position.Right}
+        style={{ ...handleBase, width: HANDLE_THICKNESS, height: '100%', top: 0, right: -half, transform: 'none' }} />
+      <Handle id="top-target" type="target" position={Position.Top}
+        style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, top: -half, transform: 'none' }} />
+      <Handle id="bottom-target" type="target" position={Position.Bottom}
         style={{ ...handleBase, width: '100%', height: HANDLE_THICKNESS, left: 0, bottom: -half, transform: 'none' }} />
 
       {/* Header */}
