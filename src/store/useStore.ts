@@ -1,3 +1,22 @@
+switchCase: (id) => {
+  const caseData = get().cases.find((c) => c.id === id);
+  if (!caseData) return;
+  
+  // Filtrer uniquement les edges avec des handles valides
+  const validEdges = caseData.edges.filter((edge) => {
+    const validSourceHandles = ['l', 'r', 't', 'b', 'left', 'right', 'top', 'bottom'];
+    const validTargetHandles = ['l-in', 'r-in', 't-in', 'b-in', 'left-target', 'right-target', 'top-target', 'bottom-target'];
+    const sourceHandleValid = !edge.sourceHandle || validSourceHandles.includes(edge.sourceHandle);
+    const targetHandleValid = !edge.targetHandle || validTargetHandles.includes(edge.targetHandle);
+    return sourceHandleValid && targetHandleValid;
+  });
+  
+  set({
+    activeCaseId: id,
+    nodes: caseData.nodes,
+    edges: validEdges,
+  });
+},
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
