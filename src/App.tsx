@@ -47,6 +47,16 @@ function AppInner() {
     addPinLink,
     removePinLink,
   } = useStore();
+  const {
+  cases,
+  activeCaseId,
+  nodes,
+  edges,
+  // ... le reste
+} = useStore();
+
+// ✅ AJOUTE CETTE LIGNE :
+const activeCase = cases.find((c) => c.id === activeCaseId) ?? null;
 
   const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
