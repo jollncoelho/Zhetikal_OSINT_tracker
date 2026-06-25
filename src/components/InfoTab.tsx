@@ -130,10 +130,17 @@ function FlowExporter({
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
   const captureViewport = useCallback(async (): Promise<string> => {
-    let container = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!container) throw new Error('Élément graphique introuvable');
+    // Chercher le conteneur React Flow
+    const container = document.querySelector('.react-flow') as HTMLElement | null;
+    if (!container) {
+      console.error('React Flow container not found');
+      throw new Error('Élément graphique introuvable');
+    }
     
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Attendre que le rendu soit complet
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    console.log('Capturing viewport, size:', container.offsetWidth, container.offsetHeight);
     
     return toPng(container, {
       cacheBust: true,
@@ -143,13 +150,13 @@ function FlowExporter({
       height: container.offsetHeight,
       style: {
         transform: 'none',
+        margin: '0',
       },
       filter: (node) => {
         if (node instanceof Element) {
           if (node.classList.contains('react-flow__controls')) return false;
           if (node.classList.contains('react-flow__minimap')) return false;
           if (node.classList.contains('react-flow__panel')) return false;
-          if (node.tagName === 'BUTTON' && node.closest('.react-flow')) return false;
         }
         return true;
       },
@@ -157,32 +164,47 @@ function FlowExporter({
   }, []);
 
   useEffect(() => {
-    onRegisterExportPng(async () => {
-      if (!activeCase) return;
+    const exportPng = async () => {
+      if (!activeCase) {
+        console.log('No active case for PNG export');
+        return;
+      }
       try {
+        console.log('Starting PNG export...');
         const dataUrl = await captureViewport();
         const link = document.createElement('a');
         link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
         link.href = dataUrl;
         link.click();
+        console.log('PNG export completed');
       } catch (err) {
         console.error("Erreur durant l'export PNG:", err);
+        alert(`Erreur export PNG: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
       }
-    });
+    };
 
-    onRegisterExportPdf(async () => {
-      if (!activeCase) return;
+    const exportPdf = async () => {
+      if (!activeCase) {
+        console.log('No active case for PDF export');
+        return;
+      }
       try {
+        console.log('Starting PDF export...');
         const dataUrl = await captureViewport();
         const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         pdf.setFillColor(10, 14, 23);
         pdf.rect(0, 0, 297, 210, 'F');
         pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
         pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
+        console.log('PDF export completed');
       } catch (err) {
         console.error("Erreur durant l'export PDF:", err);
+        alert(`Erreur export PDF: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
       }
-    });
+    };
+
+    onRegisterExportPng(exportPng);
+    onRegisterExportPdf(exportPdf);
   }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf]);
 
   return null;
