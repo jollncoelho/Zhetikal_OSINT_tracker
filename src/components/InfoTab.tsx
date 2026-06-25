@@ -180,26 +180,142 @@ function FlowExporter({
       }
     };
 
-    const exportPdf = async () => {
-      if (!activeCase) {
-        alert('Aucun cas actif');
-        return;
-      }
-      try {
-        console.log('Début export PDF...');
-        const dataUrl = await captureViewport();
-        console.log('PNG capturé pour PDF, création PDF...');
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        pdf.setFillColor(10, 14, 23);
-        pdf.rect(0, 0, 297, 210, 'F');
-        pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
-        pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
-        console.log('Export PDF terminé');
-      } catch (err) {
-        console.error("Erreur export PDF:", err);
-        alert('Erreur export PDF: ' + (err as Error).message);
-      }
-    };
+const exportPdf = async () => {
+  if (!activeCase) {
+    alert('Aucun cas actif');
+    return;
+  }
+  
+  try {
+    console.log('Début export PDF rapport...');
+    
+    // Capturer le graphe
+    const element = document.querySelector('.react-flow') as HTMLElement | null;
+    if (!element) throw new Error('Graphique non trouvé');
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const graphImage = await toPng(element, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#0a0e17',
+      width: element.offsetWidth,
+      height: element.offsetHeight,
+      style: { transform: 'none', margin: '0' },
+      filter: (node) => {
+        if (node instanceof Element) {
+          if (node.classList.contains('react-flow__controls')) return false;
+          if (node.classList.contains('react-flow__minimap')) return false;
+          if (node.classList.contains('react-flow__panel')) return false;
+          if (node.tagName === 'BUTTON') return false;
+        }
+        return true;
+      },
+    });
+    
+    // Créer le PDF avec mise en forme
+    const pdf = new jsPDF({ 
+      orientation: 'portrait', 
+      unit: 'mm', 
+      format: 'a4' 
+    });
+    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 15;
+    let y = margin;
+    
+    // En-tête bleu
+    pdf.setFillColor(30, 58, 138);
+    pdf.rect(0, 0, pageWidth, 25, 'F');
+    
+    // Titre
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Rapport d\'Investigation OSINT', margin, 15);
+    
+    y = 35;
+    
+    // Nom du dossier
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(activeCase.name, margin, y);
+    y += 8;
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Dossier: ${activeCase.name}`, margin, y);
+    y += 15;
+    
+    // Image du graphe
+    const imgWidth = pageWidth - (margin * 2);
+    const imgHeight = (element.offsetHeight / element.offsetWidth) * imgWidth;
+    pdf.addImage(graphImage, 'PNG', margin, y, imgWidth, Math.min(imgHeight, 120));
+    y += Math.min(imgHeight, 120) + 10;
+    
+    // Légende
+    pdf.setFontSize(8);
+    pdf.setTextColor(100, 100, 100);
+    pdf.text(`Graphe d'investigation — ${nodes.length} entités, ${edges.length} liens`, pageWidth / 2, y, { align: 'center' });
+    y += 15;
+    
+    // Tableau de statistiques
+    pdf.setFillColor(30, 58, 138);
+    pdf.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Statistique', margin + 2, y + 5);
+    pdf.text('Valeur', pageWidth / 2, y + 5);
+    pdf.text('Dossier', pageWidth - margin - 2, y + 5, { align: 'right' });
+    
+    y += 10;
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFont('helvetica', 'normal');
+    
+    // Ligne Entités
+    pdf.setFillColor(240, 240, 250);
+    pdf.rect(margin, y, pageWidth - (margin * 2), 7, 'F');
+    pdf.text('Entités', margin + 2, y + 5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(String(nodes.length), pageWidth / 2, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(activeCase.name, pageWidth - margin - 2, y + 5, { align: 'right' });
+    y += 7;
+    
+    // Ligne Liens
+    pdf.text('Liens', margin + 2, y + 5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(String(edges.length), pageWidth / 2, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    y += 7;
+    
+    // Ligne Date
+    pdf.text('Date', margin + 2, y + 5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(new Date().toLocaleDateString('fr-FR'), pageWidth / 2, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    y += 15;
+    
+    // Nom de la personne (si disponible)
+    const personNode = nodes.find(n => (n.data as EntityData).entityType === 'person');
+    if (personNode) {
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text(`Nom: ${(personNode.data as EntityData).label}`, margin, y);
+    }
+    
+    // Sauvegarder
+    pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_rapport.pdf`);
+    console.log('Export PDF rapport terminé');
+  } catch (err) {
+    console.error("Erreur export PDF:", err);
+    alert('Erreur export PDF: ' + (err as Error).message);
+  }
+};
+    
 
     onRegisterExportPng(exportPng);
     onRegisterExportPdf(exportPdf);
