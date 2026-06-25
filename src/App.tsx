@@ -18,7 +18,6 @@ import type { Edge } from '@xyflow/react';
 function AppInner() {
   const {
     cases,
-    activeCase,
     activeCaseId,
     nodes,
     edges,
