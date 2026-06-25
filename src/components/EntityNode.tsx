@@ -180,4 +180,81 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <button
             onClick={handleOpenFields}
             title="Champs personnalisés"
-            className="absolute bottom-2 right-[2.2rem] w-6 h
+            className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center
+              bg-cyber-dark/70 border border-cyber-border
+              text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+              transition-all duration-150 z-10"
+          >
+            <SlidersHorizontal size={11} />
+          </button>
+
+          {/* Lookup IP — ip type only */}
+          {data.entityType === 'ip' && (
+            <a
+              href={`https://ipinfo.io/${data.label}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Analyser / géolocaliser cette IP"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40
+                transition-all duration-150 z-10"
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
+
+          {/* Voir sur la carte — location type only */}
+          {data.entityType === 'location' && (
+            <button
+              onClick={handleGoToMap}
+              title="Voir sur la carte"
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40
+                transition-all duration-150 z-10"
+            >
+              <MapPin size={11} />
+            </button>
+          )}
+
+          {/* Open link — URL/Domain only */}
+          {LINK_TYPES.includes(data.entityType) && openUrl && (
+            <a
+              href={openUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Ouvrir ${data.entityType === 'domain' ? 'le domaine' : 'le lien'}`}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
+                bg-cyber-dark/70 border border-cyber-border
+                text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
+                transition-all duration-150 z-10"
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
+        </>
+      )}
+
+      {/* Rename confirm/cancel */}
+      {renamingLabel && (
+        <div className="flex gap-1 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={handleSaveLabel}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-green/20 border border-cyber-green/40 text-cyber-green text-[10px] font-medium hover:bg-cyber-green/30 transition-colors"
+          >
+            <Check size={10} /> OK
+          </button>
+          <button
+            onClick={() => { setLabel(data.label); setRenamingLabel(false); }}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-panel border border-cyber-border text-cyber-text-dim text-[10px] font-medium hover:bg-cyber-dark transition-colors"
+          >
+            <X size={10} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
