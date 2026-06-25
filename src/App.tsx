@@ -30,7 +30,7 @@ function AppInner() {
     deleteCase,
     addEntity,
     updateNodeData,
-    onConnect: storeOnConnect, // Renommé proprement pour éviter le conflit
+    onConnect: storeOnConnect,
     deleteNode,
     deleteEdge,
     clearCanvas,
@@ -48,7 +48,6 @@ function AppInner() {
     removePinLink,
   } = useStore();
 
-  // 1. Correction du Magnétisme : Intercepteur de connexion fluide et libre
   const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
       storeOnConnect(params);
@@ -66,7 +65,6 @@ function AppInner() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   
-  // 2. Initialisation propre des Hooks d'exportation en haut du composant
   const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
   const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
 
@@ -79,6 +77,40 @@ function AppInner() {
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
 
+  // ✅ NETTOYAGE DES EDGES INVALIDES AU CHARGEMENT
+  useEffect(() => {
+    if (!activeCaseId || !activeCase) return;
+    
+    const validHandles = [
+      'l', 'r', 't', 'b', 
+      'l-in', 'r-in', 't-in', 'b-in',
+      'left', 'right', 'top', 'bottom',
+      'left-source', 'right-source', 'top-source', 'bottom-source',
+      'left-target', 'right-target', 'top-target', 'bottom-target',
+      'l1', 'l2', 'l3', 'r1', 'r2', 'r3', 't1', 't2', 't3', 'b1', 'b2', 'b3'
+    ];
+    
+    const validEdges = edges.filter((edge) => {
+      const sourceHandle = edge.sourceHandle || '';
+      const targetHandle = edge.targetHandle || '';
+      
+      // Si pas de handle spécifié, c'est valide
+      if (!sourceHandle && !targetHandle) return true;
+      
+      // Vérifier que les handles existent
+      const sourceValid = !sourceHandle || validHandles.includes(sourceHandle);
+      const targetValid = !targetHandle || validHandles.includes(targetHandle);
+      
+      return sourceValid && targetValid;
+    });
+    
+    // Si des edges invalides ont été trouvés, on les supprime
+    if (validEdges.length !== edges.length) {
+      console.log(`Nettoyage: ${edges.length - validEdges.length} edges invalides supprimés`);
+      updateCase(activeCaseId, activeCase.name, activeCase.description || '', { edges: validEdges });
+    }
+  }, [activeCaseId, activeCase, edges, updateCase]);
+
   // Custom events from nodes
   useEffect(() => {
     const handleUpdate = (e: Event) => {
@@ -90,7 +122,6 @@ function AppInner() {
       deleteNode(id);
     };
     
-    // Correction de la mémoire : On nettoie l'identifiant de sélection lors de la suppression
     const handleDeleteEdge = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
       deleteEdge(id);
@@ -120,7 +151,6 @@ function AppInner() {
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
 
-  // Navigate a location node to its map pin (or auto-create one), then tell MapTab via window event
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
@@ -334,7 +364,7 @@ function AppInner() {
           </div>
         )}
 
-        {/* Tab views — conditional rendering */}
+        {/* Tab views */}
         {view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
@@ -405,7 +435,7 @@ function AppInner() {
         </div>
       </div>
 
-      {/* IdentifierModal — fields editor */}
+      {/* IdentifierModal */}
       {fieldsNode && (
         <IdentifierModal
           nodeId={fieldsNode.id}
