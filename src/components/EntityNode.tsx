@@ -85,16 +85,56 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Handles SOURCES - Anciens + Nouveaux */}
-      <Handle type="source" position={Position.Left} id="left" style={{ width: 8, height: 8, left: -4, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ width: 8, height: 8, right: -4, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="top" style={{ width: 8, height: 8, top: -4, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 8, height: 8, bottom: -4, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      
-      <Handle type="source" position={Position.Left} id="l" style={{ width: 8, height: 8, left: -4, top: '25%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="r" style={{ width: 8, height: 8, right: -4, top: '25%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="t" style={{ width: 8, height: 8, top: -4, left: '25%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="b" style={{ width: 8, height: 8, bottom: -4, left: '25%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+     // Remplace TOUS les Handles dans EntityNode.tsx par ceux-ci (4 seulement) :
+
+<Handle
+  type="source"
+  position={Position.Left}
+  id="left"
+  style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="target"
+  position={Position.Left}
+  id="left-in"
+  style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="source"
+  position={Position.Right}
+  id="right"
+  style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="target"
+  position={Position.Right}
+  id="right-in"
+  style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="source"
+  position={Position.Top}
+  id="top"
+  style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="target"
+  position={Position.Top}
+  id="top-in"
+  style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="source"
+  position={Position.Bottom}
+  id="bottom"
+  style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
+<Handle
+  type="target"
+  position={Position.Bottom}
+  id="bottom-in"
+  style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
+/>
       
       {/* Handles TARGETS - Anciens + Nouveaux */}
       <Handle type="target" position={Position.Left} id="left-target" style={{ width: 8, height: 8, left: -4, top: '75%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
