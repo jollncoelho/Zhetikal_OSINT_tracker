@@ -6,6 +6,7 @@ import {
   MiniMap,
   BackgroundVariant,
   ConnectionMode,
+  ConnectionLineType,
   EdgeLabelRenderer,
   getBezierPath,
   type NodeTypes,
@@ -23,7 +24,6 @@ import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
 
-// Déclaration explicite du composant de flèche interactive
 const CustomEdgeComponent = memo(function CustomEdgeComponent({
   id,
   sourceX,
@@ -47,7 +47,6 @@ const CustomEdgeComponent = memo(function CustomEdgeComponent({
 
   return (
     <>
-      {/* Ligne invisible plus large pour faciliter le clic à la souris */}
       <path
         d={edgePath}
         fill="none"
@@ -56,7 +55,6 @@ const CustomEdgeComponent = memo(function CustomEdgeComponent({
         style={{ cursor: 'pointer' }}
         className="react-flow__edge-interaction"
       />
-      {/* La flèche visible */}
       <path
         id={id}
         className="react-flow__edge-path"
@@ -122,7 +120,6 @@ const edgeTypes = {
   custom: CustomEdgeComponent,
 };
 
-// Module indépendant de capture d'écran pour les exports
 function FlowExporter({
   activeCase,
   onRegisterExportPng,
@@ -133,31 +130,31 @@ function FlowExporter({
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
   const captureViewport = useCallback(async (): Promise<string> => {
-  let container = document.querySelector('.react-flow') as HTMLElement | null;
-  if (!container) throw new Error('Élément graphique introuvable');
-  
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  return toPng(container, {
-    cacheBust: true,
-    pixelRatio: 2,
-    backgroundColor: '#0a0e17',
-    width: container.offsetWidth,
-    height: container.offsetHeight,
-    style: {
-      transform: 'none',
-    },
-    filter: (node) => {
-      if (node instanceof Element) {
-        if (node.classList.contains('react-flow__controls')) return false;
-        if (node.classList.contains('react-flow__minimap')) return false;
-        if (node.classList.contains('react-flow__panel')) return false;
-        if (node.tagName === 'BUTTON' && node.closest('.react-flow')) return false;
-      }
-      return true;
-    },
-  });
-}, []);
+    let container = document.querySelector('.react-flow') as HTMLElement | null;
+    if (!container) throw new Error('Élément graphique introuvable');
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return toPng(container, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#0a0e17',
+      width: container.offsetWidth,
+      height: container.offsetHeight,
+      style: {
+        transform: 'none',
+      },
+      filter: (node) => {
+        if (node instanceof Element) {
+          if (node.classList.contains('react-flow__controls')) return false;
+          if (node.classList.contains('react-flow__minimap')) return false;
+          if (node.classList.contains('react-flow__panel')) return false;
+          if (node.tagName === 'BUTTON' && node.closest('.react-flow')) return false;
+        }
+        return true;
+      },
+    });
+  }, []);
 
   useEffect(() => {
     onRegisterExportPng(async () => {
@@ -251,6 +248,7 @@ export default function InfoTab({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
+          connectionLineType={ConnectionLineType.Bezier}
           defaultEdgeOptions={{ type: 'custom' }}
           proOptions={{ hideAttribution: true }}
           className="bg-cyber-black"
