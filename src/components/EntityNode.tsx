@@ -15,7 +15,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
 const LINK_TYPES = ['url', 'domain'];
-const HANDLE_THICKNESS = 14;
 
 function buildOpenUrl(entityType: string, label: string): string | null {
   if (entityType === 'url') return label.startsWith('http') ? label : `https://${label}`;
@@ -77,10 +76,6 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const openUrl = buildOpenUrl(data.entityType, data.label);
   const IconComponent = ICON_MAP[data.icon] || Globe;
-  const half = HANDLE_THICKNESS / 2;
-  const handleBase: React.CSSProperties = {
-    background: 'transparent', border: 'none', borderRadius: 0, cursor: 'crosshair',
-  };
 
   return (
     <div
@@ -90,121 +85,67 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-     {/* Handles - Source (sortie) */}
-<Handle 
-  id="left-source" 
-  type="source" 
-  position={Position.Left}
-  style={{ 
-    ...handleBase, 
-    width: 20, 
-    height: '100%', 
-    top: 0, 
-    left: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="right-source" 
-  type="source" 
-  position={Position.Right}
-  style={{ 
-    ...handleBase, 
-    width: 20, 
-    height: '100%', 
-    top: 0, 
-    right: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="top-source" 
-  type="source" 
-  position={Position.Top}
-  style={{ 
-    ...handleBase, 
-    width: '100%', 
-    height: 20, 
-    left: 0, 
-    top: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="bottom-source" 
-  type="source" 
-  position={Position.Bottom}
-  style={{ 
-    ...handleBase, 
-    width: '100%', 
-    height: 20, 
-    left: 0, 
-    bottom: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-
-{/* Handles - Target (entrée) */}
-<Handle 
-  id="left-target" 
-  type="target" 
-  position={Position.Left}
-  style={{ 
-    ...handleBase, 
-    width: 20, 
-    height: '100%', 
-    top: 0, 
-    left: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="right-target" 
-  type="target" 
-  position={Position.Right}
-  style={{ 
-    ...handleBase, 
-    width: 20, 
-    height: '100%', 
-    top: 0, 
-    right: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="top-target" 
-  type="target" 
-  position={Position.Top}
-  style={{ 
-    ...handleBase, 
-    width: '100%', 
-    height: 20, 
-    left: 0, 
-    top: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
-<Handle 
-  id="bottom-target" 
-  type="target" 
-  position={Position.Bottom}
-  style={{ 
-    ...handleBase, 
-    width: '100%', 
-    height: 20, 
-    left: 0, 
-    bottom: -10, 
-    transform: 'none',
-    zIndex: 10
-  }} 
-/>
+      {/* Handles - Un par côté, plus larges et faciles à attraper */}
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="left"
+        style={{
+          width: '100%',
+          height: '100%',
+          left: 0,
+          top: 0,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          zIndex: 10,
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        style={{
+          width: '100%',
+          height: '100%',
+          right: 0,
+          top: 0,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          zIndex: 10,
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="top"
+        style={{
+          width: '100%',
+          height: '100%',
+          top: 0,
+          left: 0,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          zIndex: 10,
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom"
+        style={{
+          width: '100%',
+          height: '100%',
+          bottom: 0,
+          left: 0,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          zIndex: 10,
+        }}
+      />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
