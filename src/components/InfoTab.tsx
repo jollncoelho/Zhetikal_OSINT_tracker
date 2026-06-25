@@ -333,4 +333,149 @@ function FlowExporter({
           // Liste des entités de ce type
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
-          pdf.setFontSize
+          pdf.setFontSize(8);
+          
+          typeNodes.forEach(node => {
+            if (y > pageHeight - 15) {
+              pdf.addPage();
+              y = margin;
+            }
+            
+            const data = node.data as EntityData;
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`• ${data.label}`, margin + 5, y);
+            y += 4;
+            
+            pdf.setFont('helvetica', 'normal');
+            if (data.notes) {
+              const splitNotes = pdf.splitTextToSize(data.notes, pageWidth - (margin * 2) - 10);
+              pdf.text(splitNotes, margin + 7, y);
+              y += splitNotes.length * 4;
+            }
+            
+            // Afficher les champs personnalisés s'ils existent
+            if (data.fields) {
+              Object.entries(data.fields).forEach(([key, value]) => {
+                if (y > pageHeight - 10) {
+                  pdf.addPage();
+                  y = margin;
+                }
+                pdf.text(`  ${key}: ${value}`, margin + 7, y);
+                y += 4;
+              });
+            }
+            
+            y += 3;
+          });
+          
+          y += 5;
+        });
+        
+        // Sauvegarder le PDF
+        pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_rapport.pdf`);
+      } catch (err) {
+        console.error("Erreur export PDF:", err);
+        alert('Erreur export PDF: ' + (err as Error).message);
+      }
+    };
+
+    onRegisterExportPng(exportPng);
+    onRegisterExportPdf(exportPdf);
+  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf, nodes, edges]);
+
+  return null;
+}
+
+interface InfoTabProps {
+  nodes: EntityNode[];
+  edges: Edge[];
+  selectedEdgeId: string | null;
+  selectedNodeId: string | null;
+  notePanelOpen: boolean;
+  activeCase: CaseData | null;
+  onNodesChange: OnNodesChange<EntityNode>;
+  onEdgesChange: OnEdgesChange;
+  onConnect: (connection: Connection) => void;
+  onEdgeClick: (e: React.MouseEvent, edge: Edge) => void;
+  onNodeClick: (e: React.MouseEvent, node: Node) => void;
+  onPaneClick: () => void;
+  onSetNotePanelOpen: (open: boolean) => void;
+  onSetSelectedNodeId: (id: string | null) => void;
+  updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
+  updateCaseNotes: (notes: string) => void;
+  updateCaseTitle: (title: string) => void;
+  onRegisterExportPng: (fn: () => Promise<void>) => void;
+  onRegisterExportPdf: (fn: () => Promise<void>) => void;
+}
+
+export default function InfoTab({
+  nodes,
+  edges,
+  selectedEdgeId,
+  selectedNodeId,
+  notePanelOpen,
+  activeCase,
+  onNodesChange,
+  onEdgesChange,
+  onConnect,
+  onEdgeClick,
+  onNodeClick,
+  onPaneClick,
+  onSetNotePanelOpen,
+  onSetSelectedNodeId,
+  updateNodeData,
+  updateCaseNotes,
+  updateCaseTitle,
+  onRegisterExportPng,
+  onRegisterExportPdf,
+}: InfoTabProps) {
+  const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNode | undefined) ?? null;
+
+  return (
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 react-flow-canvas-wrapper min-w-0">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onEdgeClick={onEdgeClick}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          connectionMode={ConnectionMode.Loose}
+          connectionLineType={ConnectionLineType.Bezier}
+          defaultEdgeOptions={{ type: 'custom' }}
+          proOptions={{ hideAttribution: true }}
+          className="bg-cyber-black"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
+          <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
+          <MiniMap nodeColor={() => '#1e3a5f'} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
+          <FlowExporter
+            activeCase={activeCase}
+            nodes={nodes}
+            edges={edges}
+            onRegisterExportPng={onRegisterExportPng}
+            onRegisterExportPdf={onRegisterExportPdf}
+          />
+        </ReactFlow>
+      </div>
+
+      {notePanelOpen && (
+        <NotePanel
+          selectedNode={selectedNode}
+          caseNotes={activeCase?.caseNotes ?? ''}
+          caseTitle={activeCase?.caseTitle ?? ''}
+          caseDescription={activeCase?.description}
+          onUpdateEntityNotes={(id, notes) => updateNodeData(id, { notes })}
+          onUpdateCaseNotes={updateCaseNotes}
+          onUpdateCaseTitle={updateCaseTitle}
+          onClose={() => { onSetNotePanelOpen(false); onSetSelectedNodeId(null); }}
+        />
+      )}
+    </div>
+  );
+}
