@@ -47,10 +47,7 @@ function AppInner() {
     addPinLink,
     removePinLink,
   } = useStore();
-  
 
-// ✅ AJOUTE CETTE LIGNE :
-const activeCase = cases.find((c) => c.id === activeCaseId) ?? null;
 
   const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
