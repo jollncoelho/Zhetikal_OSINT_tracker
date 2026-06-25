@@ -18,7 +18,6 @@ import type { Edge } from '@xyflow/react';
 function AppInner() {
   const {
     cases,
-    activeCase,
     activeCaseId,
     nodes,
     edges,
@@ -48,6 +47,8 @@ function AppInner() {
     removePinLink,
   } = useStore();
 
+  // ✅ Calcul de activeCase
+  const activeCase = activeCaseId ? cases.find((c) => c.id === activeCaseId) ?? null : null;
 
   const onConnect = useCallback((params: any) => {
     if (storeOnConnect) {
