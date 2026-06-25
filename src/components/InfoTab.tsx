@@ -263,4 +263,74 @@ function FlowExporter({
         pdf.text('Entités', margin + 2, y + 5);
         pdf.setFont('helvetica', 'bold');
         pdf.text(String(nodes.length), pageWidth / 2, y + 5);
-        pdf.setFont('hel
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(activeCase.name, pageWidth - margin - 2, y + 5, { align: 'right' });
+        y += 7;
+        
+        pdf.text('Liens', margin + 2, y + 5);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(String(edges.length), pageWidth / 2, y + 5);
+        pdf.setFont('helvetica', 'normal');
+        y += 7;
+        
+        pdf.text('Date', margin + 2, y + 5);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(new Date().toLocaleDateString('fr-FR'), pageWidth / 2, y + 5);
+        pdf.setFont('helvetica', 'normal');
+        y += 15;
+        
+        // Nom de la personne
+        const personNode = nodes.find(n => (n.data as EntityData).entityType === 'person');
+        if (personNode) {
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text(`Nom: ${(personNode.data as EntityData).label}`, margin, y);
+        }
+        
+        // ========== PAGE 2+: LISTE DÉTAILLÉE DES ENTITÉS ==========
+        pdf.addPage();
+        y = margin;
+        
+        // Titre de la page 2
+        pdf.setFillColor(30, 58, 138);
+        pdf.rect(0, 0, pageWidth, 15, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Détail des Entités', margin, 10);
+        
+        y = 22;
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        
+        // Grouper les entités par type
+        const entitiesByType: Record<string, EntityNode[]> = {};
+        nodes.forEach(node => {
+          const type = (node.data as EntityData).entityType || 'other';
+          if (!entitiesByType[type]) {
+            entitiesByType[type] = [];
+          }
+          entitiesByType[type].push(node);
+        });
+        
+        // Afficher chaque type d'entité
+        Object.entries(entitiesByType).forEach(([type, typeNodes]) => {
+          // Vérifier si on a besoin d'une nouvelle page
+          if (y > pageHeight - 30) {
+            pdf.addPage();
+            y = margin;
+          }
+          
+          // Titre de la section
+          pdf.setFillColor(230, 230, 240);
+          pdf.rect(margin, y - 3, pageWidth - (margin * 2), 7, 'F');
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(30, 58, 138);
+          pdf.text(`${type.charAt(0).toUpperCase() + type.slice(1)} (${typeNodes.length})`, margin + 2, y + 2);
+          y += 10;
+          
+          // Liste des entités de ce type
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize
