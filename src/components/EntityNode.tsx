@@ -85,26 +85,17 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
       }}
     >
-      {/* Handles multiples par côté - 3 par côté = 12 handles total */}
-      {/* Côté GAUCHE */}
-      <Handle type="source" position={Position.Left} id="l1" style={{ width: 12, height: 12, left: -6, top: '25%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Left} id="l2" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Left} id="l3" style={{ width: 12, height: 12, left: -6, top: '75%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      {/* Handles - SOURCE (sortie) */}
+      <Handle type="source" position={Position.Left} id="l" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Right} id="r" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Top} id="t" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Bottom} id="b" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
       
-      {/* Côté DROIT */}
-      <Handle type="source" position={Position.Right} id="r1" style={{ width: 12, height: 12, right: -6, top: '25%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="r2" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="r3" style={{ width: 12, height: 12, right: -6, top: '75%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      
-      {/* Côté HAUT */}
-      <Handle type="source" position={Position.Top} id="t1" style={{ width: 12, height: 12, top: -6, left: '25%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="t2" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="t3" style={{ width: 12, height: 12, top: -6, left: '75%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      
-      {/* Côté BAS */}
-      <Handle type="source" position={Position.Bottom} id="b1" style={{ width: 12, height: 12, bottom: -6, left: '25%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="b2" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="b3" style={{ width: 12, height: 12, bottom: -6, left: '75%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      {/* Handles - TARGET (entrée) */}
+      <Handle type="target" position={Position.Left} id="l-in" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Right} id="r-in" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Top} id="t-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Bottom} id="b-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'transparent', border: 'none', cursor: 'crosshair', zIndex: 100 }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
@@ -189,81 +180,4 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <button
             onClick={handleOpenFields}
             title="Champs personnalisés"
-            className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center
-              bg-cyber-dark/70 border border-cyber-border
-              text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
-              transition-all duration-150 z-10"
-          >
-            <SlidersHorizontal size={11} />
-          </button>
-
-          {/* Lookup IP — ip type only */}
-          {data.entityType === 'ip' && (
-            <a
-              href={`https://ipinfo.io/${data.label}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Analyser / géolocaliser cette IP"
-              onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
-                bg-cyber-dark/70 border border-cyber-border
-                text-cyber-text-dim hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40
-                transition-all duration-150 z-10"
-            >
-              <ExternalLink size={11} />
-            </a>
-          )}
-
-          {/* Voir sur la carte — location type only */}
-          {data.entityType === 'location' && (
-            <button
-              onClick={handleGoToMap}
-              title="Voir sur la carte"
-              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
-                bg-cyber-dark/70 border border-cyber-border
-                text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40
-                transition-all duration-150 z-10"
-            >
-              <MapPin size={11} />
-            </button>
-          )}
-
-          {/* Open link — URL/Domain only */}
-          {LINK_TYPES.includes(data.entityType) && openUrl && (
-            <a
-              href={openUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`Ouvrir ${data.entityType === 'domain' ? 'le domaine' : 'le lien'}`}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center
-                bg-cyber-dark/70 border border-cyber-border
-                text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40
-                transition-all duration-150 z-10"
-            >
-              <ExternalLink size={11} />
-            </a>
-          )}
-        </>
-      )}
-
-      {/* Rename confirm/cancel */}
-      {renamingLabel && (
-        <div className="flex gap-1 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={handleSaveLabel}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-green/20 border border-cyber-green/40 text-cyber-green text-[10px] font-medium hover:bg-cyber-green/30 transition-colors"
-          >
-            <Check size={10} /> OK
-          </button>
-          <button
-            onClick={() => { setLabel(data.label); setRenamingLabel(false); }}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-panel border border-cyber-border text-cyber-text-dim text-[10px] font-medium hover:bg-cyber-dark transition-colors"
-          >
-            <X size={10} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-});
+            className="absolute bottom-2 right-[2.2rem] w-6 h
