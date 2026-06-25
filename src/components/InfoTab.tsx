@@ -133,24 +133,31 @@ function FlowExporter({
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
   const captureViewport = useCallback(async (): Promise<string> => {
-    let container = document.querySelector('.react-flow__viewport') as HTMLElement | null;
-    if (!container) container = document.querySelector('.react-flow__renderer') as HTMLElement | null;
-    if (!container) container = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!container) throw new Error('Élément graphique introuvable');
-    
-    return toPng(container, {
-      cacheBust: true,
-      pixelRatio: 2,
-      backgroundColor: '#0a0e17',
-      filter: (node) => {
-        if (node instanceof Element) {
-          if (node.classList.contains('react-flow__controls')) return false;
-          if (node.classList.contains('react-flow__minimap')) return false;
-        }
-        return true;
-      },
-    });
-  }, []);
+  let container = document.querySelector('.react-flow') as HTMLElement | null;
+  if (!container) throw new Error('Élément graphique introuvable');
+  
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  return toPng(container, {
+    cacheBust: true,
+    pixelRatio: 2,
+    backgroundColor: '#0a0e17',
+    width: container.offsetWidth,
+    height: container.offsetHeight,
+    style: {
+      transform: 'none',
+    },
+    filter: (node) => {
+      if (node instanceof Element) {
+        if (node.classList.contains('react-flow__controls')) return false;
+        if (node.classList.contains('react-flow__minimap')) return false;
+        if (node.classList.contains('react-flow__panel')) return false;
+        if (node.tagName === 'BUTTON' && node.closest('.react-flow')) return false;
+      }
+      return true;
+    },
+  });
+}, []);
 
   useEffect(() => {
     onRegisterExportPng(async () => {
