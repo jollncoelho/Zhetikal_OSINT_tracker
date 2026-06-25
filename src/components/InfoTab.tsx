@@ -135,7 +135,7 @@ function FlowExporter({
       throw new Error('Graphique non trouvé');
     }
     
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     return toPng(element, {
       cacheBust: true,
@@ -161,13 +161,19 @@ function FlowExporter({
 
   useEffect(() => {
     const exportPng = async () => {
-      if (!activeCase) return;
+      if (!activeCase) {
+        alert('Aucun cas actif');
+        return;
+      }
       try {
+        console.log('Début export PNG...');
         const dataUrl = await captureViewport();
+        console.log('PNG capturé, téléchargement...');
         const link = document.createElement('a');
         link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
         link.href = dataUrl;
         link.click();
+        console.log('Export PNG terminé');
       } catch (err) {
         console.error("Erreur export PNG:", err);
         alert('Erreur export PNG: ' + (err as Error).message);
@@ -175,14 +181,20 @@ function FlowExporter({
     };
 
     const exportPdf = async () => {
-      if (!activeCase) return;
+      if (!activeCase) {
+        alert('Aucun cas actif');
+        return;
+      }
       try {
+        console.log('Début export PDF...');
         const dataUrl = await captureViewport();
+        console.log('PNG capturé pour PDF, création PDF...');
         const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         pdf.setFillColor(10, 14, 23);
         pdf.rect(0, 0, 297, 210, 'F');
         pdf.addImage(dataUrl, 'PNG', 10, 10, 277, 190);
         pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_export.pdf`);
+        console.log('Export PDF terminé');
       } catch (err) {
         console.error("Erreur export PDF:", err);
         alert('Erreur export PDF: ' + (err as Error).message);
