@@ -226,26 +226,28 @@ export const useStore = create<AppState>()(
           }
         },
 
-        onConnect: (connection) => {
-          const edge: Edge = {
-            id: crypto.randomUUID(),
-            source: connection.source,
-            target: connection.target,
-            type: 'custom',
-            animated: true,
-          };
-          set((state) => ({ edges: [...state.edges, edge] }));
-          const activeCaseId = get().activeCaseId;
-          if (activeCaseId) {
-            set((state) => ({
-              cases: state.cases.map((c) =>
-                c.id === activeCaseId
-                  ? { ...c, edges: [...c.edges, edge] }
-                  : c
-              ),
-            }));
-          }
-        },
+       onConnect: (connection) => {
+  const edge: Edge = {
+    id: crypto.randomUUID(),
+    source: connection.source,
+    target: connection.target,
+    sourceHandle: connection.sourceHandle,
+    targetHandle: connection.targetHandle,
+    type: 'custom',
+    animated: true,
+  };
+  set((state) => ({ edges: [...state.edges, edge] }));
+  const activeCaseId = get().activeCaseId;
+  if (activeCaseId) {
+    set((state) => ({
+      cases: state.cases.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, edges: [...c.edges, edge] }
+          : c
+      ),
+    }));
+  }
+},
 
         deleteEdge: (edgeId) => {
           set((state) => ({ edges: state.edges.filter((e) => e.id !== edgeId) }));
