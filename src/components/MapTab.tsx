@@ -3,6 +3,18 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// Fix Leaflet default marker icons broken by Vite asset hashing
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
+
 export interface FocusTarget {
   address: string;
 }
@@ -19,7 +31,6 @@ type MarkerState =
   | { kind: 'error'; address: string };
 
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
-  console.log('[MapTab] geocoding address:', address);
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
     { headers: { 'Accept-Language': 'fr,en' } }
@@ -29,22 +40,23 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
   return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
 }
 
-const focusIcon = L.divIcon({
-  className: '',
-  html: `<div style="width:18px;height:18px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 3px #ef444488;"></div>`,
-  iconSize: [18, 18],
-  iconAnchor: [9, 9],
-});
-
-// Runs inside MapContainer — has access to the Leaflet map instance.
-// Every time markerState becomes 'ok' it flies to the new coordinates.
-function FlyController({ markerState }: { markerState: MarkerState }) {
+// Must live inside MapContainer to access the Leaflet map instance via useMap().
+function FlyController({
+  markerState,
+  onFocusConsumed,
+}: {
+  markerState: MarkerState;
+  onFocusConsumed?: () => void;
+}) {
   const map = useMap();
+
   useEffect(() => {
-    if (markerState.kind === 'ok') {
-      map.flyTo([markerState.lat, markerState.lng], 15, { duration: 1.2 });
-    }
-  }, [markerState, map]);
+    if (markerState.kind !== 'ok') return;
+    map.flyTo([markerState.lat, markerState.lng], 15, { duration: 1.2 });
+    onFocusConsumed?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerState]);
+
   return null;
 }
 
@@ -66,7 +78,6 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
         if (cancelled) return;
         if (pos) {
           setMarkerState({ kind: 'ok', lat: pos.lat, lng: pos.lng, address });
-          onFocusConsumed?.();
         } else {
           setMarkerState({ kind: 'error', address });
         }
@@ -76,11 +87,11 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
       });
 
     return () => { cancelled = true; };
-  }, [focusTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTarget]);
 
   return (
     <div className="h-full w-full relative">
-      {/* Loading overlay */}
       {markerState.kind === 'loading' && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
@@ -99,7 +110,6 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
         </div>
       )}
 
-      {/* Error overlay */}
       {markerState.kind === 'error' && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
@@ -122,9 +132,12 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FlyController markerState={markerState} />
+        <FlyController markerState={markerState} onFocusConsumed={onFocusConsumed} />
         {markerState.kind === 'ok' && (
-          <Marker position={[markerState.lat, markerState.lng]} icon={focusIcon}>
+          <Marker
+            key={`${markerState.lat},${markerState.lng}`}
+            position={[markerState.lat, markerState.lng]}
+          >
             <Popup>
               <span style={{ fontSize: 12, fontWeight: 600 }}>{markerState.address}</span>
             </Popup>
