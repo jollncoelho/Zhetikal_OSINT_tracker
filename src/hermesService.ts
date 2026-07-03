@@ -99,7 +99,10 @@ BLOC 1 — ANALYSE D'INVESTIGATION (3 à 6 phrases, français, ton direct, profe
 - Sois percutant, synthétique, factuel. Pas de listes à puces. Pas de titres. Juste un paragraphe ou deux de prose professionnelle.
 
 BLOC 2 — ENTITÉS À INJECTER (une par ligne, format strict : TYPE|valeur) :
-Liste les entités NOUVELLES déduites de ton analyse, pas celles déjà présentes dans le graphe.
+RÈGLE ABSOLUE : liste UNIQUEMENT des entités TOTALEMENT NOUVELLES que tu as découvertes ou déduites lors de ton analyse.
+Il est STRICTEMENT INTERDIT de répéter dans ce bloc les entités déjà présentes dans le graphe ci-dessus. Chaque valeur listée dans "ENTITÉS:" est considérée comme CONNUE et INTERDITE de réapparition ici.
+Seuls les nouveaux comptes, alias, coordonnées, organisations, adresses ou identifiants que tu as inférés ou découverts peuvent figurer ici.
+Si tu n'as rien de nouveau à ajouter, écris simplement : (aucune nouvelle entité)
 Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
 Exemple de format :
 ORGANISATION|Ezkformation SARL

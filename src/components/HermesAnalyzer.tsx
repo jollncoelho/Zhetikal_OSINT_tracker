@@ -45,31 +45,33 @@ export const HermesAnalyzer: React.FC = () => {
     // Build label→ID map from existing nodes before injection
     const labelToId = new Map<string, string>();
     for (const n of nodes) {
-      if (n.data?.label) labelToId.set(n.data.label, n.id);
+      if (n.data?.label) labelToId.set(String(n.data.label).trim().toLowerCase(), n.id);
     }
 
-    // Inject entities and track new IDs
+    // Only inject entities whose label is not already on the graph
     const newLabelToId = new Map<string, string>(labelToId);
-    for (const entity of discovery.entities) {
-      if (!newLabelToId.has(entity.label)) {
+    for (const entity of newEntities) {
+      const key = entity.label.trim().toLowerCase();
+      if (!newLabelToId.has(key)) {
         const id = addEntity(entity.type, entity.label);
-        newLabelToId.set(entity.label, id);
+        newLabelToId.set(key, id);
       }
     }
 
     // Inject relations
     for (const rel of discovery.relations) {
-      let sourceId = newLabelToId.get(rel.source);
-      let targetId = newLabelToId.get(rel.target);
+      const srcKey = rel.source.trim().toLowerCase();
+      const tgtKey = rel.target.trim().toLowerCase();
+      let sourceId = newLabelToId.get(srcKey);
+      let targetId = newLabelToId.get(tgtKey);
 
-      // Auto-create placeholder nodes for unresolved labels
       if (!sourceId) {
         sourceId = addEntity('note', rel.source);
-        newLabelToId.set(rel.source, sourceId);
+        newLabelToId.set(srcKey, sourceId);
       }
       if (!targetId) {
         targetId = addEntity('note', rel.target);
-        newLabelToId.set(rel.target, targetId);
+        newLabelToId.set(tgtKey, targetId);
       }
 
       onConnect({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null });
@@ -77,6 +79,12 @@ export const HermesAnalyzer: React.FC = () => {
 
     setDiscovery(null);
   };
+
+  // Existing node labels (lowercase) used to filter out duplicates from AI output
+  const existingLabels = new Set(nodes.map((n) => String(n.data?.label ?? '').trim().toLowerCase()).filter(Boolean));
+  const newEntities = discovery
+    ? discovery.entities.filter((e) => e.label && !existingLabels.has(e.label.trim().toLowerCase()))
+    : [];
 
   const statusDot = (status: ServiceStatus) => {
     if (status === 'up') return <span style={{ color: '#22c55e', fontSize: 10 }}>&#9679;</span>;
@@ -155,7 +163,7 @@ export const HermesAnalyzer: React.FC = () => {
               </div>
 
               {/* Entities */}
-              {discovery.entities.length > 0 && (
+              {newEntities.length > 0 && (
                 <div style={{ padding: '10px 16px' }}>
                   {/* Header row: count + inline inject button */}
                   <div
@@ -175,7 +183,7 @@ export const HermesAnalyzer: React.FC = () => {
                         color: '#818cf8',
                       }}
                     >
-                      {discovery.entities.length} entit{discovery.entities.length === 1 ? 'é' : 'és'} détecté{discovery.entities.length === 1 ? 'e' : 'es'}
+                      {newEntities.length} nouvelle{newEntities.length > 1 ? 's' : ''} entit{newEntities.length === 1 ? 'é' : 'és'} détecté{newEntities.length === 1 ? 'e' : 'es'}
                     </span>
                     <button
                       onClick={handleInject}
@@ -208,7 +216,7 @@ export const HermesAnalyzer: React.FC = () => {
                       maxHeight: 180,
                     }}
                   >
-                    {discovery.entities.map((e, i) => (
+                    {newEntities.map((e, i) => (
                       <div
                         key={i}
                         style={{
