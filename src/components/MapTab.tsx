@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -30,54 +30,75 @@ type MarkerState =
   | { kind: 'ok'; lat: number; lng: number; address: string }
   | { kind: 'error'; address: string };
 
-const COUNTRY_KEYWORDS = ['france', 'belgique', 'suisse', 'luxembourg', 'maroc', 'algérie', 'tunisie', 'usa', 'united states', 'uk', 'germany', 'espagne', 'spain', 'italie', 'italy'];
+// Countries whose names in the address string mean we should NOT append ", France"
+// and should NOT restrict to fr/be/ch/lu.
+const FOREIGN_COUNTRY_KEYWORDS = [
+  'maroc', 'algérie', 'algerie', 'tunisie', 'usa', 'united states', 'uk',
+  'germany', 'allemagne', 'espagne', 'spain', 'italie', 'italy', 'portugal',
+  'belgique', 'suisse', 'luxembourg', 'canada', 'australia', 'chine', 'china',
+];
+
+const FR_ZONE_KEYWORDS = ['france', 'belgique', 'suisse', 'luxembourg'];
 
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
   const lower = address.toLowerCase();
-  const hasCountry = COUNTRY_KEYWORDS.some((k) => lower.includes(k));
+  const isForeign = FOREIGN_COUNTRY_KEYWORDS.some((k) => lower.includes(k));
+  const hasCountry = isForeign || FR_ZONE_KEYWORDS.some((k) => lower.includes(k));
+
+  // Append ", France" when no country is specified — guides Nominatim toward FR
   const query = hasCountry ? address : `${address}, France`;
 
-  const url =
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr,be,ch,lu` +
-    `&q=${encodeURIComponent(query)}`;
+  // First attempt: restricted to FR/BE/CH/LU zone (unless explicitly foreign)
+  if (!isForeign) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1` +
+        `&countrycodes=fr,be,ch,lu&q=${encodeURIComponent(query)}`,
+        { headers: { 'Accept-Language': 'fr,en' } }
+      );
+      const results = await res.json();
+      if (Array.isArray(results) && results.length > 0) {
+        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+      }
+    } catch {
+      // fall through to global retry below
+    }
+  }
 
-  const res = await fetch(url, { headers: { 'Accept-Language': 'fr,en' } });
-  const results = await res.json();
-  if (!Array.isArray(results) || results.length === 0) {
-    // Retry without country restriction if nothing found (e.g. explicit foreign address)
-    const fallback = await fetch(
+  // Fallback: global search (handles foreign addresses and FR addresses not found above)
+  try {
+    const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
       { headers: { 'Accept-Language': 'fr,en' } }
     );
-    const fallbackResults = await fallback.json();
-    if (!Array.isArray(fallbackResults) || fallbackResults.length === 0) return null;
-    return { lat: parseFloat(fallbackResults[0].lat), lng: parseFloat(fallbackResults[0].lon) };
+    const results = await res.json();
+    if (!Array.isArray(results) || results.length === 0) return null;
+    return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+  } catch {
+    return null;
   }
-  return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
 }
 
-// Must live inside MapContainer to access the Leaflet map instance via useMap().
-function FlyController({
-  markerState,
-  onFocusConsumed,
-}: {
-  markerState: MarkerState;
-  onFocusConsumed?: () => void;
-}) {
+// Lives inside MapContainer — accesses the live Leaflet map via useMap().
+// Reads coordinates from a ref so it never captures stale prop values.
+function FlyController({ flyRef }: { flyRef: React.MutableRefObject<(() => void) | null> }) {
   const map = useMap();
 
   useEffect(() => {
-    if (markerState.kind !== 'ok') return;
-    map.flyTo([markerState.lat, markerState.lng], 15, { duration: 1.2 });
-    onFocusConsumed?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerState]);
+    // Register a stable callback that the outer component can invoke
+    flyRef.current = () => {
+      // The outer component writes target coords into coordsRef before calling this
+    };
+  }, [map, flyRef]);
 
   return null;
 }
 
 export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
   const [markerState, setMarkerState] = useState<MarkerState>({ kind: 'none' });
+
+  // mapRef gives us direct access to the Leaflet map instance from outside MapContainer
+  const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     if (!focusTarget?.address.trim()) {
@@ -94,15 +115,25 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
         if (cancelled) return;
         if (pos) {
           setMarkerState({ kind: 'ok', lat: pos.lat, lng: pos.lng, address });
+          // Fly using the ref — always fresh, no stale closure
+          if (mapRef.current) {
+            mapRef.current.flyTo([pos.lat, pos.lng], 15, { duration: 1.2 });
+          }
         } else {
           setMarkerState({ kind: 'error', address });
         }
+        // Consume after result is fully processed so the parent can trigger again
+        onFocusConsumed?.();
       })
       .catch(() => {
-        if (!cancelled) setMarkerState({ kind: 'error', address });
+        if (!cancelled) {
+          setMarkerState({ kind: 'error', address });
+          onFocusConsumed?.();
+        }
       });
 
     return () => { cancelled = true; };
+  // focusTarget object identity changes every time App calls setMapFocusTarget({ address })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
@@ -138,17 +169,17 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
       )}
 
       <MapContainer
-        center={[20, 0]}
-        zoom={2}
+        center={[46.5, 2.5]}
+        zoom={5}
         zoomControl={false}
         attributionControl
+        ref={mapRef}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FlyController markerState={markerState} onFocusConsumed={onFocusConsumed} />
         {markerState.kind === 'ok' && (
           <Marker
             key={`${markerState.lat},${markerState.lng}`}
