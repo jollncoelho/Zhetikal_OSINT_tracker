@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapPin } from '../types';
@@ -7,6 +7,31 @@ import type { MapPin } from '../types';
 interface MapTabProps {
   pins: MapPin[];
   onUpdatePins: (pins: MapPin[]) => void;
+}
+
+function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+  }, [map, mapRef]);
+  return null;
+}
+
+function MapNavigateHandler({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { lat, lng } = (e as CustomEvent).detail;
+      mapRef.current?.flyTo([lat, lng], 15, { duration: 1.2 });
+    };
+    window.addEventListener('map-navigate-pin', handler);
+    return () => window.removeEventListener('map-navigate-pin', handler);
+  }, [mapRef]);
+  return null;
+}
+
+function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => void }) {
+  useMapEvents({ click: onClick });
+  return null;
 }
 
 export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
@@ -34,7 +59,6 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   };
 
   const handleMarkerClick = (pin: MapPin) => {
-    console.log('PIN CLICKED', pin.id, pin.lat, pin.lng, pin.label, pin.address);
     setOpenPopupId(prev => (prev === pin.id ? null : pin.id));
   };
 
@@ -49,11 +73,10 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
         zoom={2}
         zoomControl={false}
         attributionControl={true}
-        whenCreated={(map) => {
-          mapRef.current = map;
-        }}
         style={{ height: '100%', width: '100%' }}
       >
+        <MapRefCapture mapRef={mapRef} />
+        <MapNavigateHandler mapRef={mapRef} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -63,42 +86,29 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
           <Marker
             key={pin.id}
             position={[pin.lat, pin.lng]}
-            eventHandlers={{
-              click: () => handleMarkerClick(pin),
-            }}
+            eventHandlers={{ click: () => handleMarkerClick(pin) }}
           >
             {openPopupId === pin.id && (
               <Popup>
                 <div className="space-y-2">
                   <input
                     defaultValue={pin.label}
-                    onBlur={(e) =>
-                      handleSavePin({ ...pin, label: e.target.value || 'Lieu' })
-                    }
+                    onBlur={(e) => handleSavePin({ ...pin, label: e.target.value || 'Lieu' })}
                     className="font-bold text-sm border rounded px-1"
                   />
                   <input
                     defaultValue={pin.address}
-                    onBlur={(e) =>
-                      handleSavePin({ ...pin, address: e.target.value })
-                    }
+                    onBlur={(e) => handleSavePin({ ...pin, address: e.target.value })}
                     className="text-xs border rounded px-1 w-64"
                   />
                   <div className="flex gap-2 text-xs">
-                    <button
-                      onClick={() => {
-                        mapRef.current?.flyTo([pin.lat, pin.lng], 16, { duration: 1.5 });
-                      }}
-                    >
+                    <button onClick={() => mapRef.current?.flyTo([pin.lat, pin.lng], 16, { duration: 1.5 })}>
                       Centrer
                     </button>
                     <button
-                      onClick={() => {
-                        window.open(
-                          `https://www.google.com/maps?q=${pin.lat},${pin.lng}`,
-                          '_blank'
-                        );
-                      }}
+                      onClick={() =>
+                        window.open(`https://www.google.com/maps?q=${pin.lat},${pin.lng}`, '_blank')
+                      }
                     >
                       Google Maps
                     </button>
@@ -111,11 +121,4 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
       </MapContainer>
     </div>
   );
-}
-
-function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => void }) {
-  useMapEvents({
-    click: onClick,
-  });
-  return null;
 }
