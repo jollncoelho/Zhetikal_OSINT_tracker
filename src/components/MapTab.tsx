@@ -45,8 +45,8 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   return (
     <div className="h-full w-full relative">
       <MapContainer
-        center={[46.5, 2.5]}
-        zoom={6}
+        center={[20, 0]}
+        zoom={2}
         zoomControl={false}
         attributionControl={true}
         whenCreated={(map) => {

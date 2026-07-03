@@ -117,7 +117,7 @@ function AppInner() {
   }, [updateNodeData, deleteNode, deleteEdge]);
 
   useEffect(() => {
-    const handleGoToMap = (e: Event) => {
+    const handleGoToMap = async (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
       const pinLinks = activeCase?.pinLinks ?? [];
       const link = pinLinks.find((l) => l.identifierId === nodeId);
@@ -126,34 +126,51 @@ function AppInner() {
 
       if (link) {
         const pin = activeCase?.locations?.find((p) => p.id === link.pinId);
-        const lat = pin?.lat ?? 48.8566;
-        const lng = pin?.lng ?? 2.3522;
+        if (!pin) return;
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('map-navigate-pin', {
-            detail: { pinId: link.pinId, lat, lng },
+            detail: { pinId: link.pinId, lat: pin.lat, lng: pin.lng },
           }));
         }, 60);
       } else {
         const node = nodes.find((n) => n.id === nodeId);
         if (!node) return;
         const fields = (node.data.fields ?? {}) as Record<string, string>;
-        const lat = parseFloat(fields.lat ?? '');
-        const lng = parseFloat(fields.lng ?? '');
-        const resolvedLat = isNaN(lat) ? 48.8566 : lat;
-        const resolvedLng = isNaN(lng) ? 2.3522 : lng;
+        let lat = parseFloat(fields.lat ?? '');
+        let lng = parseFloat(fields.lng ?? '');
+
+        if (isNaN(lat) || isNaN(lng)) {
+          const query = (fields.address ?? '').trim() || node.data.label;
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+              { headers: { 'Accept-Language': 'en' } }
+            );
+            const results = await res.json();
+            if (results.length > 0) {
+              lat = parseFloat(results[0].lat);
+              lng = parseFloat(results[0].lon);
+            }
+          } catch {
+            // geocoding failed — coordinates will remain NaN, skip pin creation
+          }
+        }
+
+        if (isNaN(lat) || isNaN(lng)) return;
+
         const pinId = addPin({
           label: node.data.label,
           address: (fields.address ?? '').trim(),
           notes: node.data.notes ?? '',
-          lat: resolvedLat,
-          lng: resolvedLng,
+          lat,
+          lng,
           color: node.data.color ?? '#10b981',
           iconId: null,
         });
         addPinLink({ pinId, identifierId: nodeId, context: '' });
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('map-navigate-pin', {
-            detail: { pinId, lat: resolvedLat, lng: resolvedLng },
+            detail: { pinId, lat, lng },
           }));
         }, 60);
       }
