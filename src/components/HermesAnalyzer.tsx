@@ -136,16 +136,19 @@ export const HermesAnalyzer: React.FC = () => {
 
           {discovery && (
             <>
-              {/* Summary */}
+              {/* Summary — narrative investigation text */}
               <div
                 style={{
                   padding: '12px 16px',
                   borderBottom: '1px solid rgba(99,102,241,0.2)',
                   color: '#cbd5e1',
                   fontSize: 12,
-                  lineHeight: 1.6,
+                  lineHeight: 1.7,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
                   overflowY: 'auto',
-                  maxHeight: 120,
+                  maxHeight: 160,
+                  fontFamily: 'monospace',
                 }}
               >
                 {discovery.summary}
@@ -153,31 +156,56 @@ export const HermesAnalyzer: React.FC = () => {
 
               {/* Entities */}
               {discovery.entities.length > 0 && (
-                <div
-                  style={{
-                    padding: '10px 16px',
-                    borderBottom: '1px solid rgba(99,102,241,0.15)',
-                  }}
-                >
+                <div style={{ padding: '10px 16px' }}>
+                  {/* Header row: count + inline inject button */}
                   <div
                     style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: '#818cf8',
-                      marginBottom: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 8,
                     }}
                   >
-                    {discovery.entities.length} entit{discovery.entities.length === 1 ? 'é' : 'és'} détecté{discovery.entities.length === 1 ? 'e' : 'es'}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: '#818cf8',
+                      }}
+                    >
+                      {discovery.entities.length} entit{discovery.entities.length === 1 ? 'é' : 'és'} détecté{discovery.entities.length === 1 ? 'e' : 'es'}
+                    </span>
+                    <button
+                      onClick={handleInject}
+                      style={{
+                        padding: '3px 10px',
+                        background: 'rgba(99,102,241,0.25)',
+                        border: '1px solid rgba(99,102,241,0.5)',
+                        borderRadius: 5,
+                        color: '#a5b4fc',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'background 0.15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.4)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.25)')}
+                    >
+                      Tout injecter
+                    </button>
                   </div>
+
+                  {/* Entity cards */}
                   <div
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 4,
                       overflowY: 'auto',
-                      maxHeight: 160,
+                      maxHeight: 180,
                     }}
                   >
                     {discovery.entities.map((e, i) => (
@@ -185,9 +213,9 @@ export const HermesAnalyzer: React.FC = () => {
                         key={i}
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '4px 8px',
+                          flexDirection: 'column',
+                          gap: 2,
+                          padding: '6px 10px',
                           background: 'rgba(30,41,59,0.8)',
                           borderRadius: 6,
                           border: '1px solid rgba(51,65,85,0.6)',
@@ -195,17 +223,23 @@ export const HermesAnalyzer: React.FC = () => {
                       >
                         <span
                           style={{
-                            fontSize: 10,
-                            fontWeight: 700,
+                            fontSize: 9,
+                            fontWeight: 800,
                             textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
                             color: '#60a5fa',
-                            minWidth: 72,
-                            flexShrink: 0,
                           }}
                         >
-                          {e.type}
+                          + {e.type}
                         </span>
-                        <span style={{ fontSize: 12, color: '#e2e8f0', wordBreak: 'break-all' }}>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: '#e2e8f0',
+                            wordBreak: 'break-all',
+                            lineHeight: 1.4,
+                          }}
+                        >
                           {e.label}
                         </span>
                       </div>
@@ -213,82 +247,6 @@ export const HermesAnalyzer: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              {/* Relations */}
-              {discovery.relations.length > 0 && (
-                <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: '#818cf8',
-                      marginBottom: 6,
-                    }}
-                  >
-                    {discovery.relations.length} relation{discovery.relations.length > 1 ? 's' : ''}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                      overflowY: 'auto',
-                      maxHeight: 120,
-                    }}
-                  >
-                    {discovery.relations.map((r, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          fontSize: 11,
-                          color: '#94a3b8',
-                          padding: '3px 8px',
-                          background: 'rgba(15,23,42,0.6)',
-                          borderRadius: 4,
-                        }}
-                      >
-                        <span style={{ color: '#e2e8f0', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.source}
-                        </span>
-                        <span style={{ color: '#475569', flexShrink: 0 }}>—[</span>
-                        <span style={{ color: '#60a5fa', flexShrink: 0 }}>{r.type}</span>
-                        <span style={{ color: '#475569', flexShrink: 0 }}>]→</span>
-                        <span style={{ color: '#e2e8f0', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.target}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Inject button */}
-              <div style={{ padding: '10px 16px' }}>
-                <button
-                  onClick={handleInject}
-                  style={{
-                    width: '100%',
-                    padding: '8px 0',
-                    background: 'rgba(99,102,241,0.2)',
-                    border: '1px solid rgba(99,102,241,0.5)',
-                    borderRadius: 6,
-                    color: '#a5b4fc',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.35)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.2)')}
-                >
-                  Injecter dans le graphe
-                </button>
-              </div>
             </>
           )}
         </div>

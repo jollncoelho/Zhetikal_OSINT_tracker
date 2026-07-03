@@ -64,55 +64,90 @@ const HERMES_PROXY_URL = 'http://localhost:62938/analyze';
 
 function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
   const nodeLines = graphData.nodes
-    .map((n) => `- [${n.type ?? n.data?.type ?? 'unknown'}] ${n.data?.label ?? n.id}`)
+    .map((n) => `- [${n.data?.entityType ?? n.type ?? 'unknown'}] ${n.data?.label ?? n.id}`)
     .join('\n');
   const edgeLines = graphData.edges
-    .map((e) => `- ${e.source} --[${e.label ?? e.data?.type ?? 'related'}]--> ${e.target}`)
+    .map((e) => {
+      const src = graphData.nodes.find((n) => n.id === e.source)?.data?.label ?? e.source;
+      const tgt = graphData.nodes.find((n) => n.id === e.target)?.data?.label ?? e.target;
+      return `- ${src} → ${tgt}`;
+    })
     .join('\n');
 
-  return `Analyze the following investigation graph and extract structured intelligence.
+  return `Tu es un analyste OSINT. Analyse le graphe d'investigation suivant et réponds en DEUX BLOCS séparés, dans CET ORDRE EXACT.
 
-Nodes:
-${nodeLines || '(none)'}
+Nœuds:
+${nodeLines || '(aucun)'}
 
-Edges:
-${edgeLines || '(none)'}
+Liens:
+${edgeLines || '(aucun)'}
 
-Respond ONLY with valid JSON matching this exact schema:
-{
-  "entities": [{ "type": "string", "label": "string", "properties": {} }],
-  "relations": [{ "source": "string", "target": "string", "type": "string", "properties": {} }],
-  "summary": "string"
-}`;
+---
+BLOC 1 — TEXTE D'ANALYSE (rédigé, lisible, structuré, en français):
+Présente un résumé d'investigation narratif clair. Utilise des sauts de ligne.
+Exemple de format:
+  Nom: [valeur]
+  Pseudo: [valeur]
+  Activité: [description]
+  Liens détectés: [description]
+
+BLOC 2 — ENTITÉS EXTRAITES (liste brute, une par ligne, format: TYPE|VALEUR):
+Extrais UNIQUEMENT les entités réelles avec leurs vraies valeurs textuelles.
+Types valides: PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, NOTE
+Chaque ligne: TYPE|valeur_exacte
+Exemple:
+  PSEUDO|ezigk_official
+  EMAIL|contact.elias@gmail.com
+  TELEPHONE|+33 6 12 34 56 78
+  NOM|Koudri
+  PRENOM|Elias
+
+---
+Écris UNIQUEMENT les deux blocs. Pas de JSON. Pas de markdown. Pas d'explication hors-blocs.`;
 }
 
 function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edges: any[] }): HermesDiscovery {
-  // Try to extract a JSON block from the response
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (Array.isArray(parsed.entities) && Array.isArray(parsed.relations) && typeof parsed.summary === 'string') {
-        return parsed as HermesDiscovery;
+  // New two-block format: BLOC 1 = narrative, BLOC 2 = TYPE|VALUE lines
+  const bloc2Match = text.match(/BLOC\s*2[^\n]*\n([\s\S]*?)(?:---|\n\n\n|$)/i);
+  const bloc1Match = text.match(/BLOC\s*1[^\n]*\n([\s\S]*?)(?:BLOC\s*2|---)/i);
+
+  let summary = '';
+  const entities: HermesEntity[] = [];
+  const relations: HermesRelation[] = [];
+
+  if (bloc1Match) {
+    summary = bloc1Match[1].trim();
+  } else {
+    // fallback: everything before the first TYPE|VALUE line
+    const pipeIdx = text.search(/^[A-Z_]+\|/m);
+    summary = (pipeIdx > 0 ? text.slice(0, pipeIdx) : text).trim();
+  }
+
+  const entityBlock = bloc2Match ? bloc2Match[1] : text;
+  for (const line of entityBlock.split('\n')) {
+    const trimmed = line.trim();
+    const sep = trimmed.indexOf('|');
+    if (sep > 0) {
+      const type = trimmed.slice(0, sep).trim().toUpperCase();
+      const label = trimmed.slice(sep + 1).trim();
+      if (type && label) {
+        entities.push({ type, label });
       }
-    } catch {
-      // fall through to heuristic extraction
     }
   }
 
-  // Heuristic fallback: derive entities from graph nodes and return the text as summary
-  const entities: HermesEntity[] = graphData.nodes.map((n) => ({
-    type: n.type ?? n.data?.type ?? 'unknown',
-    label: n.data?.label ?? n.id,
-  }));
+  // If nothing parsed, derive from graph nodes as last resort
+  if (entities.length === 0) {
+    for (const n of graphData.nodes) {
+      const type = (n.data?.entityType ?? n.type ?? 'NOTE').toUpperCase();
+      const label = n.data?.label ?? n.id;
+      if (label) entities.push({ type, label });
+    }
+  }
 
-  const relations: HermesRelation[] = graphData.edges.map((e) => ({
-    source: e.source,
-    target: e.target,
-    type: e.label ?? e.data?.type ?? 'related',
-  }));
+  if (!summary) summary = text.slice(0, 2000).trim();
 
-  return { entities, relations, summary: text.slice(0, 2000) };
+  return { entities, relations, summary };
 }
 
 async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }): Promise<HermesDiscovery> {
