@@ -64,7 +64,12 @@ const HERMES_PROXY_URL = 'http://localhost:62938/analyze';
 
 function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
   const nodeLines = graphData.nodes
-    .map((n) => `- [${n.data?.entityType ?? n.type ?? 'unknown'}] ${n.data?.label ?? n.id}`)
+    .map((n) => {
+      const type = n.data?.entityType ?? n.type ?? 'unknown';
+      const label = n.data?.label ?? n.id;
+      const fields = n.data?.fields ? Object.entries(n.data.fields).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join(', ') : '';
+      return `- [${type}] ${label}${fields ? ` (${fields})` : ''}`;
+    })
     .join('\n');
   const edgeLines = graphData.edges
     .map((e) => {
@@ -74,36 +79,36 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
     })
     .join('\n');
 
-  return `Tu es un analyste OSINT. Analyse le graphe d'investigation suivant et réponds en DEUX BLOCS séparés, dans CET ORDRE EXACT.
+  return `Tu es HERMES, un agent d'investigation OSINT d'élite. Tu travailles directement avec José, ton co-équipier analyste. Tu ne te contentes JAMAIS de résumer ce qui est déjà visible sur le graphe — c'est une perte de temps. Ton rôle est d'aller PLUS LOIN : croiser les données, identifier des incohérences, formuler des hypothèses d'investigation concrètes, et signaler des pistes prioritaires que l'opérateur n'a pas encore explorées.
 
-Nœuds:
-${nodeLines || '(aucun)'}
+Voici les données brutes du graphe d'investigation actuel :
 
-Liens:
+ENTITÉS:
+${nodeLines || '(aucune)'}
+
+LIENS:
 ${edgeLines || '(aucun)'}
 
 ---
-BLOC 1 — TEXTE D'ANALYSE (rédigé, lisible, structuré, en français):
-Présente un résumé d'investigation narratif clair. Utilise des sauts de ligne.
-Exemple de format:
-  Nom: [valeur]
-  Pseudo: [valeur]
-  Activité: [description]
-  Liens détectés: [description]
 
-BLOC 2 — ENTITÉS EXTRAITES (liste brute, une par ligne, format: TYPE|VALEUR):
-Extrais UNIQUEMENT les entités réelles avec leurs vraies valeurs textuelles.
-Types valides: PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, NOTE
-Chaque ligne: TYPE|valeur_exacte
-Exemple:
-  PSEUDO|ezigk_official
-  EMAIL|contact.elias@gmail.com
-  TELEPHONE|+33 6 12 34 56 78
-  NOM|Koudri
-  PRENOM|Elias
+RÈGLES STRICTES :
+
+BLOC 1 — ANALYSE D'INVESTIGATION (3 à 6 phrases, français, ton direct, professionnel) :
+- Adresse-toi directement à José comme un co-équipier : "J'ai trouvé...", "Tu devrais prioriser...", "Je note une incohérence...", "Il faut vérifier...", "Je suspecte que..."
+- Va au-delà du graphe : propose des croisements logiques (registre du commerce, DNS, géolocalisation, réseaux sociaux, banques, structures offshore), évoque des scénarios probables (fraude, relocalisation, dissimulation d'actifs, usurpation d'identité), signale des écarts suspects entre les données (ex: domaine suisse / adresse française, email jetable / IBAN pro).
+- Sois percutant, synthétique, factuel. Pas de listes à puces. Pas de titres. Juste un paragraphe ou deux de prose professionnelle.
+
+BLOC 2 — ENTITÉS À INJECTER (une par ligne, format strict : TYPE|valeur) :
+Liste les entités NOUVELLES déduites de ton analyse, pas celles déjà présentes dans le graphe.
+Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
+Exemple de format :
+ORGANISATION|Ezkformation SARL
+LOCALISATION|42 Avenue Jean Jaurès, Paris
+EMAIL|contact.elias@mailboxpro.com
+IBAN|FR14 3000 1234 5678 9012 3456 7890
 
 ---
-Écris UNIQUEMENT les deux blocs. Pas de JSON. Pas de markdown. Pas d'explication hors-blocs.`;
+Réponds UNIQUEMENT avec ces deux blocs dans l'ordre. Aucun JSON. Aucun markdown. Aucune phrase hors-blocs.`;
 }
 
 function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edges: any[] }): HermesDiscovery {
