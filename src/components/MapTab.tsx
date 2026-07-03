@@ -30,13 +30,29 @@ type MarkerState =
   | { kind: 'ok'; lat: number; lng: number; address: string }
   | { kind: 'error'; address: string };
 
+const COUNTRY_KEYWORDS = ['france', 'belgique', 'suisse', 'luxembourg', 'maroc', 'algérie', 'tunisie', 'usa', 'united states', 'uk', 'germany', 'espagne', 'spain', 'italie', 'italy'];
+
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
-    { headers: { 'Accept-Language': 'fr,en' } }
-  );
+  const lower = address.toLowerCase();
+  const hasCountry = COUNTRY_KEYWORDS.some((k) => lower.includes(k));
+  const query = hasCountry ? address : `${address}, France`;
+
+  const url =
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr,be,ch,lu` +
+    `&q=${encodeURIComponent(query)}`;
+
+  const res = await fetch(url, { headers: { 'Accept-Language': 'fr,en' } });
   const results = await res.json();
-  if (!Array.isArray(results) || results.length === 0) return null;
+  if (!Array.isArray(results) || results.length === 0) {
+    // Retry without country restriction if nothing found (e.g. explicit foreign address)
+    const fallback = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+      { headers: { 'Accept-Language': 'fr,en' } }
+    );
+    const fallbackResults = await fallback.json();
+    if (!Array.isArray(fallbackResults) || fallbackResults.length === 0) return null;
+    return { lat: parseFloat(fallbackResults[0].lat), lng: parseFloat(fallbackResults[0].lon) };
+  }
   return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
 }
 
