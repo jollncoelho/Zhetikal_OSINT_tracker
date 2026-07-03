@@ -1,342 +1,446 @@
-import React, { useState } from 'react';
-import { queryHermes, HermesMessage } from '../hermesService';
-import type { CaseData, EntityNode, EntityType } from '../types';
-import type { Edge } from '@xyflow/react';
+import React, { useEffect, useState } from 'react';
+import { useStore } from '../store/useStore';
+import { runAnalysis, checkOllama, checkHermes } from '../hermesService';
+import type { AnalysisMode, HermesDiscovery } from '../types/hermes';
 
-interface Props {
-  nodes: EntityNode[];
-  edges: Edge[];
-  activeCase: CaseData | null;
-  addEntity: (entityType: EntityType, label: string, position?: { x: number; y: number }) => string;
-}
+type ServiceStatus = 'unknown' | 'up' | 'down';
 
-interface SuggestedEntity {
-  label: string;
-  entityType: EntityType;
-  rawType: string;
-}
+export const HermesAnalyzer: React.FC = () => {
+  const nodes = useStore((s) => s.nodes);
+  const edges = useStore((s) => s.edges);
+  const addEntity = useStore((s) => s.addEntity);
+  const onConnect = useStore((s) => s.onConnect);
 
-const ENTITY_TYPE_MAP: Record<string, EntityType> = {
-  ip: 'ip',
-  'adresse ip': 'ip',
-  domaine: 'domain',
-  domain: 'domain',
-  email: 'email',
-  'e-mail': 'email',
-  pseudo: 'username',
-  username: 'username',
-  pseudonyme: 'username',
-  téléphone: 'phone',
-  telephone: 'phone',
-  numéro: 'phone',
-  numero: 'phone',
-  localisation: 'location',
-  location: 'location',
-  organisation: 'organization',
-  organization: 'organization',
-  entreprise: 'organization',
-  personne: 'person',
-  person: 'person',
-  nom: 'person',
-  url: 'url',
-  lien: 'url',
-  crypto: 'crypto',
-  wallet: 'crypto',
-  fichier: 'file',
-  file: 'file',
-  // Financial identifiers
-  iban: 'iban',
-  'compte bancaire': 'iban',
-  'bank account': 'iban',
-  virement: 'iban',
-  rib: 'iban',
-  bic: 'iban',
-  swift: 'iban',
-};
+  const [mode, setMode] = useState<AnalysisMode>('local');
+  const [loading, setLoading] = useState(false);
+  const [discovery, setDiscovery] = useState<HermesDiscovery | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<ServiceStatus>('unknown');
+  const [hermesStatus, setHermesStatus] = useState<ServiceStatus>('unknown');
 
-// Raw types that belong to the "financial" display group (green highlight)
-const FINANCIAL_RAW_TYPES = new Set(['iban', 'compte bancaire', 'bank account', 'virement', 'rib', 'bic', 'swift']);
-
-function parseEntities(text: string): SuggestedEntity[] {
-  const results: SuggestedEntity[] = [];
-  const seen = new Set<string>();
-
-  const add = (label: string, entityType: EntityType, rawType: string) => {
-    const key = `${entityType}:${label}`;
-    if (!seen.has(key)) { seen.add(key); results.push({ label, entityType, rawType }); }
-  };
-
-  // Structured lines: "Type: value"
-  const linePattern = /\*{0,2}([a-zA-Zéèêàù\s]+?)\*{0,2}\s*[:\-–]\s*(.+)/gi;
-  let match;
-  while ((match = linePattern.exec(text)) !== null) {
-    const rawType = match[1].trim().toLowerCase();
-    const rawLabel = match[2].trim().replace(/[`"'*]/g, '').split(/[,\n]/)[0].trim();
-    const entityType = ENTITY_TYPE_MAP[rawType];
-    if (entityType && rawLabel && rawLabel.length > 1 && rawLabel.length < 120) {
-      add(rawLabel, entityType, rawType);
-    }
-  }
-
-  // Inline IBAN detection — matches formats like FR76 3000 4000..., BE41, DE89, GB29, CH93…
-  // Format: 2 uppercase letters + 2 digits + up to 30 alphanumeric chars (spaces allowed between groups)
-  const ibanPattern = /\b([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,6}(?:[ ]?[A-Z0-9]{1,4})?)\b/g;
-  let ibanMatch;
-  while ((ibanMatch = ibanPattern.exec(text)) !== null) {
-    const raw = ibanMatch[1].replace(/\s/g, '');
-    // Minimum IBAN length is 15 chars (Norway), maximum 34
-    if (raw.length >= 15 && raw.length <= 34) {
-      add(ibanMatch[1].trim(), 'iban', 'iban');
-    }
-  }
-
-  return results;
-}
-
-export const HermesAnalyzer: React.FC<Props> = ({ nodes, edges, activeCase, addEntity }) => {
-  const [report, setReport] = useState('');
-  const [suggestedEntities, setSuggestedEntities] = useState<SuggestedEntity[]>([]);
-  const [injected, setInjected] = useState<Set<string>>(new Set());
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const targetNode =
-    nodes.find((n) => n.data?.entityType === 'username') ||
-    nodes.find((n) => n.data?.entityType === 'person') ||
-    nodes[0];
-
-  const targetValue = targetNode?.data?.label || 'inconnu';
-
-  const projectCwd: string | undefined = activeCase
-    ? (activeCase.projectPath?.trim() ||
-        `~/ghostint-cases/${activeCase.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-.]/g, '')}`)
-    : undefined;
-
-  const triggerHermesAnalysis = async () => {
-    setIsProcessing(true);
-    setReport('');
-    setSuggestedEntities([]);
-    setInjected(new Set());
-
-    const nodeIndex = new Map(nodes.map((n) => [n.id, n]));
-
-    const cleanNodes = nodes
-      .map((n) => {
-        const label = n.data?.label?.trim() || '(sans nom)';
-        const type = n.data?.entityType || 'entité';
-        return `- ${type}: ${label}${n.data?.notes ? ` [note: ${n.data.notes}]` : ''}`;
-      })
-      .join('\n');
-
-    const cleanEdges = edges
-      .map((e) => {
-        const src = nodeIndex.get(e.source);
-        const tgt = nodeIndex.get(e.target);
-        const fromLabel = src?.data?.label?.trim() || src?.data?.entityType || '(inconnu)';
-        const toLabel = tgt?.data?.label?.trim() || tgt?.data?.entityType || '(inconnu)';
-        const rel = (e as any).label?.trim();
-        return rel
-          ? `- ${fromLabel} —[${rel}]→ ${toLabel}`
-          : `- ${fromLabel} → ${toLabel}`;
-      })
-      .join('\n');
-
-    const graphText = `ENTITÉS CONNUES (${nodes.length}) :\n${cleanNodes || '(aucune)'}\n\nRELATIONS (${edges.length}) :\n${cleanEdges || '(aucune)'}`;
-
-    const systemPrompt = `Tu es Hermes, agent OSINT autonome. Tu travailles en binôme avec l'opérateur José. Tu prends en charge l'investigation en tâche de fond et tu lui rapportes uniquement les NOUVELLES informations que tu as trouvées — des éléments qu'il ne voit pas encore sur son écran.
-
-RÈGLES ABSOLUES :
-- Adresse-toi directement à José à la première personne, comme un coéquipier de terrain.
-- N'affiche JAMAIS d'identifiants techniques (chaînes aléatoires). Utilise les vrais noms, pseudos, numéros.
-- Ne répète pas ce qui est déjà dans le graphe. Apporte du NOUVEAU.
-- Simule une investigation active : parle comme si tu venais de croiser des registres, des bases de fuites, des index OSINT.
-- Sois concis, direct, factuel. Ton rapport doit tenir en quelques paragraphes denses.
-
-STRUCTURE DE TA RÉPONSE :
-
-Commence par : "José, j'ai pris le relais sur [cible]. En fouillant en parallèle, voici ce que j'ai découvert que tu n'as pas encore :"
-
-Puis liste les découvertes sous ces rubriques exactes (si applicable) :
-
-Nom: [nom complet trouvé]
-Pseudo: [alias détecté]
-Téléphone: [numéro trouvé]
-Email: [email trouvé]
-IP: [adresse IP associée]
-Domaine: [domaine lié]
-Organisation: [entreprise ou structure]
-Localisation: [ville, région ou coordonnées]
-URL: [lien direct exploitable]
-IBAN: [numéro IBAN complet — ex: FR76 3000 4028 3798 7654 3210 943, BE41 9967 3978 1516, DE89 3704 0044 0532 0130 00]
-Compte bancaire: [RIB, BIC/SWIFT ou détails compte si trouvé]
-
-Termine par une phrase sur l'angle d'investigation à prioriser.
-
-IMPORTANT : Chaque "Nom:", "Téléphone:", "IBAN:", "IP:", etc. doit être sur sa propre ligne avec la valeur directement après le deux-points. Dès qu'un IBAN est détecté (2 lettres pays + 2 chiffres de contrôle + jusqu'à 30 caractères alphanumériques), écris-le intégralement sur une ligne dédiée. Ces lignes serviront à injecter les entités dans le graphe.`;
-
-    const context: HermesMessage[] = [
-      { role: 'system', content: systemPrompt },
-      {
-        role: 'user',
-        content: `Dossier : "${activeCase?.name ?? 'Sans titre'}"\nCible principale : "${targetValue}"\n\n${graphText}\n\nLance l'investigation en tâche de fond et rapporte-moi tes découvertes.`,
-      },
-    ];
-
-    try {
-      const res = await queryHermes(context, projectCwd);
-      setReport(res);
-      setSuggestedEntities(parseEntities(res));
-    } catch (err: any) {
-      setReport('ÉCHEC — Hermes Core hors ligne.\n' + err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleInject = (entity: SuggestedEntity) => {
-    const key = `${entity.entityType}:${entity.label}`;
-    if (injected.has(key)) return;
-    addEntity(entity.entityType, entity.label);
-    setInjected((prev) => new Set(prev).add(key));
-  };
-
-  const handleInjectAll = () => {
-    suggestedEntities.forEach((e) => {
-      const key = `${e.entityType}:${e.label}`;
-      if (!injected.has(key)) {
-        addEntity(e.entityType, e.label);
-      }
+  useEffect(() => {
+    Promise.all([checkOllama(), checkHermes()]).then(([ollama, hermes]) => {
+      setOllamaStatus(ollama ? 'up' : 'down');
+      setHermesStatus(hermes ? 'up' : 'down');
     });
-    setInjected(new Set(suggestedEntities.map((e) => `${e.entityType}:${e.label}`)));
+  }, []);
+
+  const handleAnalyze = async () => {
+    setLoading(true);
+    setError(null);
+    setDiscovery(null);
+    try {
+      const result = await runAnalysis(mode, { nodes, edges });
+      setDiscovery(result);
+    } catch (err: any) {
+      setError(err.message ?? 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSave = () => {
-    if (!report) return;
-    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Hermes_${targetValue}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleInject = () => {
+    if (!discovery) return;
+
+    // Build label→ID map from existing nodes before injection
+    const labelToId = new Map<string, string>();
+    for (const n of nodes) {
+      if (n.data?.label) labelToId.set(n.data.label, n.id);
+    }
+
+    // Inject entities and track new IDs
+    const newLabelToId = new Map<string, string>(labelToId);
+    for (const entity of discovery.entities) {
+      if (!newLabelToId.has(entity.label)) {
+        const id = addEntity(entity.type, entity.label);
+        newLabelToId.set(entity.label, id);
+      }
+    }
+
+    // Inject relations
+    for (const rel of discovery.relations) {
+      let sourceId = newLabelToId.get(rel.source);
+      let targetId = newLabelToId.get(rel.target);
+
+      // Auto-create placeholder nodes for unresolved labels
+      if (!sourceId) {
+        sourceId = addEntity('note', rel.source);
+        newLabelToId.set(rel.source, sourceId);
+      }
+      if (!targetId) {
+        targetId = addEntity('note', rel.target);
+        newLabelToId.set(rel.target, targetId);
+      }
+
+      onConnect({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null });
+    }
+
+    setDiscovery(null);
   };
 
-  const allInjected =
-    suggestedEntities.length > 0 &&
-    suggestedEntities.every((e) => injected.has(`${e.entityType}:${e.label}`));
+  const statusDot = (status: ServiceStatus) => {
+    if (status === 'up') return <span style={{ color: '#22c55e', fontSize: 10 }}>&#9679;</span>;
+    if (status === 'down') return <span style={{ color: '#ef4444', fontSize: 10 }}>&#9679;</span>;
+    return <span style={{ color: '#6b7280', fontSize: 10 }}>&#9679;</span>;
+  };
 
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: '24px',
+        bottom: 24,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9999,
         width: '100%',
-        maxWidth: '560px',
+        maxWidth: 560,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 8,
+        padding: '0 16px',
+        boxSizing: 'border-box',
       }}
-      className="flex flex-col items-center gap-2 px-4"
     >
-      {report && !isMinimized && (
-        <div className="w-full bg-[#0d111c]/95 border border-purple-900/60 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden flex flex-col max-h-[80vh]">
-          <div className="h-48 overflow-y-auto p-4 text-gray-300 text-xs custom-scrollbar">
-            <div className="whitespace-pre-wrap font-mono">{report}</div>
-          </div>
+      {/* Results panel */}
+      {(discovery || error) && (
+        <div
+          style={{
+            width: '100%',
+            background: '#0d111c',
+            border: '1px solid rgba(99,102,241,0.3)',
+            borderRadius: 10,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '70vh',
+          }}
+        >
+          {error && (
+            <div
+              style={{
+                padding: '12px 16px',
+                background: 'rgba(239,68,68,0.1)',
+                borderBottom: '1px solid rgba(239,68,68,0.3)',
+                color: '#fca5a5',
+                fontSize: 12,
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {error}
+            </div>
+          )}
 
-          {suggestedEntities.length > 0 && (
-            <div className="border-t border-purple-900/40 p-3 flex flex-col gap-2 min-h-0">
-              <div className="flex items-center justify-between flex-shrink-0">
-                <span className="text-purple-400 text-xs font-semibold tracking-wide uppercase">
-                  {suggestedEntities.length} entité{suggestedEntities.length > 1 ? 's' : ''} détectée{suggestedEntities.length > 1 ? 's' : ''}
-                </span>
-                {!allInjected && (
-                  <button
-                    onClick={handleInjectAll}
-                    className="text-xs px-2 py-1 rounded bg-purple-700/50 hover:bg-purple-600/60 text-purple-200 transition-colors"
-                  >
-                    Tout injecter
-                  </button>
-                )}
+          {discovery && (
+            <>
+              {/* Summary */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid rgba(99,102,241,0.2)',
+                  color: '#cbd5e1',
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  overflowY: 'auto',
+                  maxHeight: 120,
+                }}
+              >
+                {discovery.summary}
               </div>
-              <div className="flex flex-col gap-1 overflow-y-auto max-h-[40vh] custom-scrollbar">
-                {suggestedEntities.map((e) => {
-                  const key = `${e.entityType}:${e.label}`;
-                  const done = injected.has(key);
-                  const isFinancial = FINANCIAL_RAW_TYPES.has(e.rawType);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handleInject(e)}
-                      disabled={done}
-                      className={`flex items-center justify-between p-2 rounded border text-left transition-colors select-text ${
-                        done
-                          ? 'bg-green-900/20 border-green-700/50 cursor-default'
-                          : isFinancial
-                          ? 'bg-emerald-900/25 border-emerald-600/60 hover:bg-emerald-800/35 cursor-pointer'
-                          : 'bg-slate-800 border-slate-700 hover:bg-slate-700/60 cursor-pointer'
-                      }`}
-                      title={`${e.rawType.toUpperCase()}: ${e.label}`}
-                      style={{ userSelect: 'text' }}
-                    >
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs font-semibold uppercase tracking-wider" style={{
-                          color: done ? '#4ade80' : isFinancial ? '#6ee7b7' : '#60a5fa',
-                        }}>
-                          {done ? '✓ ' : '+ '}
-                          {e.rawType === 'iban' ? '🏦 IBAN' : e.rawType}
+
+              {/* Entities */}
+              {discovery.entities.length > 0 && (
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderBottom: '1px solid rgba(99,102,241,0.15)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: '#818cf8',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {discovery.entities.length} entit{discovery.entities.length === 1 ? 'é' : 'és'} détecté{discovery.entities.length === 1 ? 'e' : 'es'}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      overflowY: 'auto',
+                      maxHeight: 160,
+                    }}
+                  >
+                    {discovery.entities.map((e, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '4px 8px',
+                          background: 'rgba(30,41,59,0.8)',
+                          borderRadius: 6,
+                          border: '1px solid rgba(51,65,85,0.6)',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            color: '#60a5fa',
+                            minWidth: 72,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {e.type}
                         </span>
-                        <span className="text-sm text-slate-200 break-all whitespace-pre-wrap" style={{ userSelect: 'text' }}>
+                        <span style={{ fontSize: 12, color: '#e2e8f0', wordBreak: 'break-all' }}>
                           {e.label}
                         </span>
                       </div>
-                    </button>
-                  );
-                })}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Relations */}
+              {discovery.relations.length > 0 && (
+                <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(99,102,241,0.15)' }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: '#818cf8',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {discovery.relations.length} relation{discovery.relations.length > 1 ? 's' : ''}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      overflowY: 'auto',
+                      maxHeight: 120,
+                    }}
+                  >
+                    {discovery.relations.map((r, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 11,
+                          color: '#94a3b8',
+                          padding: '3px 8px',
+                          background: 'rgba(15,23,42,0.6)',
+                          borderRadius: 4,
+                        }}
+                      >
+                        <span style={{ color: '#e2e8f0', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.source}
+                        </span>
+                        <span style={{ color: '#475569', flexShrink: 0 }}>—[</span>
+                        <span style={{ color: '#60a5fa', flexShrink: 0 }}>{r.type}</span>
+                        <span style={{ color: '#475569', flexShrink: 0 }}>]→</span>
+                        <span style={{ color: '#e2e8f0', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.target}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Inject button */}
+              <div style={{ padding: '10px 16px' }}>
+                <button
+                  onClick={handleInject}
+                  style={{
+                    width: '100%',
+                    padding: '8px 0',
+                    background: 'rgba(99,102,241,0.2)',
+                    border: '1px solid rgba(99,102,241,0.5)',
+                    borderRadius: 6,
+                    color: '#a5b4fc',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.35)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.2)')}
+                >
+                  Injecter dans le graphe
+                </button>
               </div>
-            </div>
+            </>
           )}
         </div>
       )}
 
-      <div className="flex items-center justify-center gap-1 bg-[#0b0f19]/95 border border-purple-900/50 p-2 rounded-xl shadow-2xl backdrop-blur-md">
-        <button
-          onClick={triggerHermesAnalysis}
-          disabled={isProcessing}
-          title={isProcessing ? 'Investigation en cours...' : 'Lancer Hermes'}
-          className="w-8 h-8 flex items-center justify-center rounded text-purple-300 hover:bg-purple-900/40 disabled:opacity-40 transition-colors text-base"
+      {/* Control bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'rgba(11,15,25,0.95)',
+          border: '1px solid rgba(99,102,241,0.35)',
+          borderRadius: 12,
+          padding: '8px 12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(12px)',
+        }}
+      >
+        {/* Mode toggle */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0,
+            background: 'rgba(15,23,42,0.8)',
+            borderRadius: 8,
+            border: '1px solid rgba(51,65,85,0.6)',
+            overflow: 'hidden',
+          }}
         >
-          {isProcessing ? (
-            <span className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin inline-block" />
+          <button
+            onClick={() => setMode('local')}
+            style={{
+              padding: '5px 10px',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              outline: 'none',
+              borderRadius: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              transition: 'background 0.15s, color 0.15s',
+              background: mode === 'local' ? 'rgba(99,102,241,0.3)' : 'transparent',
+              color: mode === 'local' ? '#a5b4fc' : '#64748b',
+            }}
+          >
+            {statusDot(ollamaStatus)}
+            Local (Ollama)
+          </button>
+          <div style={{ width: 1, height: 20, background: 'rgba(51,65,85,0.6)' }} />
+          <button
+            onClick={() => setMode('hermes')}
+            style={{
+              padding: '5px 10px',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              outline: 'none',
+              borderRadius: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              transition: 'background 0.15s, color 0.15s',
+              background: mode === 'hermes' ? 'rgba(99,102,241,0.3)' : 'transparent',
+              color: mode === 'hermes' ? '#a5b4fc' : '#64748b',
+            }}
+          >
+            {statusDot(hermesStatus)}
+            Avancé (Hermes)
+          </button>
+        </div>
+
+        {/* Launch button */}
+        <button
+          onClick={handleAnalyze}
+          disabled={loading}
+          title={loading ? 'Analyse en cours...' : 'Lancer l\'Analyse'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            background: loading ? 'rgba(51,65,85,0.4)' : 'rgba(99,102,241,0.2)',
+            border: '1px solid rgba(99,102,241,0.4)',
+            borderRadius: 8,
+            color: loading ? '#475569' : '#a5b4fc',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'background 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) e.currentTarget.style.background = 'rgba(99,102,241,0.35)';
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) e.currentTarget.style.background = 'rgba(99,102,241,0.2)';
+          }}
+        >
+          {loading ? (
+            <>
+              <span
+                style={{
+                  width: 12,
+                  height: 12,
+                  border: '2px solid rgba(99,102,241,0.5)',
+                  borderTopColor: '#818cf8',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  animation: 'spin 0.75s linear infinite',
+                  flexShrink: 0,
+                }}
+              />
+              Analyse en cours...
+            </>
           ) : (
-            '🧬'
+            <>🧬 Lancer l'Analyse</>
           )}
         </button>
-        <button
-          onClick={handleSave}
-          disabled={!report}
-          title="Sauvegarder le rapport"
-          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 disabled:opacity-30 transition-colors text-base"
-        >
-          💾
-        </button>
-        {report && (
+
+        {/* Clear */}
+        {(discovery || error) && (
           <button
-            onClick={() => setIsMinimized(!isMinimized)}
-            title={isMinimized ? 'Agrandir' : 'Minimiser'}
-            className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-purple-900/40 transition-colors text-base leading-none"
+            onClick={() => { setDiscovery(null); setError(null); }}
+            title="Effacer"
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#64748b',
+              fontSize: 14,
+              borderRadius: 6,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
           >
-            —
+            ✕
           </button>
         )}
-        <button
-          onClick={() => { setReport(''); setSuggestedEntities([]); setInjected(new Set()); }}
-          title="Effacer"
-          className="w-8 h-8 flex items-center justify-center rounded text-purple-400 hover:bg-red-500/30 hover:text-red-400 transition-colors text-base font-bold"
-        >
-          ✕
-        </button>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

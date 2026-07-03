@@ -389,7 +389,7 @@ function AppInner() {
 
         <div className="flex flex-col">
           <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+          <HermesAnalyzer />
         </div>
       </div>
 
