@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Minimize2, Maximize2, Save } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { runAnalysis, checkOllama, checkHermes } from '../hermesService';
 import type { AnalysisMode, HermesDiscovery } from '../types/hermes';
@@ -17,6 +18,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<ServiceStatus>('unknown');
   const [hermesStatus, setHermesStatus] = useState<ServiceStatus>('unknown');
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     Promise.all([checkOllama(), checkHermes()]).then(([ollama, hermes]) => {
@@ -80,6 +82,38 @@ export const HermesAnalyzer: React.FC = () => {
     setDiscovery(null);
   };
 
+  const handleSave = () => {
+    if (!discovery && !error) return;
+    const lines: string[] = [];
+    const now = new Date().toLocaleString('fr-FR');
+    lines.push(`RAPPORT HERMES — ${now}`);
+    lines.push('='.repeat(60));
+    if (discovery?.summary) {
+      lines.push('');
+      lines.push('ANALYSE');
+      lines.push('-'.repeat(40));
+      lines.push(discovery.summary);
+    }
+    if (newEntities.length > 0) {
+      lines.push('');
+      lines.push('NOUVELLES ENTITÉS');
+      lines.push('-'.repeat(40));
+      for (const e of newEntities) lines.push(`[${e.type}] ${e.label}`);
+    }
+    if (error) {
+      lines.push('');
+      lines.push('ERREUR');
+      lines.push(error);
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hermes-rapport-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Existing node labels (lowercase) used to filter out duplicates from AI output
   const existingLabels = new Set(nodes.map((n) => String(n.data?.label ?? '').trim().toLowerCase()).filter(Boolean));
   const newEntities = discovery
@@ -111,7 +145,7 @@ export const HermesAnalyzer: React.FC = () => {
       }}
     >
       {/* Results panel */}
-      {(discovery || error) && (
+      {!minimized && (discovery || error) && (
         <div
           style={{
             width: '100%',
@@ -379,24 +413,52 @@ export const HermesAnalyzer: React.FC = () => {
           )}
         </button>
 
-        {/* Clear */}
+        {/* Save */}
         {(discovery || error) && (
           <button
-            onClick={() => { setDiscovery(null); setError(null); }}
+            onClick={handleSave}
+            title="Sauvegarder le rapport"
+            style={{
+              width: 28, height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#64748b', borderRadius: 6, transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#22c55e')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
+          >
+            <Save size={14} />
+          </button>
+        )}
+
+        {/* Minimize / Restore */}
+        {(discovery || error) && (
+          <button
+            onClick={() => setMinimized((v) => !v)}
+            title={minimized ? 'Restaurer' : 'Réduire'}
+            style={{
+              width: 28, height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#64748b', borderRadius: 6, transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#a5b4fc')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
+          >
+            {minimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+          </button>
+        )}
+
+        {/* Close */}
+        {(discovery || error) && (
+          <button
+            onClick={() => { setDiscovery(null); setError(null); setMinimized(false); }}
             title="Effacer"
             style={{
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#64748b',
-              fontSize: 14,
-              borderRadius: 6,
-              transition: 'color 0.15s',
+              width: 28, height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#64748b', fontSize: 14, borderRadius: 6, transition: 'color 0.15s',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
             onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
