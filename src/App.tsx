@@ -119,7 +119,13 @@ function AppInner() {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
       const fields = (node.data.fields ?? {}) as Record<string, string>;
-      const address = (fields.address ?? '').trim() || node.data.label;
+      const fieldAddress = (fields.address ?? '').trim();
+      const address = fieldAddress || String(node.data.label ?? '').trim();
+      console.log('[GoToMap] nodeId:', nodeId);
+      console.log('[GoToMap] node.data.label:', node.data.label);
+      console.log('[GoToMap] node.data.fields:', node.data.fields);
+      console.log('[GoToMap] fields.address:', fieldAddress || '(vide)');
+      console.log('[GoToMap] adresse finale envoyée:', address);
       setMapFocusTarget({ address });
       setView('map');
     };

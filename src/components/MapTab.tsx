@@ -58,6 +58,7 @@ function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => voi
 }
 
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
+  console.log('[MapTab] geocoding address:', address);
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
     { headers: { 'Accept-Language': 'fr,en' } }
