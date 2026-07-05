@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -44,6 +44,9 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   const [mapZoom, setMapZoom] = useState(6);
   const [markerKey, setMarkerKey] = useState(Date.now());
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  // ✅ SÉCURITÉ: s'assurer que pins est toujours un tableau
+  const safePins = pins || [];
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
@@ -111,6 +114,9 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // ✅ Filtrer les pins valides
+  const validPins = safePins.filter(pin => pin && !isNaN(pin.lat) && !isNaN(pin.lng) && isFinite(pin.lat) && isFinite(pin.lng));
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 backdrop-blur-sm z-10 flex-shrink-0">
@@ -118,7 +124,7 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Rechercher une adresse..."
+          placeholder="Rechercher une adresse (international)..."
           className="flex-1 bg-cyber-black border border-cyber-border rounded-lg px-3 py-1.5 text-xs text-cyber-text outline-none focus:border-cyber-cyan font-mono"
         />
         <button
@@ -151,16 +157,54 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
           <Marker key={`search-${markerKey}`} position={mapCenter} icon={redIcon}>
             <Popup>Position: {mapCenter[0].toFixed(6)}, {mapCenter[1].toFixed(6)}</Popup>
           </Marker>
-          {pins.filter(pin => !isNaN(pin.lat) && !isNaN(pin.lng)).map((pin) => (
+          {validPins.map((pin) => (
             <Marker
               key={pin.id}
               position={[pin.lat, pin.lng]}
               eventHandlers={{ click: () => setSelectedPinId(pin.id) }}
             >
-              <Popup><strong>{pin.label}</strong><br/>{pin.address}</Popup>
+              <Popup>
+                <div className="text-xs font-mono">
+                  <strong style={{ color: pin.color || '#3b82f6' }}>{pin.label}</strong><br/>
+                  {pin.address && <span>{pin.address}<br/></span>}
+                  {pin.notes && <span className="italic text-cyber-text-dim">{pin.notes}</span>}
+                </div>
+              </Popup>
             </Marker>
           ))}
         </MapContainer>
+      </div>
+
+      {/* Liste des pins */}
+      <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
+        <div className="p-2 space-y-1">
+          {validPins.length === 0 ? (
+            <p className="text-xs text-cyber-text-dim font-mono text-center py-4">Aucun pin sauvegardé</p>
+          ) : (
+            validPins.map((pin) => (
+              <button
+                key={pin.id}
+                onClick={() => {
+                  setMapCenter([pin.lat, pin.lng]);
+                  setMapZoom(15);
+                  setSelectedPinId(pin.id);
+                  setMarkerKey(Date.now());
+                }}
+                className={`w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors ${
+                  selectedPinId === pin.id
+                    ? 'bg-cyber-cyan/15 border border-cyber-cyan/30 text-cyber-cyan'
+                    : 'hover:bg-cyber-panel border border-transparent text-cyber-text-dim'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full inline-block mr-2" style={{ background: pin.color || '#3b82f6' }} />
+                {pin.label}
+                <span className="text-[10px] opacity-60 ml-2">
+                  ({pin.lat.toFixed(4)}, {pin.lng.toFixed(4)})
+                </span>
+              </button>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
