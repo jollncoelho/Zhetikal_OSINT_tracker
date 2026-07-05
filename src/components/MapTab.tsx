@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// Icône personnalisée robuste générée en code CSS pur (évite le bug des images cassées de Vite)
 const PIN_ICON = L.divIcon({
   html: `<div style="
     width:14px;height:14px;border-radius:50%;
@@ -32,6 +33,7 @@ type MarkerState =
   | { kind: 'ok'; lat: number; lng: number; address: string }
   | { kind: 'error'; address: string };
 
+// Fonction de géocodage mondiale et blindée contre le crash NaN
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const res = await fetch(
@@ -39,15 +41,22 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
       { headers: { 'Accept-Language': 'fr,en' } }
     );
     const results = await res.json();
+    
     if (!Array.isArray(results) || results.length === 0) return null;
-    return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+    
+    const lat = parseFloat(results[0].lat);
+    const lng = parseFloat(results[0].lon);
+
+    // Blocage de sécurité : si l'API répond n'importe quoi ou une chaîne vide
+    if (isNaN(lat) || isNaN(lng)) return null;
+
+    return { lat, lng };
   } catch {
     return null;
   }
 }
 
-// Sub-component inside MapContainer — exposes the Leaflet map instance via a ref
-// so the parent can call flyTo() directly without any stale-closure risk.
+// Sous-composant pour capturer l'instance Leaflet sans stale closures
 function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
   const map = useMap();
   mapRef.current = map;
@@ -58,8 +67,7 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapT
   const [markerState, setMarkerState] = useState<MarkerState>({ kind: 'none' });
   const mapRef = useRef<L.Map | null>(null);
 
-  // When the map tab becomes visible, recalculate tile layout —
-  // Leaflet loses track of dimensions while the container is hidden.
+  // Recalcule la taille du conteneur Leaflet quand l'onglet devient visible
   useEffect(() => {
     if (isVisible && mapRef.current) {
       setTimeout(() => mapRef.current?.invalidateSize(), 50);
@@ -79,9 +87,10 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapT
     geocode(address)
       .then((pos) => {
         if (cancelled) return;
-        if (pos) {
+        
+        // Si les coordonnées sont valides et existent
+        if (pos && !isNaN(pos.lat) && !isNaN(pos.lng)) {
           setMarkerState({ kind: 'ok', lat: pos.lat, lng: pos.lng, address });
-          // Always uses the live map instance — no stale closure possible
           mapRef.current?.flyTo([pos.lat, pos.lng], 15, { duration: 1.2 });
         } else {
           setMarkerState({ kind: 'error', address });
@@ -96,68 +105,12 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapT
       });
 
     return () => { cancelled = true; };
-  // focusTarget is a new object reference each time App calls setMapFocusTarget({ address })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
   return (
     <div className="h-full w-full relative">
+      {/* Alertes visuelles de traitement */}
       {markerState.kind === 'loading' && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 1000, background: 'rgba(15,23,42,0.92)',
-          border: '1px solid rgba(99,102,241,0.4)', borderRadius: 8,
-          padding: '7px 16px', color: '#a5b4fc', fontSize: 12, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span style={{
-            width: 12, height: 12,
-            border: '2px solid rgba(99,102,241,0.4)', borderTopColor: '#818cf8',
-            borderRadius: '50%', display: 'inline-block',
-            animation: 'spin 0.75s linear infinite',
-          }} />
-          Géocodage en cours…
-        </div>
-      )}
-
-      {markerState.kind === 'error' && (
-        <div style={{
-          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 1000, background: 'rgba(127,29,29,0.92)',
-          border: '1px solid rgba(239,68,68,0.5)', borderRadius: 8,
-          padding: '7px 16px', color: '#fca5a5', fontSize: 12, fontWeight: 600,
-        }}>
-          Adresse introuvable : « {markerState.address} »
-        </div>
-      )}
-
-      <MapContainer
-        center={[46.5, 2.5]}
-        zoom={5}
-        zoomControl={false}
-        attributionControl
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {/* Captures the live map instance into mapRef on every render */}
-        <MapRefCapture mapRef={mapRef} />
-        {markerState.kind === 'ok' && (
-          <Marker
-            key={`${markerState.lat},${markerState.lng}`}
-            position={[markerState.lat, markerState.lng]}
-            icon={PIN_ICON}
-          >
-            <Popup>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{markerState.address}</span>
-            </Popup>
-          </Marker>
-        )}
-      </MapContainer>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
+          zIndex: 1000, background: 'rgba(15,
