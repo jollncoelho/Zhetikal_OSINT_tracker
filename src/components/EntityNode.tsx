@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
   FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, NotebookPen,
-  ExternalLink, SlidersHorizontal,
+  ExternalLink, SlidersHorizontal, Search
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { loadIcons } from './IconPicker';
@@ -13,13 +13,36 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText, Link, Bitcoin, StickyNote,
 };
 
-const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone'];
+const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone', 'username'];
 const LINK_TYPES = ['url', 'domain'];
 
 function buildOpenUrl(entityType: string, label: string): string | null {
   if (entityType === 'url') return label.startsWith('http') ? label : `https://${label}`;
   if (entityType === 'domain') return `https://${label}`;
   return null;
+}
+
+// Fonction de routage OSINT globale pour pivoter vers les meilleurs outils tiers
+function buildOsintPivotUrl(entityType: string, label: string): string | null {
+  if (!label) return null;
+  const cleanLabel = label.trim();
+
+  switch (entityType.toLowerCase()) {
+    case 'email':
+      return `https://epieos.com/?q=${encodeURIComponent(cleanLabel)}`;
+    case 'username':
+      return `https://whatsmyname.app/?target=${encodeURIComponent(cleanLabel)}`;
+    case 'domain':
+      return `https://www.virustotal.com/gui/domain/${encodeURIComponent(cleanLabel)}`;
+    case 'phone':
+      const cleanPhone = cleanLabel.replace(/[^0-9+]/g, '');
+      return `https://intelx.io/?s=${encodeURIComponent(cleanPhone)}`;
+    case 'ip':
+    case 'ipaddress':
+      return `https://iknowwhatyoudownload.com/en/peer/?ip=${encodeURIComponent(cleanLabel)}`;
+    default:
+      return null;
+  }
 }
 
 interface EntityNodeProps {
@@ -75,6 +98,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   };
 
   const openUrl = buildOpenUrl(data.entityType, data.label);
+  const pivotOsintUrl = buildOsintPivotUrl(data.entityType, data.label);
   const IconComponent = ICON_MAP[data.icon] || Globe;
 
   return (
@@ -92,7 +116,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
       <Handle type="source" position={Position.Top} id="top" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
       <Handle type="target" position={Position.Top} id="top-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
       <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }}
 
       <div className="flex items-center gap-2 px-3 pt-3 pb-2 pr-9">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: customIcon ? 'transparent' : `${data.color}22` }}>
@@ -126,6 +150,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
       {!renamingLabel && (
         <>
+          {/* BOUTONS ACTIONS À DROITE */}
           <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} title="Supprimer" className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40 transition-all duration-150 z-10">
             <Trash2 size={11} />
           </button>
@@ -135,19 +160,25 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <button onClick={handleOpenFields} title="Champs personnalisés" className="absolute bottom-2 right-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
             <SlidersHorizontal size={11} />
           </button>
-          {data.entityType === 'ip' && (
-            <a href={`https://ipinfo.io/${data.label}`} target="_blank" rel="noopener noreferrer" title="Analyser / géolocaliser cette IP" onClick={(e) => e.stopPropagation()} className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all duration-150 z-10">
-              <ExternalLink size={11} />
-            </a>
-          )}
+
+          {/* ACTIONS DYNAMIQUES / PIVOTS OSINT (ALIGNÉS SUR LA GAUCHE) */}
           {data.entityType === 'location' && (
-            <button onClick={handleGoToMap} title="Voir sur la carte" className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40 transition-all duration-150 z-10">
+            <button onClick={handleGoToMap} title="Voir sur la carte" className="absolute bottom-2 left-3 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 hover:border-cyber-green/40 transition-all duration-150 z-10">
               <MapPin size={11} />
             </button>
           )}
-          {LINK_TYPES.includes(data.entityType) && openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener noreferrer" title={`Ouvrir ${data.entityType === 'domain' ? 'le domaine' : 'le lien'}`} onClick={(e) => e.stopPropagation()} className="absolute bottom-2 right-[4.4rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
+
+          {/* Boutons d'analyse OSINT externe unifié (Epieos, WhatsMyName, VirusTotal, IntelX, etc.) */}
+          {pivotOsintUrl && (
+            <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={`Analyser cet(te) ${data.entityType} via un outil OSINT externe`} onClick={(e) => e.stopPropagation()} className="absolute bottom-2 left-3 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/40 transition-all duration-150 z-10">
               <ExternalLink size={11} />
+            </a>
+          )}
+
+          {/* Lien web standard d'origine (Conservé pour URL et Domaines s'ils veulent visiter le site directement) */}
+          {LINK_TYPES.includes(data.entityType) && openUrl && (
+            <a href={openUrl} target="_blank" rel="noopener noreferrer" title={`Visiter le lien directement`} onClick={(e) => e.stopPropagation()} className="absolute bottom-2 left-[2.2rem] w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10">
+              <Search size={11} />
             </a>
           )}
         </>
