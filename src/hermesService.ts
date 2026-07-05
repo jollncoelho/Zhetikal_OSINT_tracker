@@ -79,9 +79,9 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
     })
     .join('\n');
 
-  return `Tu es HERMES, un agent d'investigation OSINT d'élite. Tu travailles directement avec José, ton co-équipier analyste. Tu ne te contentes JAMAIS de résumer ce qui est déjà visible sur le graphe — c'est une perte de temps. Ton rôle est d'aller PLUS LOIN : croiser les données, identifier des incohérences, formuler des hypothèses d'investigation concrètes, et signaler des pistes prioritaires que l'opérateur n'a pas encore explorées.
+  return `Tu es un expert d'élite en OSINT et en investigation numérique. Tu agis comme le co-enquêteur de José. Ton but est d'analyser les entités fournies issues d'un graphique d'investigation, de croiser les données de manière logique et de proposer de nouvelles pistes d'enquêtes ultra-précises. Tu ne résumes JAMAIS ce qui est déjà visible — tu vas au-delà : croisements de registres, DNS, géolocalisation, réseaux sociaux, banques, structures offshore, incohérences, hypothèses de relocalisation.
 
-Voici les données brutes du graphe d'investigation actuel :
+Voici les données actuelles du graphique sous forme d'entités :
 
 ENTITÉS:
 ${nodeLines || '(aucune)'}
@@ -91,65 +91,68 @@ ${edgeLines || '(aucun)'}
 
 ---
 
-RÈGLES STRICTES :
+Tu dois générer une réponse STRICTEMENT structurée sous la forme suivante (respecte les balises textuelles) :
 
-BLOC 1 — ANALYSE D'INVESTIGATION (3 à 6 phrases, français, ton direct, professionnel) :
-- Adresse-toi directement à José comme un co-équipier : "J'ai trouvé...", "Tu devrais prioriser...", "Je note une incohérence...", "Il faut vérifier...", "Je suspecte que..."
-- Va au-delà du graphe : propose des croisements logiques (registre du commerce, DNS, géolocalisation, réseaux sociaux, banques, structures offshore), évoque des scénarios probables (fraude, relocalisation, dissimulation d'actifs, usurpation d'identité), signale des écarts suspects entre les données (ex: domaine suisse / adresse française, email jetable / IBAN pro).
-- Sois percutant, synthétique, factuel. Pas de listes à puces. Pas de titres. Juste un paragraphe ou deux de prose professionnelle.
+=== ANALYSE ===
+Rédige ton rapport d'investigation de manière fluide et immersive. Adresse-toi directement à José. Fais des liens, évoque des vérifications de registres, des serveurs suspects, des hypothèses de relocalisation ou des incohérences. Le ton doit être ultra-professionnel, percutant et sans aucune liste à puces technique. 3 à 6 phrases de prose dense.
 
-BLOC 2 — ENTITÉS À INJECTER (une par ligne, format strict : TYPE|valeur) :
-RÈGLE ABSOLUE : liste UNIQUEMENT des entités TOTALEMENT NOUVELLES que tu as découvertes ou déduites lors de ton analyse.
-Il est STRICTEMENT INTERDIT de répéter dans ce bloc les entités déjà présentes dans le graphe ci-dessus. Chaque valeur listée dans "ENTITÉS:" est considérée comme CONNUE et INTERDITE de réapparition ici.
-Seuls les nouveaux comptes, alias, coordonnées, organisations, adresses ou identifiants que tu as inférés ou découverts peuvent figurer ici.
-Si tu n'as rien de nouveau à ajouter, écris simplement : (aucune nouvelle entité)
+=== NOUVELLES ENTITÉS ===
+Liste UNIQUEMENT les entités NOUVELLES découvertes ou déduites lors de ton analyse. N'inclus JAMAIS les entités de départ fournies ci-dessus.
+Format strict pour chaque entité :
+- TYPE: [TYPE EN MAJUSCULE]
+- VALUE: [valeur précise]
+
 Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
-Exemple de format :
-ORGANISATION|Ezkformation SARL
-LOCALISATION|42 Avenue Jean Jaurès, Paris
-EMAIL|contact.elias@mailboxpro.com
-IBAN|FR14 3000 1234 5678 9012 3456 7890
+Si aucune nouvelle entité, écris : (aucune nouvelle entité)
 
 ---
-Réponds UNIQUEMENT avec ces deux blocs dans l'ordre. Aucun JSON. Aucun markdown. Aucune phrase hors-blocs.`;
+Réponds UNIQUEMENT avec ces deux sections dans l'ordre. Aucun JSON. Aucun markdown superflu. Aucune phrase hors-sections.`;
 }
 
 function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edges: any[] }): HermesDiscovery {
-  // New two-block format: BLOC 1 = narrative, BLOC 2 = TYPE|VALUE lines
-  const bloc2Match = text.match(/BLOC\s*2[^\n]*\n([\s\S]*?)(?:---|\n\n\n|$)/i);
-  const bloc1Match = text.match(/BLOC\s*1[^\n]*\n([\s\S]*?)(?:BLOC\s*2|---)/i);
+  const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTITÉS\s*===|$)/i);
+  const entitesMatch = text.match(/===\s*NOUVELLES ENTITÉS\s*===\s*\n([\s\S]*?)(?:---|$)/i);
 
   let summary = '';
   const entities: HermesEntity[] = [];
   const relations: HermesRelation[] = [];
 
-  if (bloc1Match) {
-    summary = bloc1Match[1].trim();
-  } else {
-    // fallback: everything before the first TYPE|VALUE line
-    const pipeIdx = text.search(/^[A-Z_]+\|/m);
-    summary = (pipeIdx > 0 ? text.slice(0, pipeIdx) : text).trim();
-  }
+  summary = analyseMatch ? analyseMatch[1].trim() : '';
 
-  const entityBlock = bloc2Match ? bloc2Match[1] : text;
-  for (const line of entityBlock.split('\n')) {
-    const trimmed = line.trim();
-    const sep = trimmed.indexOf('|');
-    if (sep > 0) {
-      const type = trimmed.slice(0, sep).trim().toUpperCase();
-      const label = trimmed.slice(sep + 1).trim();
-      if (type && label) {
-        entities.push({ type, label });
+  if (entitesMatch) {
+    const block = entitesMatch[1];
+    // Parse pairs of "- TYPE: X\n- VALUE: Y"
+    const typeValuePairs = [...block.matchAll(/[-*]\s*TYPE\s*:\s*([A-Z_]+)[^\n]*\n[-*]\s*VALUE\s*:\s*(.+)/gi)];
+    for (const [, type, value] of typeValuePairs) {
+      const t = type.trim().toUpperCase();
+      const v = value.trim();
+      if (t && v) entities.push({ type: t, label: v });
+    }
+
+    // Fallback: legacy TYPE|VALUE pipe format (in case the model uses old style)
+    if (entities.length === 0) {
+      for (const line of block.split('\n')) {
+        const trimmed = line.replace(/^[-*]\s*/, '').trim();
+        const sep = trimmed.indexOf('|');
+        if (sep > 0) {
+          const type = trimmed.slice(0, sep).trim().toUpperCase();
+          const label = trimmed.slice(sep + 1).trim();
+          if (type && label) entities.push({ type, label });
+        }
       }
     }
   }
 
-  // If nothing parsed, derive from graph nodes as last resort
+  // Last resort: fall back to anything that looks like TYPE|VALUE in the full text
   if (entities.length === 0) {
-    for (const n of graphData.nodes) {
-      const type = (n.data?.entityType ?? n.type ?? 'NOTE').toUpperCase();
-      const label = n.data?.label ?? n.id;
-      if (label) entities.push({ type, label });
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      const sep = trimmed.indexOf('|');
+      if (sep > 0) {
+        const type = trimmed.slice(0, sep).trim().toUpperCase();
+        const label = trimmed.slice(sep + 1).trim();
+        if (type && label && /^[A-Z_]+$/.test(type)) entities.push({ type, label });
+      }
     }
   }
 
