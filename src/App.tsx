@@ -47,7 +47,7 @@ function AppInner() {
     removePinLink,
   } = useStore();
 
-  // ✅ Calcul de activeCase
+  // Calcul de activeCase
   const activeCase = activeCaseId ? cases.find((c) => c.id === activeCaseId) ?? null : null;
 
   const onConnect = useCallback((params: any) => {
@@ -94,7 +94,6 @@ function AppInner() {
     let corrected = 0;
     locationNodes.forEach(node => {
       const data = node.data as EntityData;
-      // Récupérer l'adresse depuis fields.address ou notes
       const address = data.fields?.address || data.notes || '';
       
       if (address.trim()) {
@@ -104,6 +103,18 @@ function AppInner() {
     });
 
     alert(`✅ ${corrected} entité(s) Location corrigée(s) sur ${locationNodes.length}`);
+  }, [nodes, updateNodeData]);
+
+  // ✅ FONCTION POUR SAUVEGARDER LES COORDONNÉES GÉOCODÉES
+  const handleGeocodeLocation = useCallback((nodeId: string, lat: number, lng: number) => {
+    const currentNode = nodes.find(n => n.id === nodeId);
+    updateNodeData(nodeId, {
+      fields: {
+        ...(currentNode?.data as EntityData)?.fields,
+        lat: String(lat),
+        lng: String(lng),
+      }
+    });
   }, [nodes, updateNodeData]);
 
   useEffect(() => {
@@ -388,6 +399,7 @@ function AppInner() {
                 if (!activeCaseId) return;
                 updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
+              onGeocodeLocation={handleGeocodeLocation}
             />
           </div>
         )}
