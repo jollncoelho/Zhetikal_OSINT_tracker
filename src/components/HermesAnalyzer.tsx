@@ -11,6 +11,7 @@ export const HermesAnalyzer: React.FC = () => {
   const edges = useStore((s) => s.edges);
   const addEntity = useStore((s) => s.addEntity);
   const onConnect = useStore((s) => s.onConnect);
+  const analystName = useStore((s) => s.analystName);
 
   const [mode, setMode] = useState<AnalysisMode>('local');
   const [loading, setLoading] = useState(false);
@@ -32,7 +33,7 @@ export const HermesAnalyzer: React.FC = () => {
     setError(null);
     setDiscovery(null);
     try {
-      const result = await runAnalysis(mode, { nodes, edges });
+      const result = await runAnalysis(mode, { nodes, edges }, analystName);
       setDiscovery(result);
     } catch (err: any) {
       setError(err.message ?? 'Unknown error');

@@ -9,6 +9,8 @@ interface AppState {
   nodes: EntityNode[];
   edges: Edge[];
   lastSaved: string | null;
+  analystName: string;
+  setAnalystName: (name: string) => void;
 
   createCase: (name: string, description: string) => string;
   switchCase: (id: string) => void;
@@ -84,6 +86,8 @@ export const useStore = create<AppState>()(
         nodes: [],
         edges: [],
         lastSaved: null,
+        analystName: '',
+        setAnalystName: (name) => set({ analystName: name }),
 
         createCase: (name, description) => {
           const id = crypto.randomUUID();

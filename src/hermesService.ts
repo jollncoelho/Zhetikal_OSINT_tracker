@@ -62,7 +62,8 @@ const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
 const OLLAMA_GENERATE_MODEL = 'gemma4:e2b';
 const HERMES_PROXY_URL = 'http://localhost:62938/analyze';
 
-function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
+function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName?: string): string {
+  const analyst = analystName?.trim() || 'Analyste';
   const nodeLines = graphData.nodes
     .map((n) => {
       const type = n.data?.entityType ?? n.type ?? 'unknown';
@@ -79,7 +80,7 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }): string {
     })
     .join('\n');
 
-  return `Tu es un expert d'élite en OSINT et en investigation numérique. Tu agis comme le co-enquêteur de José. Ton but est d'analyser les entités fournies issues d'un graphique d'investigation, de croiser les données de manière logique et de proposer de nouvelles pistes d'enquêtes ultra-précises. Tu ne résumes JAMAIS ce qui est déjà visible — tu vas au-delà : croisements de registres, DNS, géolocalisation, réseaux sociaux, banques, structures offshore, incohérences, hypothèses de relocalisation.
+  return `Tu es un expert d'élite en OSINT et en investigation numérique. Tu agis comme le co-enquêteur de ${analyst}. Ton but est d'analyser les entités fournies issues d'un graphique d'investigation, de croiser les données de manière logique et de proposer de nouvelles pistes d'enquêtes ultra-précises. Tu ne résumes JAMAIS ce qui est déjà visible — tu vas au-delà : croisements de registres, DNS, géolocalisation, réseaux sociaux, banques, structures offshore, incohérences, hypothèses de relocalisation.
 
 Voici les données actuelles du graphique sous forme d'entités :
 
@@ -94,7 +95,7 @@ ${edgeLines || '(aucun)'}
 Tu dois générer une réponse STRICTEMENT structurée sous la forme suivante (respecte les balises textuelles) :
 
 === ANALYSE ===
-Rédige ton rapport d'investigation de manière fluide et immersive. Adresse-toi directement à José. Fais des liens, évoque des vérifications de registres, des serveurs suspects, des hypothèses de relocalisation ou des incohérences. Le ton doit être ultra-professionnel, percutant et sans aucune liste à puces technique. 3 à 6 phrases de prose dense.
+Rédige ton rapport d'investigation de manière fluide et immersive. Adresse-toi directement à ${analyst}. Fais des liens, évoque des vérifications de registres, des serveurs suspects, des hypothèses de relocalisation ou des incohérences. Le ton doit être ultra-professionnel, percutant et sans aucune liste à puces technique. 3 à 6 phrases de prose dense.
 
 === NOUVELLES ENTITÉS ===
 Liste UNIQUEMENT les entités NOUVELLES découvertes ou déduites lors de ton analyse. N'inclus JAMAIS les entités de départ fournies ci-dessus.
@@ -161,7 +162,7 @@ function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edg
   return { entities, relations, summary };
 }
 
-async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }): Promise<HermesDiscovery> {
+async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
   let response: Response;
   try {
     response = await fetch(OLLAMA_GENERATE_URL, {
@@ -169,7 +170,7 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }): Prom
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: OLLAMA_GENERATE_MODEL,
-        prompt: buildGraphPrompt(graphData),
+        prompt: buildGraphPrompt(graphData, analystName),
         stream: false,
       }),
     });
@@ -208,9 +209,10 @@ async function runHermesAnalysis(graphData: { nodes: any[]; edges: any[] }): Pro
 
 export async function runAnalysis(
   mode: AnalysisMode,
-  graphData: { nodes: any[]; edges: any[] }
+  graphData: { nodes: any[]; edges: any[] },
+  analystName?: string
 ): Promise<HermesDiscovery> {
-  if (mode === 'local') return runLocalAnalysis(graphData);
+  if (mode === 'local') return runLocalAnalysis(graphData, analystName);
   return runHermesAnalysis(graphData);
 }
 
