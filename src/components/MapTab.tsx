@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix Leaflet default marker icons broken by Vite asset hashing
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -30,12 +29,11 @@ type MarkerState =
   | { kind: 'ok'; lat: number; lng: number; address: string }
   | { kind: 'error'; address: string };
 
-// Countries whose names in the address string mean we should NOT append ", France"
-// and should NOT restrict to fr/be/ch/lu.
+// Keywords that indicate a non-FR/BE/CH address — skip country restriction for these
 const FOREIGN_COUNTRY_KEYWORDS = [
   'maroc', 'algérie', 'algerie', 'tunisie', 'usa', 'united states', 'uk',
   'germany', 'allemagne', 'espagne', 'spain', 'italie', 'italy', 'portugal',
-  'belgique', 'suisse', 'luxembourg', 'canada', 'australia', 'chine', 'china',
+  'canada', 'australia', 'chine', 'china', 'russie', 'russia',
 ];
 
 const FR_ZONE_KEYWORDS = ['france', 'belgique', 'suisse', 'luxembourg'];
@@ -45,11 +43,11 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
   const isForeign = FOREIGN_COUNTRY_KEYWORDS.some((k) => lower.includes(k));
   const hasCountry = isForeign || FR_ZONE_KEYWORDS.some((k) => lower.includes(k));
 
-  // Append ", France" when no country is specified — guides Nominatim toward FR
+  // When no country is detected, append ", France" to steer Nominatim toward FR
   const query = hasCountry ? address : `${address}, France`;
 
-  // First attempt: restricted to FR/BE/CH/LU zone (unless explicitly foreign)
   if (!isForeign) {
+    // Strict search restricted to FR/BE/CH/LU — prevents jumps to the USA
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1` +
@@ -61,11 +59,11 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
         return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
       }
     } catch {
-      // fall through to global retry below
+      // fall through to global retry
     }
   }
 
-  // Fallback: global search (handles foreign addresses and FR addresses not found above)
+  // Global fallback for foreign addresses or FR addresses not found above
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
@@ -79,25 +77,16 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
   }
 }
 
-// Lives inside MapContainer — accesses the live Leaflet map via useMap().
-// Reads coordinates from a ref so it never captures stale prop values.
-function FlyController({ flyRef }: { flyRef: React.MutableRefObject<(() => void) | null> }) {
+// Sub-component inside MapContainer — exposes the Leaflet map instance via a ref
+// so the parent can call flyTo() directly without any stale-closure risk.
+function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
   const map = useMap();
-
-  useEffect(() => {
-    // Register a stable callback that the outer component can invoke
-    flyRef.current = () => {
-      // The outer component writes target coords into coordsRef before calling this
-    };
-  }, [map, flyRef]);
-
+  mapRef.current = map;
   return null;
 }
 
 export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
   const [markerState, setMarkerState] = useState<MarkerState>({ kind: 'none' });
-
-  // mapRef gives us direct access to the Leaflet map instance from outside MapContainer
   const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
@@ -115,14 +104,11 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
         if (cancelled) return;
         if (pos) {
           setMarkerState({ kind: 'ok', lat: pos.lat, lng: pos.lng, address });
-          // Fly using the ref — always fresh, no stale closure
-          if (mapRef.current) {
-            mapRef.current.flyTo([pos.lat, pos.lng], 15, { duration: 1.2 });
-          }
+          // Always uses the live map instance — no stale closure possible
+          mapRef.current?.flyTo([pos.lat, pos.lng], 15, { duration: 1.2 });
         } else {
           setMarkerState({ kind: 'error', address });
         }
-        // Consume after result is fully processed so the parent can trigger again
         onFocusConsumed?.();
       })
       .catch(() => {
@@ -133,7 +119,7 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
       });
 
     return () => { cancelled = true; };
-  // focusTarget object identity changes every time App calls setMapFocusTarget({ address })
+  // focusTarget is a new object reference each time App calls setMapFocusTarget({ address })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
@@ -173,13 +159,14 @@ export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
         zoom={5}
         zoomControl={false}
         attributionControl
-        ref={mapRef}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {/* Captures the live map instance into mapRef on every render */}
+        <MapRefCapture mapRef={mapRef} />
         {markerState.kind === 'ok' && (
           <Marker
             key={`${markerState.lat},${markerState.lng}`}
