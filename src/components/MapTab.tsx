@@ -16,6 +16,7 @@ L.Icon.Default.mergeOptions({
 
 export interface FocusTarget {
   address: string;
+  nonce: number;
 }
 
 interface MapTabProps {

@@ -126,7 +126,7 @@ function AppInner() {
       console.log('[GoToMap] node.data.fields:', node.data.fields);
       console.log('[GoToMap] fields.address:', fieldAddress || '(vide)');
       console.log('[GoToMap] adresse finale envoyée:', address);
-      setMapFocusTarget({ address });
+      setMapFocusTarget({ address, nonce: Date.now() });
       setView('map');
     };
     window.addEventListener('entity-go-to-map', handleGoToMap);
@@ -296,40 +296,38 @@ function AppInner() {
           </div>
         )}
 
-        {view === 'graph' ? (
-          <div className="flex-1 flex flex-col min-h-0">
-            <ReactFlowProvider>
-              <InfoTab
-                nodes={nodes}
-                edges={edges}
-                selectedEdgeId={selectedEdgeId}
-                selectedNodeId={selectedNodeId}
-                notePanelOpen={notePanelOpen}
-                activeCase={activeCase}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onEdgeClick={handleEdgeClick}
-                onNodeClick={handleNodeClick as any}
-                onPaneClick={handlePaneClick}
-                onSetNotePanelOpen={setNotePanelOpen}
-                onSetSelectedNodeId={setSelectedNodeId}
-                updateNodeData={updateNodeData}
-                updateCaseNotes={updateCaseNotes}
-                updateCaseTitle={updateCaseTitle}
-                onRegisterExportPng={handleRegisterExportPng}
-                onRegisterExportPdf={handleRegisterExportPdf}
-              />
-            </ReactFlowProvider>
-          </div>
-        ) : (
-          <div className="flex-1 flex min-h-0">
-            <MapTab
-              focusTarget={mapFocusTarget}
-              onFocusConsumed={() => setMapFocusTarget(null)}
+        {/* Both views stay mounted — unmounting MapTab destroys the Leaflet instance */}
+        <div className={`flex-1 flex flex-col min-h-0 ${view === 'graph' ? '' : 'hidden'}`}>
+          <ReactFlowProvider>
+            <InfoTab
+              nodes={nodes}
+              edges={edges}
+              selectedEdgeId={selectedEdgeId}
+              selectedNodeId={selectedNodeId}
+              notePanelOpen={notePanelOpen}
+              activeCase={activeCase}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onEdgeClick={handleEdgeClick}
+              onNodeClick={handleNodeClick as any}
+              onPaneClick={handlePaneClick}
+              onSetNotePanelOpen={setNotePanelOpen}
+              onSetSelectedNodeId={setSelectedNodeId}
+              updateNodeData={updateNodeData}
+              updateCaseNotes={updateCaseNotes}
+              updateCaseTitle={updateCaseTitle}
+              onRegisterExportPng={handleRegisterExportPng}
+              onRegisterExportPdf={handleRegisterExportPdf}
             />
-          </div>
-        )}
+          </ReactFlowProvider>
+        </div>
+        <div className={`flex-1 flex min-h-0 ${view === 'map' ? '' : 'hidden'}`}>
+          <MapTab
+            focusTarget={mapFocusTarget}
+            onFocusConsumed={() => setMapFocusTarget(null)}
+          />
+        </div>
 
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
           <div className="flex items-center gap-3">
