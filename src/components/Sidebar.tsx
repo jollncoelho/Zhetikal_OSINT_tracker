@@ -22,6 +22,7 @@ interface SidebarProps {
   onExportPng: () => Promise<void>;
   onImport: (json: string) => void;
   onClearCanvas: () => void;
+  onFixLocationLabels?: () => void; // ✅ AJOUTÉ
 }
 
 const ENTITY_TYPES = Object.keys(ENTITY_LABELS) as EntityType[];
@@ -41,6 +42,7 @@ export default function Sidebar({
   onExportPng,
   onImport,
   onClearCanvas,
+  onFixLocationLabels, // ✅ AJOUTÉ
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [casesOpen, setCasesOpen] = useState(true);
@@ -72,20 +74,16 @@ export default function Sidebar({
     setCreatingCase(false);
   };
 
-  // ✅ CORRECTION ICI : Gestion du label pour les Locations
+  // ✅ CORRECTION : Gestion du label pour les Locations
   const handleAddEntity = (type: EntityType) => {
     setSelectedType(type);
     
     let label = entityLabel;
     
-    // Si le champ est vide
     if (!label.trim()) {
       if (type === 'location') {
-        // Pour une location, on ne met PAS "Location" par défaut
-        // On met un placeholder pour que l'utilisateur sache qu'il doit mettre l'adresse
         label = 'Nouvelle Adresse (à modifier)';
       } else {
-        // Pour les autres, on garde le comportement normal
         label = ENTITY_LABELS[type];
       }
     }
@@ -303,7 +301,6 @@ export default function Sidebar({
             {entitiesOpen && (
               <div className="px-3 pb-3 space-y-2">
                 <div className="flex gap-1">
-                  {/* ✅ CORRECTION ICI : Placeholder dynamique */}
                   <input
                     value={entityLabel}
                     onChange={(e) => setEntityLabel(e.target.value)}
@@ -480,6 +477,18 @@ export default function Sidebar({
               >
                 <Eraser size={12} />
                 Clear Canvas
+              </button>
+            )}
+
+            {/* ✅ NOUVEAU BOUTON : Corriger les labels Location */}
+            {onFixLocationLabels && (
+              <button
+                onClick={onFixLocationLabels}
+                disabled={!activeCaseId}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-purple hover:bg-cyber-purple/10 border border-transparent hover:border-cyber-purple/30 transition-colors disabled:opacity-30"
+              >
+                <Pencil size={12} />
+                Corriger Labels Location
               </button>
             )}
           </div>
