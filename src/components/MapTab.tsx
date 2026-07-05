@@ -3,15 +3,16 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
+const PIN_ICON = L.divIcon({
+  html: `<div style="
+    width:14px;height:14px;border-radius:50%;
+    background:#ef4444;border:2.5px solid #fff;
+    box-shadow:0 0 0 2px rgba(239,68,68,.45),0 2px 8px rgba(0,0,0,.5);
+  "></div>`,
+  className: 'custom-pin',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+  popupAnchor: [0, -10],
 });
 
 export interface FocusTarget {
@@ -181,6 +182,7 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapT
           <Marker
             key={`${markerState.lat},${markerState.lng}`}
             position={[markerState.lat, markerState.lng]}
+            icon={PIN_ICON}
           >
             <Popup>
               <span style={{ fontSize: 12, fontWeight: 600 }}>{markerState.address}</span>
