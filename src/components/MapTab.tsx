@@ -32,44 +32,10 @@ type MarkerState =
   | { kind: 'ok'; lat: number; lng: number; address: string }
   | { kind: 'error'; address: string };
 
-// Keywords that indicate a non-FR/BE/CH address — skip country restriction for these
-const FOREIGN_COUNTRY_KEYWORDS = [
-  'maroc', 'algérie', 'algerie', 'tunisie', 'usa', 'united states', 'uk',
-  'germany', 'allemagne', 'espagne', 'spain', 'italie', 'italy', 'portugal',
-  'canada', 'australia', 'chine', 'china', 'russie', 'russia',
-];
-
-const FR_ZONE_KEYWORDS = ['france', 'belgique', 'suisse', 'luxembourg'];
-
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
-  const lower = address.toLowerCase();
-  const isForeign = FOREIGN_COUNTRY_KEYWORDS.some((k) => lower.includes(k));
-  const hasCountry = isForeign || FR_ZONE_KEYWORDS.some((k) => lower.includes(k));
-
-  // When no country is detected, append ", France" to steer Nominatim toward FR
-  const query = hasCountry ? address : `${address}, France`;
-
-  if (!isForeign) {
-    // Strict search restricted to FR/BE/CH/LU — prevents jumps to the USA
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1` +
-        `&countrycodes=fr,be,ch,lu&q=${encodeURIComponent(query)}`,
-        { headers: { 'Accept-Language': 'fr,en' } }
-      );
-      const results = await res.json();
-      if (Array.isArray(results) && results.length > 0) {
-        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
-      }
-    } catch {
-      // fall through to global retry
-    }
-  }
-
-  // Global fallback for foreign addresses or FR addresses not found above
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
       { headers: { 'Accept-Language': 'fr,en' } }
     );
     const results = await res.json();
