@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapPin } from '../types';
 
-// Fix icône Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+// Fix icônes Leaflet
+if (typeof window !== 'undefined') {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+}
 
 const redIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -21,27 +23,20 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// ✅ COMPOSANT SÉCURISÉ
+// Coordonnées par défaut SÉCURISÉES
+const DEFAULT_LAT = 46.603354;
+const DEFAULT_LNG = 1.888334;
+
 function MapController({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
   
   useEffect(() => {
-    // ✅ VÉRIFICATION STRICTE avant de déplacer la carte
-    if (
-      typeof lat === 'number' && 
-      typeof lng === 'number' && 
-      !isNaN(lat) && 
-      !isNaN(lng) && 
-      isFinite(lat) && 
-      isFinite(lng) &&
-      lat >= -90 && 
-      lat <= 90 && 
-      lng >= -180 && 
-      lng <= 180
-    ) {
+    // Validation ULTRA stricte
+    const isValidLat = typeof lat === 'number' && !isNaN(lat) && isFinite(lat) && lat >= -90 && lat <= 90;
+    const isValidLng = typeof lng === 'number' && !isNaN(lng) && isFinite(lng) && lng >= -180 && lng <= 180;
+    
+    if (isValidLat && isValidLng) {
       map.flyTo([lat, lng], zoom, { duration: 1.5 });
-    } else {
-      console.warn('MapController: Coordonnées invalides ignorées:', { lat, lng });
     }
   }, [lat, lng, zoom, map]);
   
@@ -53,41 +48,58 @@ interface MapTabProps {
   onUpdatePins: (pins: MapPin[]) => void;
 }
 
-export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
+export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
+  // État local sécurisé
+  const [localPins, setLocalPins] = useState<MapPin[]>([]);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  // ✅ État initial valide (centre de la France)
-  const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LNG]);
   const [mapZoom, setMapZoom] = useState(6);
-  const [markerKey, setMarkerKey] = useState(Date.now());
+  const [markerKey, setMarkerKey] = useState(0);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
-  // Sécurité pour pins
-  const safePins = Array.isArray(pins) ? pins : [];
+  // Synchroniser pins externes avec état local
+  useEffect(() => {
+    const safePins = Array.isArray(propPins) ? propPins : [];
+    setLocalPins(safePins);
+    setIsReady(true);
+  }, [propPins]);
 
+  // Gestion navigation
   useEffect(() => {
     const handleNavigate = (e: Event) => {
-      const { pinId, lat, lng } = (e as CustomEvent).detail;
-      
-      // ✅ Vérification stricte
-      if (
-        typeof lat !== 'number' || 
-        typeof lng !== 'number' || 
-        isNaN(lat) || 
-        isNaN(lng) || 
-        !isFinite(lat) || 
-        !isFinite(lng)
-      ) {
-        setAlertMessage(`⚠️ Coordonnées invalides (NaN détecté)`);
-        setTimeout(() => setAlertMessage(null), 4000);
-        return;
+      try {
+        const detail = (e as CustomEvent).detail || {};
+        const lat = detail.lat;
+        const lng = detail.lng;
+        const pinId = detail.pinId;
+        
+        // Validation stricte
+        if (
+          typeof lat !== 'number' || 
+          typeof lng !== 'number' || 
+          isNaN(lat) || 
+          isNaN(lng) || 
+          !isFinite(lat) || 
+          !isFinite(lng) ||
+          lat < -90 || lat > 90 ||
+          lng < -180 || lng > 180
+        ) {
+          console.error('Coordonnées invalides reçues:', { lat, lng });
+          setAlertMessage('⚠️ Position invalide');
+          setTimeout(() => setAlertMessage(null), 3000);
+          return;
+        }
+        
+        setMapCenter([lat, lng]);
+        setMapZoom(15);
+        if (pinId) setSelectedPinId(pinId);
+        setMarkerKey(Date.now());
+      } catch (err) {
+        console.error('Erreur handleNavigate:', err);
       }
-      
-      setMapCenter([lat, lng]);
-      setMapZoom(15);
-      setSelectedPinId(pinId);
-      setMarkerKey(Date.now());
     };
     
     window.addEventListener('map-navigate-pin', handleNavigate);
@@ -96,12 +108,14 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
+    
     setSearching(true);
     setAlertMessage(null);
 
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&addressdetails=1`,
+        { headers: { 'Accept-Language': 'fr' } }
       );
 
       if (!response.ok) throw new Error('Erreur réseau');
@@ -109,9 +123,8 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
       const results = await response.json();
 
       if (!results || results.length === 0) {
-        setAlertMessage(`❌ Adresse introuvable : "${searchQuery}"`);
-        setTimeout(() => setAlertMessage(null), 5000);
-        setSearching(false);
+        setAlertMessage(`❌ Adresse introuvable`);
+        setTimeout(() => setAlertMessage(null), 4000);
         return;
       }
 
@@ -119,31 +132,27 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
       const lat = parseFloat(result.lat);
       const lng = parseFloat(result.lon);
 
-      // ✅ Vérification complète des coordonnées
+      // Validation finale
       if (
-        isNaN(lat) || 
-        isNaN(lng) || 
-        !isFinite(lat) || 
-        !isFinite(lng) || 
-        lat < -90 || 
-        lat > 90 || 
-        lng < -180 || 
-        lng > 180
+        isNaN(lat) || isNaN(lng) || 
+        !isFinite(lat) || !isFinite(lng) ||
+        lat < -90 || lat > 90 || 
+        lng < -180 || lng > 180
       ) {
-        setAlertMessage(`⚠️ Coordonnées invalides reçues`);
-        setTimeout(() => setAlertMessage(null), 5000);
-        setSearching(false);
+        setAlertMessage('⚠️ Coordonnées invalides');
+        setTimeout(() => setAlertMessage(null), 4000);
         return;
       }
 
       setMapCenter([lat, lng]);
       setMapZoom(15);
       setMarkerKey(Date.now());
-      setAlertMessage(`✅ Trouvé: ${result.display_name}`);
+      setAlertMessage(`✅ ${result.display_name}`);
       setTimeout(() => setAlertMessage(null), 4000);
     } catch (err) {
-      setAlertMessage(`❌ Erreur: ${err instanceof Error ? err.message : 'Inconnue'}`);
-      setTimeout(() => setAlertMessage(null), 5000);
+      console.error('Erreur search:', err);
+      setAlertMessage(`❌ Erreur de recherche`);
+      setTimeout(() => setAlertMessage(null), 4000);
     } finally {
       setSearching(false);
     }
@@ -153,25 +162,34 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
     if (e.key === 'Enter') handleSearch();
   };
 
-  // ✅ Filtrer uniquement les pins valides
-  const validPins = safePins.filter(pin => 
-    pin && 
-    typeof pin.lat === 'number' && 
-    typeof pin.lng === 'number' && 
-    !isNaN(pin.lat) && 
-    !isNaN(pin.lng) && 
-    isFinite(pin.lat) && 
-    isFinite(pin.lng)
-  );
+  // Filtrage sécurisé des pins
+  const validPins = localPins.filter(pin => {
+    if (!pin) return false;
+    if (typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
+    if (isNaN(pin.lat) || isNaN(pin.lng)) return false;
+    if (!isFinite(pin.lat) || !isFinite(pin.lng)) return false;
+    if (pin.lat < -90 || pin.lat > 90) return false;
+    if (pin.lng < -180 || pin.lng > 180) return false;
+    return true;
+  });
+
+  if (!isReady) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-cyber-dark">
+        <p className="text-cyber-text-dim font-mono text-sm">Chargement de la carte...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Barre de recherche */}
       <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 backdrop-blur-sm z-10 flex-shrink-0">
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Rechercher une adresse (international)..."
+          placeholder="Rechercher une adresse..."
           className="flex-1 bg-cyber-black border border-cyber-border rounded-lg px-3 py-1.5 text-xs text-cyber-text outline-none focus:border-cyber-cyan font-mono"
         />
         <button
@@ -183,27 +201,44 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
         </button>
       </div>
 
+      {/* Alerte */}
       {alertMessage && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-cyber-dark/95 border border-cyber-border text-xs font-mono text-cyber-text shadow-lg animate-fade-in max-w-md">
           {alertMessage}
         </div>
       )}
 
+      {/* Carte */}
       <div className="flex-1 min-h-0">
         <MapContainer
           center={mapCenter}
           zoom={mapZoom}
           className="w-full h-full"
           worldCopyJump={true}
+          key={`map-${markerKey}`}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <MapController lat={mapCenter[0]} lng={mapCenter[1]} zoom={mapZoom} />
-          <Marker key={`search-${markerKey}`} position={mapCenter} icon={redIcon}>
-            <Popup>Position: {mapCenter[0].toFixed(6)}, {mapCenter[1].toFixed(6)}</Popup>
+          
+          {/* Marker recherche */}
+          <Marker 
+            key={`search-marker-${markerKey}`} 
+            position={mapCenter} 
+            icon={redIcon}
+          >
+            <Popup>
+              <div className="text-xs font-mono">
+                Position<br/>
+                Lat: {mapCenter[0].toFixed(6)}<br/>
+                Lng: {mapCenter[1].toFixed(6)}
+              </div>
+            </Popup>
           </Marker>
+
+          {/* Pins */}
           {validPins.map((pin) => (
             <Marker
               key={pin.id}
@@ -222,11 +257,11 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
         </MapContainer>
       </div>
 
-      {/* Liste des pins */}
+      {/* Liste pins */}
       <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
         <div className="p-2 space-y-1">
           {validPins.length === 0 ? (
-            <p className="text-xs text-cyber-text-dim font-mono text-center py-4">Aucun pin sauvegardé</p>
+            <p className="text-xs text-cyber-text-dim font-mono text-center py-4">Aucun pin</p>
           ) : (
             validPins.map((pin) => (
               <button
