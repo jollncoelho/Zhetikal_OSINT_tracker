@@ -113,4 +113,61 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapT
       {markerState.kind === 'loading' && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 1000, background: 'rgba(15,
+          zIndex: 1000, background: 'rgba(15,23,42,0.92)',
+          border: '1px solid rgba(99,102,241,0.4)', borderRadius: 8,
+          padding: '7px 16px', color: '#a5b4fc', fontSize: 12, fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{
+            width: 12, height: 12,
+            border: '2px solid rgba(99,102,241,0.4)', borderTopColor: '#818cf8',
+            borderRadius: '50%', display: 'inline-block',
+            animation: 'spin 0.75s linear infinite',
+          }} />
+          Géocodage en cours…
+        </div>
+      )}
+
+      {markerState.kind === 'error' && (
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1000, background: 'rgba(127,29,29,0.92)',
+          border: '1px solid rgba(239,68,68,0.5)', borderRadius: 8,
+          padding: '7px 16px', color: '#fca5a5', fontSize: 12, fontWeight: 600,
+        }}>
+          Adresse introuvable : « {markerState.address} »
+        </div>
+      )}
+
+      <MapContainer
+        center={[46.5, 2.5]}
+        zoom={5}
+        zoomControl={false}
+        attributionControl
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        <MapRefCapture mapRef={mapRef} />
+        
+        {/* Rendu sécurisé du marqueur de la goutte rouge */}
+        {markerState.kind === 'ok' && !isNaN(markerState.lat) && !isNaN(markerState.lng) && (
+          <Marker
+            key={`marker-${markerState.lat}-${markerState.lng}-${Date.now()}`}
+            position={[markerState.lat, markerState.lng]}
+            icon={PIN_ICON}
+          >
+            <Popup>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{markerState.address}</span>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
