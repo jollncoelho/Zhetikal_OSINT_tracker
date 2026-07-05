@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapPin } from '../types';
@@ -23,6 +23,23 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+// Composant interne pour déplacer proprement la vue sans recréer la carte
+function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.setView(center, zoom);
+      // Force le rafraîchissement des tuiles pour éviter les carrés gris cassés
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }
+  }, [center, zoom, map]);
+
+  return null;
+}
+
 interface MapTabProps {
   pins: MapPin[];
   onUpdatePins: (pins: MapPin[]) => void;
@@ -36,7 +53,6 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   const [mapZoom, setMapZoom] = useState(6);
   const [markerKey, setMarkerKey] = useState(0);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [mapKey, setMapKey] = useState(0);
 
   // Navigation
   useEffect(() => {
@@ -48,7 +64,6 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
           setMapZoom(15);
           if (pinId) setSelectedPinId(pinId);
           setMarkerKey(Date.now());
-          setMapKey(prev => prev + 1);
         }
       } catch (err) {
         console.error('Nav error:', err);
@@ -83,7 +98,6 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
         setMapCenter([lat, lng]);
         setMapZoom(15);
         setMarkerKey(Date.now());
-        setMapKey(prev => prev + 1);
         setAlertMessage(`✅ Trouvé`);
         setTimeout(() => setAlertMessage(null), 4000);
       }
@@ -100,8 +114,8 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   ) : [];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative">
-      <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-10">
+    <div className="flex-1 flex flex-col min-h-0 relative w-full h-full">
+      <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-10 flex-shrink-0">
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -119,26 +133,31 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
       </div>
 
       {alertMessage && (
-        <div className="absolute top-14 left-1/2 z-30 px-4 py-2 rounded bg-cyber-dark border text-xs">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded bg-cyber-dark border text-xs text-cyber-text">
           {alertMessage}
         </div>
       )}
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative w-full h-full">
+        {/* Pas de clé dynamique ici, la carte reste fixe et stable dans le DOM */}
         <MapContainer
-          key={mapKey}
-          center={mapCenter}
-          zoom={mapZoom}
-          className="w-full h-full"
-          style={{ minHeight: '100%', minWidth: '100%' }}
+          center={[46.603354, 1.888334]}
+          zoom={6}
+          className="w-full h-full absolute inset-0"
+          style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; OSM'
           />
-          <Marker key={`search-${markerKey}`} position={mapCenter} icon={redIcon}>
+
+          {/* Le contrôleur s'occupe de déplacer la carte proprement au changement d'état */}
+          <MapController center={mapCenter} zoom={mapZoom} />
+
+          <Marker key={`search-${markerKey}-${mapCenter[0]}-${mapCenter[1]}`} position={mapCenter} icon={redIcon}>
             <Popup>Search</Popup>
           </Marker>
+
           {safePins.map((pin) => (
             <Marker
               key={pin.id}
