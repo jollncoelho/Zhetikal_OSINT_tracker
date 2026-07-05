@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapPin } from '../types';
 
-// Fix icônes Leaflet
+// Fix icônes Leaflet de base
 if (typeof window !== 'undefined') {
   delete (L.Icon.Default.prototype as any)._getIconUrl;
   L.Icon.Default.mergeOptions({
@@ -14,6 +14,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Icône de recherche Rouge
 const redIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
@@ -23,15 +24,14 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// Coordonnées par défaut SÉCURISÉES
 const DEFAULT_LAT = 46.603354;
 const DEFAULT_LNG = 1.888334;
 
+// Contrôleur qui gère le déplacement de la carte sans détruire le conteneur HTML
 function MapController({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
   
   useEffect(() => {
-    // Validation ULTRA stricte
     const isValidLat = typeof lat === 'number' && !isNaN(lat) && isFinite(lat) && lat >= -90 && lat <= 90;
     const isValidLng = typeof lng === 'number' && !isNaN(lng) && isFinite(lng) && lng >= -180 && lng <= 180;
     
@@ -49,7 +49,6 @@ interface MapTabProps {
 }
 
 export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
-  // État local sécurisé
   const [localPins, setLocalPins] = useState<MapPin[]>([]);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,14 +59,12 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  // Synchroniser pins externes avec état local
   useEffect(() => {
     const safePins = Array.isArray(propPins) ? propPins : [];
     setLocalPins(safePins);
     setIsReady(true);
   }, [propPins]);
 
-  // Gestion navigation
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       try {
@@ -76,7 +73,6 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
         const lng = detail.lng;
         const pinId = detail.pinId;
         
-        // Validation stricte
         if (
           typeof lat !== 'number' || 
           typeof lng !== 'number' || 
@@ -119,7 +115,6 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
       );
 
       if (!response.ok) throw new Error('Erreur réseau');
-
       const results = await response.json();
 
       if (!results || results.length === 0) {
@@ -132,7 +127,6 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
       const lat = parseFloat(result.lat);
       const lng = parseFloat(result.lon);
 
-      // Validation finale
       if (
         isNaN(lat) || isNaN(lng) || 
         !isFinite(lat) || !isFinite(lng) ||
@@ -162,7 +156,6 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
     if (e.key === 'Enter') handleSearch();
   };
 
-  // Filtrage sécurisé des pins
   const validPins = localPins.filter(pin => {
     if (!pin) return false;
     if (typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
@@ -203,29 +196,30 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
 
       {/* Alerte */}
       {alertMessage && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-cyber-dark/95 border border-cyber-border text-xs font-mono text-cyber-text shadow-lg animate-fade-in max-w-md">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg bg-cyber-dark/95 border border-cyber-border text-xs font-mono text-cyber-text shadow-lg max-w-md">
           {alertMessage}
         </div>
       )}
 
-      {/* Carte */}
+      {/* Conteneur de carte STABLE (Sans clé dynamique destructive) */}
       <div className="flex-1 min-h-0">
         <MapContainer
-          center={mapCenter}
+          center={[DEFAULT_LAT, DEFAULT_LNG]}
           zoom={mapZoom}
           className="w-full h-full"
           worldCopyJump={true}
-          key={`map-${markerKey}`}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          
+          {/* Gère les déplacements de vue proprement via flyTo */}
           <MapController lat={mapCenter[0]} lng={mapCenter[1]} zoom={mapZoom} />
           
-          {/* Marker recherche */}
+          {/* C'est ICI qu'on met la clé unique pour forcer le rafraîchissement de la goutte */}
           <Marker 
-            key={`search-marker-${markerKey}`} 
+            key={`search-marker-${markerKey}-${mapCenter[0]}-${mapCenter[1]}`} 
             position={mapCenter} 
             icon={redIcon}
           >
@@ -238,7 +232,7 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
             </Popup>
           </Marker>
 
-          {/* Pins */}
+          {/* Rendu des autres pins enregistrés */}
           {validPins.map((pin) => (
             <Marker
               key={pin.id}
@@ -257,7 +251,7 @@ export default function MapTab({ pins: propPins, onUpdatePins }: MapTabProps) {
         </MapContainer>
       </div>
 
-      {/* Liste pins */}
+      {/* Liste du bas */}
       <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
         <div className="p-2 space-y-1">
           {validPins.length === 0 ? (
