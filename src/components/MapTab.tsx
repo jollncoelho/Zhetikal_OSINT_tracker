@@ -59,7 +59,6 @@ function Navigator({ target }: { target: [number, number] | null }) {
 
   useEffect(() => {
     if (!target) return;
-    // Only navigate when target actually changes (not on every render)
     if (prevTarget.current?.[0] === target[0] && prevTarget.current?.[1] === target[1]) return;
     prevTarget.current = target;
     map.setView(target, 14, { animate: true, duration: 0.8 });
@@ -73,7 +72,6 @@ function SizeWatcher({ isVisible }: { isVisible: boolean }) {
   const map = useMap();
   useEffect(() => {
     if (!isVisible) return;
-    // Double rAF ensures browser has finished layout before Leaflet recalculates
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         map.invalidateSize();
@@ -89,15 +87,22 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible = true 
   const [navTarget, setNavTarget] = useState<[number, number] | null>(null);
 
   async function runSearch(address: string) {
-    const trimmed = address.trim();
-    if (!trimmed) return;
+    // 🛠️ NETTOYAGE STRICT : Retire les mots parasites comme "localisation" ou les labels d'entités invalides
+    let cleanedAddress = address
+      .replace(/(?:localisation|location|entité|entity)\s*:/i, '')
+      .replace(/\b(localisation|location)\b/gi, '')
+      .trim();
+
+    if (!cleanedAddress) return;
+
     setSearchState({ kind: 'loading' });
-    const result = await geocode(trimmed);
-    if (result) {
+    const result = await geocode(cleanedAddress);
+    
+    if (result && !isNaN(result.lat) && !isNaN(result.lng)) {
       setSearchState({ kind: 'ok', lat: result.lat, lng: result.lng, label: result.label });
       setNavTarget([result.lat, result.lng]);
     } else {
-      setSearchState({ kind: 'error', address: trimmed });
+      setSearchState({ kind: 'error', address: cleanedAddress });
       // Auto-clear error after 5s
       setTimeout(() => setSearchState(s => s.kind === 'error' ? { kind: 'idle' } : s), 5000);
     }
@@ -106,9 +111,13 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible = true 
   // Triggered when an entity node sends the user to this map view
   useEffect(() => {
     if (!focusTarget?.address.trim()) return;
-    setSearchInput(focusTarget.address.trim());
-    runSearch(focusTarget.address.trim()).then(() => onFocusConsumed?.());
-  // focusTarget is a new object (new nonce) each time it's set in App
+    
+    const rawAddress = focusTarget.address.trim();
+    // Affiche l'adresse brute dans le champ pour que l'utilisateur voie ce qu'il cherche
+    setSearchInput(rawAddress);
+    
+    // Lance la recherche nettoyée de manière asynchrone
+    runSearch(rawAddress).then(() => onFocusConsumed?.());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget]);
 
@@ -178,9 +187,10 @@ export default function MapTab({ focusTarget, onFocusConsumed, isVisible = true 
           />
           <SizeWatcher isVisible={isVisible} />
           <Navigator target={navTarget} />
-          {searchState.kind === 'ok' && (
+          
+          {searchState.kind === 'ok' && !isNaN(searchState.lat) && !isNaN(searchState.lng) && (
             <Marker
-              key={`${searchState.lat},${searchState.lng}`}
+              key={`search-pin-${searchState.lat}-${searchState.lng}-${Date.now()}`}
               position={[searchState.lat, searchState.lng]}
               icon={PIN_ICON}
             >
