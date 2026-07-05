@@ -13,9 +13,7 @@ if (typeof window !== 'undefined') {
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
     });
-  } catch (e) {
-    console.error('Leaflet icon error:', e);
-  }
+  } catch (e) {}
 }
 
 const redIcon = new L.Icon({
@@ -36,11 +34,10 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// Composant pour recentrer la carte
 function RecenterMap({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    if (center && center[0] && center[1] && !isNaN(center[0]) && !isNaN(center[1])) {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
       map.flyTo(center, zoom, { duration: 1.5 });
     }
   }, [center, zoom, map]);
@@ -51,9 +48,10 @@ interface MapTabProps {
   pins: MapPin[];
   nodes: EntityNode[];
   onUpdatePins: (pins: MapPin[]) => void;
+  onGeocodeLocation?: (nodeId: string, lat: number, lng: number) => void;
 }
 
-export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
+export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }: MapTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
@@ -62,37 +60,73 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  const [geocodingId, setGeocodingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  useEffect(() => { setIsClient(true); }, []);
 
-  // ✅ Écouter l'événement de navigation
+  // Navigation depuis un pin
   useEffect(() => {
     const handleNavigate = (e: any) => {
-      console.log('[MapTab] Navigation event received:', e.detail);
       const { pinId, lat, lng } = e.detail || {};
-      
       if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-        console.log('[MapTab] Moving to:', { lat, lng });
         setMapCenter([lat, lng]);
         setMapZoom(15);
         if (pinId) setSelectedPinId(pinId);
         setMapKey(prev => prev + 1);
-        setAlertMessage(`📍 Position: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-        setTimeout(() => setAlertMessage(null), 3000);
-      } else {
-        console.error('[MapTab] Invalid coordinates:', { lat, lng });
-        setAlertMessage('❌ Coordonnées invalides');
-        setTimeout(() => setAlertMessage(null), 3000);
       }
     };
-
     window.addEventListener('map-navigate-pin', handleNavigate);
     return () => window.removeEventListener('map-navigate-pin', handleNavigate);
   }, []);
 
-  // Recherche d'adresse
+  // ✅ FONCTION CLÉ : Géocoder une adresse et naviguer
+  const geocodeAndNavigate = useCallback(async (address: string, nodeId: string) => {
+    if (!address || address.trim() === '') {
+      setAlertMessage('❌ Aucune adresse pour cette entité');
+      setTimeout(() => setAlertMessage(null), 3000);
+      return;
+    }
+
+    setGeocodingId(nodeId);
+    setAlertMessage(`🔍 Recherche: ${address}`);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`
+      );
+      const results = await response.json();
+
+      if (!results || results.length === 0) {
+        setAlertMessage(`❌ Adresse introuvable: ${address}`);
+        setTimeout(() => setAlertMessage(null), 4000);
+        setGeocodingId(null);
+        return;
+      }
+
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+
+      if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+        setMapCenter([lat, lng]);
+        setMapZoom(15);
+        setMapKey(prev => prev + 1);
+        setAlertMessage(`✅ ${results[0].display_name}`);
+        setTimeout(() => setAlertMessage(null), 4000);
+
+        // Sauvegarder les coordonnées dans le node
+        if (onGeocodeLocation) {
+          onGeocodeLocation(nodeId, lat, lng);
+        }
+      }
+    } catch (err) {
+      setAlertMessage('❌ Erreur de géocodage');
+      setTimeout(() => setAlertMessage(null), 4000);
+    } finally {
+      setGeocodingId(null);
+    }
+  }, [onGeocodeLocation]);
+
+  // Recherche manuelle
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -121,14 +155,14 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
         setTimeout(() => setAlertMessage(null), 4000);
       }
     } catch (err) {
-      setAlertMessage('❌ Erreur de recherche');
+      setAlertMessage('❌ Erreur');
       setTimeout(() => setAlertMessage(null), 4000);
     } finally {
       setSearching(false);
     }
   }, [searchQuery]);
 
-  // Extraire les adresses des nodes Location
+  // Extraire les locations
   const locationNodes = nodes.filter(n => 
     (n.data as EntityData)?.entityType === 'location'
   );
@@ -140,14 +174,14 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
   if (!isClient) {
     return (
       <div className="flex-1 flex items-center justify-center bg-cyber-dark" style={{ minHeight: '500px' }}>
-        <p className="text-cyber-text-dim font-mono">Chargement de la carte...</p>
+        <p className="text-cyber-text-dim font-mono">Chargement...</p>
       </div>
     );
   }
 
   return (
     <div className="flex-1 flex flex-col relative w-full h-full" style={{ minHeight: '600px' }}>
-      {/* Barre de recherche */}
+      {/* Barre recherche */}
       <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-20 flex-shrink-0">
         <input
           value={searchQuery}
@@ -165,9 +199,8 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
         </button>
       </div>
 
-      {/* Alerte */}
       {alertMessage && (
-        <div className="absolute top-14 left-1/2 z-30 px-4 py-2 rounded bg-cyber-dark/95 border border-cyber-border text-xs font-mono shadow-lg">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded bg-cyber-dark/95 border border-cyber-border text-xs font-mono shadow-lg max-w-md">
           {alertMessage}
         </div>
       )}
@@ -187,7 +220,6 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
           />
           <RecenterMap center={mapCenter} zoom={mapZoom} />
           
-          {/* Marqueur de recherche */}
           <Marker position={mapCenter} icon={redIcon}>
             <Popup>
               <div className="text-xs font-mono">
@@ -198,7 +230,6 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
             </Popup>
           </Marker>
 
-          {/* Pins sauvegardés */}
           {safePins.map((pin) => (
             <Marker
               key={pin.id}
@@ -224,11 +255,11 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
         </MapContainer>
       </div>
 
-      {/* Liste des locations */}
+      {/* Liste des locations avec géocodage au clic */}
       <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
         <div className="p-2">
           <p className="text-[10px] text-cyber-text-dim font-mono mb-1 uppercase">
-            Entités Location ({locationNodes.length})
+            Entités Location ({locationNodes.length}) — clic pour géocoder
           </p>
           {locationNodes.length === 0 ? (
             <p className="text-xs text-cyber-text-dim text-center py-2">Aucune entité Location</p>
@@ -237,25 +268,27 @@ export default function MapTab({ pins, nodes, onUpdatePins }: MapTabProps) {
               {locationNodes.map((node) => {
                 const data = node.data as EntityData;
                 const address = data.fields?.address || data.notes || data.label;
+                const hasCoords = data.fields?.lat && data.fields?.lng;
+                const isGeocoding = geocodingId === node.id;
+
                 return (
                   <button
                     key={node.id}
-                    onClick={() => {
-                      console.log('[MapTab] Click on location:', { 
-                        id: node.id, 
-                        label: data.label,
-                        fields: data.fields,
-                        notes: data.notes 
-                      });
-                      // Déclencher l'événement de navigation
-                      window.dispatchEvent(new CustomEvent('entity-go-to-map', {
-                        detail: { nodeId: node.id }
-                      }));
-                    }}
-                    className="w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-cyber-panel transition-colors text-cyber-text-dim"
+                    onClick={() => geocodeAndNavigate(address, node.id)}
+                    disabled={isGeocoding}
+                    className={`w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors ${
+                      isGeocoding 
+                        ? 'bg-cyber-yellow/10 text-cyber-yellow' 
+                        : hasCoords 
+                          ? 'bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20' 
+                          : 'hover:bg-cyber-panel text-cyber-text-dim'
+                    }`}
                   >
-                    <span className="w-2 h-2 rounded-full inline-block mr-2 bg-cyber-green" />
-                    {address || 'Sans adresse'}
+                    <span className="w-2 h-2 rounded-full inline-block mr-2" 
+                      style={{ background: hasCoords ? '#10b981' : '#6b7280' }} 
+                    />
+                    {isGeocoding ? '...' : address || 'Sans adresse'}
+                    {hasCoords && <span className="ml-1 text-[10px]">✅</span>}
                   </button>
                 );
               })}
