@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Ghost, Activity, Home, Network, Map } from 'lucide-react';
-import type { FocusTarget } from './components/MapTab';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -41,6 +40,11 @@ function AppInner() {
     updateCaseTitle,
     closeCase,
     updateCase,
+    addPin,
+    updatePin,
+    deletePin,
+    addPinLink,
+    removePinLink,
   } = useStore();
 
   // ✅ Calcul de activeCase
@@ -62,7 +66,6 @@ function AppInner() {
   );
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [mapFocusTarget, setMapFocusTarget] = useState<FocusTarget | null>(null);
   
   const [exportPngFn, setExportPngFn] = useState<() => Promise<void>>(() => async () => {});
   const [exportPdfFn, setExportPdfFn] = useState<() => Promise<void>>(() => async () => {});
@@ -75,6 +78,33 @@ function AppInner() {
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
+
+  // ✅ FONCTION POUR CORRIGER LES LABELS LOCATION
+  const fixLocationLabels = useCallback(() => {
+    const locationNodes = nodes.filter(n => 
+      (n.data as EntityData).entityType === 'location' && 
+      (n.data as EntityData).label === 'Location'
+    );
+
+    if (locationNodes.length === 0) {
+      alert('Aucune entité Location à corriger');
+      return;
+    }
+
+    let corrected = 0;
+    locationNodes.forEach(node => {
+      const data = node.data as EntityData;
+      // Récupérer l'adresse depuis fields.address ou notes
+      const address = data.fields?.address || data.notes || '';
+      
+      if (address.trim()) {
+        updateNodeData(node.id, { label: address.trim() });
+        corrected++;
+      }
+    });
+
+    alert(`✅ ${corrected} entité(s) Location corrigée(s) sur ${locationNodes.length}`);
+  }, [nodes, updateNodeData]);
 
   useEffect(() => {
     const handleUpdate = (e: Event) => {
@@ -116,22 +146,48 @@ function AppInner() {
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
       const { nodeId } = (e as CustomEvent).detail;
-      const node = nodes.find((n) => n.id === nodeId);
-      if (!node) return;
-      const fields = (node.data.fields ?? {}) as Record<string, string>;
-      const fieldAddress = (fields.address ?? '').trim();
-      const address = fieldAddress || String(node.data.label ?? '').trim();
-      console.log('[GoToMap] nodeId:', nodeId);
-      console.log('[GoToMap] node.data.label:', node.data.label);
-      console.log('[GoToMap] node.data.fields:', node.data.fields);
-      console.log('[GoToMap] fields.address:', fieldAddress || '(vide)');
-      console.log('[GoToMap] adresse finale envoyée:', address);
-      setMapFocusTarget({ address, nonce: Date.now() });
+      const pinLinks = activeCase?.pinLinks ?? [];
+      const link = pinLinks.find((l) => l.identifierId === nodeId);
+
       setView('map');
+
+      if (link) {
+        const pin = activeCase?.locations?.find((p) => p.id === link.pinId);
+        const lat = pin?.lat ?? 48.8566;
+        const lng = pin?.lng ?? 2.3522;
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
+            detail: { pinId: link.pinId, lat, lng },
+          }));
+        }, 60);
+      } else {
+        const node = nodes.find((n) => n.id === nodeId);
+        if (!node) return;
+        const fields = (node.data.fields ?? {}) as Record<string, string>;
+        const lat = parseFloat(fields.lat ?? '');
+        const lng = parseFloat(fields.lng ?? '');
+        const resolvedLat = isNaN(lat) ? 48.8566 : lat;
+        const resolvedLng = isNaN(lng) ? 2.3522 : lng;
+        const pinId = addPin({
+          label: node.data.label,
+          address: (fields.address ?? '').trim(),
+          notes: node.data.notes ?? '',
+          lat: resolvedLat,
+          lng: resolvedLng,
+          color: node.data.color ?? '#10b981',
+          iconId: null,
+        });
+        addPinLink({ pinId, identifierId: nodeId, context: '' });
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
+            detail: { pinId, lat: resolvedLat, lng: resolvedLng },
+          }));
+        }, 60);
+      }
     };
     window.addEventListener('entity-go-to-map', handleGoToMap);
     return () => window.removeEventListener('entity-go-to-map', handleGoToMap);
-  }, [nodes, setView]);
+  }, [activeCase, nodes, addPin, addPinLink, setView]);
 
   useEffect(() => {
     if (cases.length === 0) createCase('Default Case', '');
@@ -192,6 +248,7 @@ function AppInner() {
         onExportPng={exportPngFn}
         onImport={importCase}
         onClearCanvas={clearCanvas}
+        onFixLocationLabels={fixLocationLabels}
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">
@@ -296,46 +353,44 @@ function AppInner() {
           </div>
         )}
 
-        {/* Graph — hidden via display:none when inactive; ReactFlow has no dimension issue */}
-        <div className={`flex-1 flex flex-col min-h-0 ${view === 'graph' ? '' : 'hidden'}`}>
-          <ReactFlowProvider>
-            <InfoTab
+        {view === 'graph' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ReactFlowProvider>
+              <InfoTab
+                nodes={nodes}
+                edges={edges}
+                selectedEdgeId={selectedEdgeId}
+                selectedNodeId={selectedNodeId}
+                notePanelOpen={notePanelOpen}
+                activeCase={activeCase}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick as any}
+                onPaneClick={handlePaneClick}
+                onSetNotePanelOpen={setNotePanelOpen}
+                onSetSelectedNodeId={setSelectedNodeId}
+                updateNodeData={updateNodeData}
+                updateCaseNotes={updateCaseNotes}
+                updateCaseTitle={updateCaseTitle}
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
+              />
+            </ReactFlowProvider>
+          </div>
+        ) : (
+          <div className="flex-1 flex min-h-0">
+            <MapTab
+              pins={activeCase?.locations || []}
               nodes={nodes}
-              edges={edges}
-              selectedEdgeId={selectedEdgeId}
-              selectedNodeId={selectedNodeId}
-              notePanelOpen={notePanelOpen}
-              activeCase={activeCase}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onEdgeClick={handleEdgeClick}
-              onNodeClick={handleNodeClick as any}
-              onPaneClick={handlePaneClick}
-              onSetNotePanelOpen={setNotePanelOpen}
-              onSetSelectedNodeId={setSelectedNodeId}
-              updateNodeData={updateNodeData}
-              updateCaseNotes={updateCaseNotes}
-              updateCaseTitle={updateCaseTitle}
-              onRegisterExportPng={handleRegisterExportPng}
-              onRegisterExportPdf={handleRegisterExportPdf}
+              onUpdatePins={(pins) => {
+                if (!activeCaseId) return;
+                updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
+              }}
             />
-          </ReactFlowProvider>
-        </div>
-        {/* Map — uses visibility+absolute instead of display:none so Leaflet keeps real dimensions */}
-        <div
-          className="flex-1 flex min-h-0"
-          style={view !== 'map' ? {
-            position: 'absolute', inset: 0,
-            visibility: 'hidden', pointerEvents: 'none', zIndex: -1,
-          } : undefined}
-        >
-          <MapTab
-            focusTarget={mapFocusTarget}
-            onFocusConsumed={() => setMapFocusTarget(null)}
-            isVisible={view === 'map'}
-          />
-        </div>
+          </div>
+        )}
 
         <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -363,7 +418,7 @@ function AppInner() {
 
         <div className="flex flex-col">
           <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer />
+          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
         </div>
       </div>
 
