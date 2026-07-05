@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -21,13 +21,30 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+// ✅ COMPOSANT SÉCURISÉ
 function MapController({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
+  
   useEffect(() => {
-    if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+    // ✅ VÉRIFICATION STRICTE avant de déplacer la carte
+    if (
+      typeof lat === 'number' && 
+      typeof lng === 'number' && 
+      !isNaN(lat) && 
+      !isNaN(lng) && 
+      isFinite(lat) && 
+      isFinite(lng) &&
+      lat >= -90 && 
+      lat <= 90 && 
+      lng >= -180 && 
+      lng <= 180
+    ) {
       map.flyTo([lat, lng], zoom, { duration: 1.5 });
+    } else {
+      console.warn('MapController: Coordonnées invalides ignorées:', { lat, lng });
     }
   }, [lat, lng, zoom, map]);
+  
   return null;
 }
 
@@ -40,27 +57,39 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  // ✅ État initial valide (centre de la France)
   const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
   const [mapZoom, setMapZoom] = useState(6);
   const [markerKey, setMarkerKey] = useState(Date.now());
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
-  // ✅ SÉCURITÉ: s'assurer que pins est toujours un tableau
-  const safePins = pins || [];
+  // Sécurité pour pins
+  const safePins = Array.isArray(pins) ? pins : [];
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       const { pinId, lat, lng } = (e as CustomEvent).detail;
-      if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) {
+      
+      // ✅ Vérification stricte
+      if (
+        typeof lat !== 'number' || 
+        typeof lng !== 'number' || 
+        isNaN(lat) || 
+        isNaN(lng) || 
+        !isFinite(lat) || 
+        !isFinite(lng)
+      ) {
         setAlertMessage(`⚠️ Coordonnées invalides (NaN détecté)`);
         setTimeout(() => setAlertMessage(null), 4000);
         return;
       }
+      
       setMapCenter([lat, lng]);
       setMapZoom(15);
       setSelectedPinId(pinId);
       setMarkerKey(Date.now());
     };
+    
     window.addEventListener('map-navigate-pin', handleNavigate);
     return () => window.removeEventListener('map-navigate-pin', handleNavigate);
   }, []);
@@ -90,7 +119,17 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
       const lat = parseFloat(result.lat);
       const lng = parseFloat(result.lon);
 
-      if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      // ✅ Vérification complète des coordonnées
+      if (
+        isNaN(lat) || 
+        isNaN(lng) || 
+        !isFinite(lat) || 
+        !isFinite(lng) || 
+        lat < -90 || 
+        lat > 90 || 
+        lng < -180 || 
+        lng > 180
+      ) {
         setAlertMessage(`⚠️ Coordonnées invalides reçues`);
         setTimeout(() => setAlertMessage(null), 5000);
         setSearching(false);
@@ -114,8 +153,16 @@ export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
     if (e.key === 'Enter') handleSearch();
   };
 
-  // ✅ Filtrer les pins valides
-  const validPins = safePins.filter(pin => pin && !isNaN(pin.lat) && !isNaN(pin.lng) && isFinite(pin.lat) && isFinite(pin.lng));
+  // ✅ Filtrer uniquement les pins valides
+  const validPins = safePins.filter(pin => 
+    pin && 
+    typeof pin.lat === 'number' && 
+    typeof pin.lng === 'number' && 
+    !isNaN(pin.lat) && 
+    !isNaN(pin.lng) && 
+    isFinite(pin.lat) && 
+    isFinite(pin.lng)
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
