@@ -1,183 +1,202 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { MapPin } from '../types';
+import { Search } from 'lucide-react';
 
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  });
-}
-
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+// Pure CSS divIcon — no external image URLs, works in any Vite build
+const PIN_ICON = L.divIcon({
+  html: `<div style="
+    width:16px;height:16px;border-radius:50%;
+    background:#ef4444;border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(239,68,68,.55),0 2px 10px rgba(0,0,0,.6);
+  "></div>`,
+  className: 'custom-map-pin',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  popupAnchor: [0, -12],
 });
 
-function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
+export interface FocusTarget {
+  address: string;
+  nonce: number;
+}
+
+interface MapTabProps {
+  focusTarget?: FocusTarget | null;
+  onFocusConsumed?: () => void;
+  isVisible?: boolean;
+}
+
+type SearchState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ok'; lat: number; lng: number; label: string }
+  | { kind: 'error'; address: string };
+
+async function geocode(address: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`,
+      { headers: { 'Accept-Language': 'fr,en' } }
+    );
+    const results = await res.json();
+    if (!Array.isArray(results) || results.length === 0) return null;
+    return {
+      lat: parseFloat(results[0].lat),
+      lng: parseFloat(results[0].lon),
+      label: results[0].display_name?.split(',')[0] ?? address,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Calls map.setView when target changes — must live inside MapContainer
+function Navigator({ target }: { target: [number, number] | null }) {
   const map = useMap();
-  
+  const prevTarget = useRef<[number, number] | null>(null);
+
   useEffect(() => {
-    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
-      // Force Leaflet à se recadrer proprement au pixel près
-      map.invalidateSize();
-      map.setView(center, zoom, { animate: true, duration: 1 });
-    }
-  }, [center, zoom, map]);
+    if (!target) return;
+    // Only navigate when target actually changes (not on every render)
+    if (prevTarget.current?.[0] === target[0] && prevTarget.current?.[1] === target[1]) return;
+    prevTarget.current = target;
+    map.setView(target, 14, { animate: true, duration: 0.8 });
+  }, [map, target]);
 
   return null;
 }
 
-interface MapTabProps {
-  pins: MapPin[];
-  onUpdatePins: (pins: MapPin[]) => void;
+// Fixes Leaflet tile rendering after container switches from display:none
+function SizeWatcher({ isVisible }: { isVisible: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!isVisible) return;
+    // Double rAF ensures browser has finished layout before Leaflet recalculates
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        map.invalidateSize();
+      });
+    });
+  }, [map, isVisible]);
+  return null;
 }
 
-export default function MapTab({ pins, onUpdatePins }: MapTabProps) {
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
-  const [mapZoom, setMapZoom] = useState(6);
-  const [markerKey, setMarkerKey] = useState(0);
-  const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function MapTab({ focusTarget, onFocusConsumed, isVisible = true }: MapTabProps) {
+  const [searchInput, setSearchInput] = useState('');
+  const [searchState, setSearchState] = useState<SearchState>({ kind: 'idle' });
+  const [navTarget, setNavTarget] = useState<[number, number] | null>(null);
 
-  // Sécurité Resize : Force la reconstruction géométrique de la carte
-  useEffect(() => {
-    const observer = new ResizeObserver(() => {
-      // Évite les conflits de rendu asynchrones
-    });
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  // Écouteur de navigation globale du graphe
-  useEffect(() => {
-    const handleNavigate = (e: any) => {
-      try {
-        const { pinId, lat, lng } = e.detail || {};
-        if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-          setMapCenter([lat, lng]);
-          setMapZoom(15);
-          if (pinId) setSelectedPinId(pinId);
-          setMarkerKey(Date.now());
-        }
-      } catch (err) {
-        console.error('Nav error:', err);
-      }
-    };
-    window.addEventListener('map-navigate-pin', handleNavigate);
-    return () => window.removeEventListener('map-navigate-pin', handleNavigate);
-  }, []);
-
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setSearching(true);
-    setAlertMessage(null);
-
-    try {
-      // Requête HTTP propre sans restriction de pays pour le géocodage mondial
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.trim())}&limit=1&addressdetails=1`,
-        { headers: { 'Accept-Language': 'fr,en' } }
-      );
-      const results = await response.json();
-
-      if (!results || results.length === 0) {
-        setAlertMessage('❌ Adresse introuvable ou inconnue');
-        setTimeout(() => setAlertMessage(null), 4000);
-        return;
-      }
-
-      const lat = parseFloat(results[0].lat);
-      const lng = parseFloat(results[0].lon);
-
-      if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
-        setMapCenter([lat, lng]);
-        setMapZoom(15);
-        setMarkerKey(Date.now());
-        setAlertMessage(`✅ Localisé : ${results[0].display_name.split(',')[0]}`);
-        setTimeout(() => setAlertMessage(null), 4000);
-      }
-    } catch (err) {
-      setAlertMessage('❌ Erreur de connexion au service de carte');
-      setTimeout(() => setAlertMessage(null), 4000);
-    } finally {
-      setSearching(false);
+  async function runSearch(address: string) {
+    const trimmed = address.trim();
+    if (!trimmed) return;
+    setSearchState({ kind: 'loading' });
+    const result = await geocode(trimmed);
+    if (result) {
+      setSearchState({ kind: 'ok', lat: result.lat, lng: result.lng, label: result.label });
+      setNavTarget([result.lat, result.lng]);
+    } else {
+      setSearchState({ kind: 'error', address: trimmed });
+      // Auto-clear error after 5s
+      setTimeout(() => setSearchState(s => s.kind === 'error' ? { kind: 'idle' } : s), 5000);
     }
-  }, [searchQuery]);
+  }
 
-  const safePins = Array.isArray(pins) ? pins.filter(p => 
-    p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng)
-  ) : [];
+  // Triggered when an entity node sends the user to this map view
+  useEffect(() => {
+    if (!focusTarget?.address.trim()) return;
+    setSearchInput(focusTarget.address.trim());
+    runSearch(focusTarget.address.trim()).then(() => onFocusConsumed?.());
+  // focusTarget is a new object (new nonce) each time it's set in App
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTarget]);
 
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col min-h-0 relative w-full h-full bg-[#0a0e17]">
-      <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-10 flex-shrink-0">
-        <input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Entrez une ville, une adresse ou un pays..."
-          className="flex-1 bg-cyber-black border border-cyber-border rounded px-3 py-1.5 text-xs text-cyber-text outline-none focus:border-cyber-cyan font-mono"
-        />
+    <div className="flex-1 flex flex-col min-h-0 w-full h-full relative bg-[#0a0e17]">
+      {/* Search bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-cyber-border bg-cyber-dark/90 flex-shrink-0" style={{ zIndex: 10 }}>
+        <div className="relative flex-1 flex items-center">
+          <Search size={13} className="absolute left-2.5 text-cyber-text-dim pointer-events-none" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runSearch(searchInput)}
+            placeholder="Entrez une ville, une adresse ou un pays…"
+            className="w-full pl-8 pr-3 py-1.5 bg-cyber-black border border-cyber-border rounded text-xs text-cyber-text font-mono outline-none focus:border-cyber-cyan transition-colors"
+          />
+        </div>
         <button
-          onClick={handleSearch}
-          disabled={searching}
-          className="px-4 py-1.5 rounded bg-cyber-cyan/20 border border-cyber-cyan/40 text-cyber-cyan text-xs font-semibold hover:bg-cyber-cyan/30 transition-colors disabled:opacity-40 font-mono"
+          onClick={() => runSearch(searchInput)}
+          disabled={searchState.kind === 'loading'}
+          className="px-4 py-1.5 rounded bg-cyber-cyan/20 border border-cyber-cyan/40 text-cyber-cyan text-xs font-semibold font-mono hover:bg-cyber-cyan/30 transition-colors disabled:opacity-40 flex-shrink-0"
         >
-          {searching ? '...' : 'OK'}
+          {searchState.kind === 'loading' ? '…' : 'OK'}
         </button>
       </div>
 
-      {alertMessage && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded bg-cyber-dark/95 border border-cyber-border text-xs font-mono text-cyber-text shadow-xl max-w-sm text-center">
-          {alertMessage}
+      {/* Status banners */}
+      {searchState.kind === 'loading' && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold font-mono text-[#a5b4fc]"
+          style={{ top: 56, background: 'rgba(15,23,42,0.94)', border: '1px solid rgba(99,102,241,0.35)' }}>
+          <span style={{
+            width: 11, height: 11, borderRadius: '50%', display: 'inline-block',
+            border: '2px solid rgba(99,102,241,0.3)', borderTopColor: '#818cf8',
+            animation: 'mapspin 0.7s linear infinite',
+          }} />
+          Géocodage en cours…
         </div>
       )}
 
-      <div className="flex-1 min-h-0 relative w-full h-full">
+      {searchState.kind === 'ok' && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs font-semibold font-mono text-emerald-300"
+          style={{ top: 56, background: 'rgba(6,37,26,0.94)', border: '1px solid rgba(52,211,153,0.35)' }}>
+          Localisé : {searchState.label}
+        </div>
+      )}
+
+      {searchState.kind === 'error' && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs font-semibold font-mono text-red-300"
+          style={{ top: 56, background: 'rgba(69,10,10,0.94)', border: '1px solid rgba(239,68,68,0.4)' }}>
+          Adresse introuvable : « {searchState.address} »
+        </div>
+      )}
+
+      {/* Map */}
+      <div className="flex-1 min-h-0 relative">
         <MapContainer
-          center={[46.603354, 1.888334]}
+          center={[46.6, 1.9]}
           zoom={6}
-          className="w-full h-full absolute inset-0"
-          style={{ height: '100%', width: '100%' }}
+          zoomControl
+          attributionControl
+          style={{ height: '100%', width: '100%', position: 'absolute', inset: 0 }}
         >
           <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; OSM'
           />
-
-          <MapController center={mapCenter} zoom={mapZoom} />
-
-          <Marker key={`search-${markerKey}-${mapCenter[0]}-${mapCenter[1]}`} position={mapCenter} icon={redIcon}>
-            <Popup>
-              <span className="text-xs font-mono">Cible géolocalisée</span>
-            </Popup>
-          </Marker>
-
-          {safePins.map((pin) => (
+          <SizeWatcher isVisible={isVisible} />
+          <Navigator target={navTarget} />
+          {searchState.kind === 'ok' && (
             <Marker
-              key={pin.id}
-              position={[pin.lat, pin.lng]}
-              eventHandlers={{ click: () => setSelectedPinId(pin.id) }}
+              key={`${searchState.lat},${searchState.lng}`}
+              position={[searchState.lat, searchState.lng]}
+              icon={PIN_ICON}
             >
               <Popup>
-                <span className="text-xs font-mono font-bold">{pin.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{searchState.label}</span>
               </Popup>
             </Marker>
-          ))}
+          )}
         </MapContainer>
       </div>
+
+      <style>{`
+        @keyframes mapspin { to { transform: rotate(360deg); } }
+        .custom-map-pin { background: transparent !important; border: none !important; }
+        .leaflet-container { font-family: inherit; }
+      `}</style>
     </div>
   );
 }

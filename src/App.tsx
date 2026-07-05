@@ -296,7 +296,7 @@ function AppInner() {
           </div>
         )}
 
-        {/* Both views stay mounted — unmounting MapTab destroys the Leaflet instance */}
+        {/* Graph — hidden via display:none when inactive; ReactFlow has no dimension issue */}
         <div className={`flex-1 flex flex-col min-h-0 ${view === 'graph' ? '' : 'hidden'}`}>
           <ReactFlowProvider>
             <InfoTab
@@ -322,7 +322,14 @@ function AppInner() {
             />
           </ReactFlowProvider>
         </div>
-        <div className={`flex-1 flex min-h-0 ${view === 'map' ? '' : 'hidden'}`}>
+        {/* Map — uses visibility+absolute instead of display:none so Leaflet keeps real dimensions */}
+        <div
+          className="flex-1 flex min-h-0"
+          style={view !== 'map' ? {
+            position: 'absolute', inset: 0,
+            visibility: 'hidden', pointerEvents: 'none', zIndex: -1,
+          } : undefined}
+        >
           <MapTab
             focusTarget={mapFocusTarget}
             onFocusConsumed={() => setMapFocusTarget(null)}
