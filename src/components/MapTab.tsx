@@ -22,6 +22,7 @@ export interface FocusTarget {
 interface MapTabProps {
   focusTarget?: FocusTarget | null;
   onFocusConsumed?: () => void;
+  isVisible?: boolean;
 }
 
 type MarkerState =
@@ -86,9 +87,17 @@ function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null
   return null;
 }
 
-export default function MapTab({ focusTarget, onFocusConsumed }: MapTabProps) {
+export default function MapTab({ focusTarget, onFocusConsumed, isVisible }: MapTabProps) {
   const [markerState, setMarkerState] = useState<MarkerState>({ kind: 'none' });
   const mapRef = useRef<L.Map | null>(null);
+
+  // When the map tab becomes visible, recalculate tile layout —
+  // Leaflet loses track of dimensions while the container is hidden.
+  useEffect(() => {
+    if (isVisible && mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 50);
+    }
+  }, [isVisible]);
 
   useEffect(() => {
     if (!focusTarget?.address.trim()) {

@@ -326,6 +326,7 @@ function AppInner() {
           <MapTab
             focusTarget={mapFocusTarget}
             onFocusConsumed={() => setMapFocusTarget(null)}
+            isVisible={view === 'map'}
           />
         </div>
 
