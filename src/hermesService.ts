@@ -187,10 +187,18 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
 }
 
 const PORTAL_URL = 'https://inference-api.nousresearch.com/v1/chat/completions';
-const PORTAL_API_KEY = 'sk-nous-ztlONkUw7ZVkqFQOBi7kIFz3wILPTXgy';
 const PORTAL_MODEL = 'stepfun/step-3.7-flash:free';
 
+function getPortalApiKey(): string {
+  const key = typeof localStorage !== 'undefined' ? localStorage.getItem('portal_api_key') : null;
+  if (!key?.trim()) {
+    throw new Error('Clé API Portal manquante. Configure-la dans le panneau Avancé (Hermes) avant de lancer l\'analyse.');
+  }
+  return key.trim();
+}
+
 async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
+  const apiKey = getPortalApiKey();
   const messages = [
     { role: 'user', content: buildGraphPrompt(graphData, analystName) },
   ];
@@ -201,7 +209,7 @@ async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, anal
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PORTAL_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ model: PORTAL_MODEL, messages, stream: false }),
     });
@@ -240,13 +248,12 @@ export async function checkOllama(): Promise<boolean> {
 }
 
 export async function checkHermes(): Promise<boolean> {
+  const key = typeof localStorage !== 'undefined' ? localStorage.getItem('portal_api_key') : null;
+  if (!key?.trim()) return false;
   try {
     const res = await fetch(PORTAL_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PORTAL_API_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.trim()}` },
       body: JSON.stringify({ model: PORTAL_MODEL, messages: [{ role: 'user', content: 'ping' }], stream: false, max_tokens: 1 }),
     });
     return res.ok || res.status === 400;
