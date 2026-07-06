@@ -60,7 +60,6 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
 
 const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
 const OLLAMA_GENERATE_MODEL = 'gemma4:e2b';
-const HERMES_PROXY_URL = 'http://localhost:62938/analyze';
 
 function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName?: string): string {
   const analyst = analystName?.trim() || 'Analyste';
@@ -187,24 +186,37 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
   return parseOllamaTextToDiscovery(text, graphData);
 }
 
-async function runHermesAnalysis(graphData: { nodes: any[]; edges: any[] }): Promise<HermesDiscovery> {
+const PORTAL_URL = 'https://inference-api.nousresearch.com/v1/chat/completions';
+const PORTAL_API_KEY = 'sk-nous-voluntary_absurdismTXgy';
+const PORTAL_MODEL = 'stepfun/step-3.7-flash:free';
+
+async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
+  const messages = [
+    { role: 'user', content: buildGraphPrompt(graphData, analystName) },
+  ];
+
   let response: Response;
   try {
-    response = await fetch(HERMES_PROXY_URL, {
+    response = await fetch(PORTAL_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodes: graphData.nodes, edges: graphData.edges }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PORTAL_API_KEY}`,
+      },
+      body: JSON.stringify({ model: PORTAL_MODEL, messages, stream: false }),
     });
   } catch (err) {
-    throw new Error('Hermes proxy is unreachable (connection refused on port 62938).');
+    throw new Error('Portal API is unreachable. Check your internet connection.');
   }
 
   if (!response.ok) {
-    throw new Error(`Hermes proxy returned HTTP ${response.status}: ${await response.text()}`);
+    throw new Error(`Portal API returned HTTP ${response.status}: ${await response.text()}`);
   }
 
   const data = await response.json();
-  return data as HermesDiscovery;
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  if (!text) throw new Error('Portal API returned an empty response.');
+  return parseOllamaTextToDiscovery(text, graphData);
 }
 
 export async function runAnalysis(
@@ -213,7 +225,7 @@ export async function runAnalysis(
   analystName?: string
 ): Promise<HermesDiscovery> {
   if (mode === 'local') return runLocalAnalysis(graphData, analystName);
-  return runHermesAnalysis(graphData);
+  return runPortalAnalysis(graphData, analystName);
 }
 
 // ── Health checks ────────────────────────────────────────────────────────────
@@ -229,8 +241,15 @@ export async function checkOllama(): Promise<boolean> {
 
 export async function checkHermes(): Promise<boolean> {
   try {
-    const res = await fetch('http://localhost:62938/health', { method: 'GET' });
-    return res.ok;
+    const res = await fetch(PORTAL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PORTAL_API_KEY}`,
+      },
+      body: JSON.stringify({ model: PORTAL_MODEL, messages: [{ role: 'user', content: 'ping' }], stream: false, max_tokens: 1 }),
+    });
+    return res.ok || res.status === 400;
   } catch {
     return false;
   }
