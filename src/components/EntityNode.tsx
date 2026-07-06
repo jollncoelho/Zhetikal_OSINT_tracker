@@ -140,7 +140,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             </span>
             {data.entityType === 'url' && openUrl && (
               <a
-                href={openUrl}
+                href={data.label}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Ouvrir le lien"
@@ -195,7 +195,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
           {/* Lien web d'origine - décalé s'il y a aussi une icône de pivot OSINT active */}
           {LINK_TYPES.includes(data.entityType) && openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener noreferrer" title={`Visiter le lien directement`} onClick={(e) => e.stopPropagation()} className={`absolute bottom-2 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10 ${pivotOsintUrl ? 'left-[2.2rem]' : 'left-3'}`}>
+            <a href={data.entityType === 'url' ? data.label : openUrl} target="_blank" rel="noopener noreferrer" title={`Visiter le lien directement`} onClick={(e) => e.stopPropagation()} className={`absolute bottom-2 w-6 h-6 rounded-md flex items-center justify-center bg-cyber-dark/70 border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150 z-10 ${pivotOsintUrl ? 'left-[2.2rem]' : 'left-3'}`}>
               <Search size={11} />
             </a>
           )}
