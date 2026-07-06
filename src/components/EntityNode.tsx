@@ -134,9 +134,23 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         {renamingLabel ? (
           <input ref={labelRef} value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSaveLabel} onClick={(e) => e.stopPropagation()} className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono" style={{ color: data.color }} />
         ) : (
-          <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: data.color }} onDoubleClick={handleLabelDoubleClick} title="Double-clic pour renommer">
-            {data.label}
-          </span>
+          <>
+            <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: data.color }} onDoubleClick={handleLabelDoubleClick} title="Double-clic pour renommer">
+              {data.label}
+            </span>
+            {data.entityType === 'url' && openUrl && (
+              <a
+                href={openUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ouvrir le lien"
+                onClick={(e) => e.stopPropagation()}
+                className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-all duration-150"
+              >
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </>
         )}
       </div>
 
