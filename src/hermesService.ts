@@ -187,7 +187,7 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
 }
 
 const PORTAL_URL = 'https://inference-api.nousresearch.com/v1/chat/completions';
-const PORTAL_API_KEY = 'sk-nous-voluntary_absurdismTXgy';
+const PORTAL_API_KEY = 'sk-nous-ztlONkUw7ZVkqFQOBi7kIFz3wILPTXgy';
 const PORTAL_MODEL = 'stepfun/step-3.7-flash:free';
 
 async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
