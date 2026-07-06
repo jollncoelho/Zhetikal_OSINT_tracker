@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Minimize2, Maximize2, Save, Eye, EyeOff, Key } from 'lucide-react';
+import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { runAnalysis, checkOllama, checkHermes } from '../hermesService';
-import type { AnalysisMode, HermesDiscovery } from '../types/hermes';
+import type { AnalysisMode, HermesDiscovery, HermesEntity } from '../types/hermes';
 
 const LS_KEY = 'portal_api_key';
 
@@ -101,6 +101,17 @@ export const HermesAnalyzer: React.FC = () => {
     }
 
     setDiscovery(null);
+  };
+
+  const handleInjectOne = (entity: HermesEntity) => {
+    const key = entity.label.trim().toLowerCase();
+    if (!existingLabels.has(key)) {
+      addEntity(entity.type, entity.label);
+    }
+    // Remove this single entity from the list
+    setDiscovery((d) =>
+      d ? { ...d, entities: d.entities.filter((e) => !(e.type === entity.type && e.label === entity.label)) } : null
+    );
   };
 
   const handleSave = () => {
@@ -276,35 +287,69 @@ export const HermesAnalyzer: React.FC = () => {
                         key={i}
                         style={{
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: 2,
-                          padding: '6px 10px',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 8px 6px 10px',
                           background: 'rgba(30,41,59,0.8)',
                           borderRadius: 6,
                           border: '1px solid rgba(51,65,85,0.6)',
                         }}
                       >
-                        <span
+                        {/* Type + label */}
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.1em',
+                              color: '#60a5fa',
+                            }}
+                          >
+                            {e.type}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: '#e2e8f0',
+                              wordBreak: 'break-all',
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {e.label}
+                          </span>
+                        </div>
+
+                        {/* Individual inject button */}
+                        <button
+                          onClick={() => handleInjectOne(e)}
+                          title="Ajouter au graphe"
                           style={{
-                            fontSize: 9,
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em',
-                            color: '#60a5fa',
+                            flexShrink: 0,
+                            width: 26,
+                            height: 26,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(99,102,241,0.15)',
+                            border: '1px solid rgba(99,102,241,0.35)',
+                            borderRadius: 6,
+                            color: '#818cf8',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s, color 0.15s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(99,102,241,0.35)';
+                            e.currentTarget.style.color = '#a5b4fc';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(99,102,241,0.15)';
+                            e.currentTarget.style.color = '#818cf8';
                           }}
                         >
-                          + {e.type}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: '#e2e8f0',
-                            wordBreak: 'break-all',
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {e.label}
-                        </span>
+                          <PlusCircle size={13} />
+                        </button>
                       </div>
                     ))}
                   </div>
