@@ -28,7 +28,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
-  const [editingKey, setEditingKey] = useState(false);
+  const [panelOpen, setPanelOpen] = useState<boolean>(() => !localStorage.getItem(LS_KEY));
 
   useEffect(() => {
     Promise.all([checkOllama(), checkHermes()]).then(([ollama, hermes]) => {
@@ -43,9 +43,10 @@ export const HermesAnalyzer: React.FC = () => {
     localStorage.setItem(LS_KEY, trimmed);
     setSavedKey(trimmed);
     setKeyInput('');
-    setEditingKey(false);
+    setShowKey(false);
+    setPanelOpen(false);
     setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 4000);
+    setTimeout(() => setKeySaved(false), 3000);
   };
 
   const handleAnalyze = async () => {
@@ -360,105 +361,98 @@ export const HermesAnalyzer: React.FC = () => {
         </div>
       )}
 
-      {/* API key panel — only in hermes mode */}
+      {/* API key — only in hermes mode */}
       {mode === 'hermes' && (
-        <div style={{
-          width: '100%',
-          background: 'rgba(11,15,25,0.97)',
-          border: '1px solid rgba(99,102,241,0.3)',
-          borderRadius: 10,
-          padding: '10px 14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Key size={12} color="#818cf8" />
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
-              Clé API Portal
-            </span>
+        keySaved ? (
+          <div style={{ textAlign: 'center', fontSize: 11, color: '#22c55e', fontWeight: 600, letterSpacing: '0.02em' }}>
+            Clé sauvegardée localement, jamais partagée
           </div>
-
-          {savedKey && !editingKey ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ flex: 1, fontSize: 11, fontFamily: 'monospace', color: '#64748b', letterSpacing: '0.1em' }}>
-                {savedKey.slice(0, 8)}{'•'.repeat(Math.min(24, savedKey.length - 8))}
-              </span>
-              <button
-                onClick={() => { setEditingKey(true); setKeyInput(''); }}
-                style={{ fontSize: 10, fontWeight: 600, color: '#818cf8', background: 'transparent', border: 'none', cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: '1px solid rgba(99,102,241,0.3)' }}
-              >
-                Modifier
-              </button>
-              {keySaved && (
-                <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Clé sauvegardée localement, jamais partagée</span>
+        ) : panelOpen ? (
+          <div style={{
+            width: '100%',
+            background: 'rgba(11,15,25,0.97)',
+            border: '1px solid rgba(99,102,241,0.3)',
+            borderRadius: 10,
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Key size={12} color="#818cf8" />
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
+                  Clé API Portal
+                </span>
+              </div>
+              {savedKey && (
+                <button
+                  onClick={() => { setPanelOpen(false); setKeyInput(''); setShowKey(false); }}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 14, lineHeight: 1 }}
+                >
+                  ✕
+                </button>
               )}
             </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={keyInput}
-                    onChange={e => setKeyInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
-                    placeholder="sk-nous-..."
-                    style={{
-                      width: '100%',
-                      paddingLeft: 10, paddingRight: 32, paddingTop: 6, paddingBottom: 6,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(99,102,241,0.35)',
-                      borderRadius: 7,
-                      color: '#e2e8f0',
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={() => setShowKey(v => !v)}
-                    title={showKey ? 'Masquer' : 'Afficher'}
-                    style={{
-                      position: 'absolute', right: 8,
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: '#475569', padding: 0, display: 'flex',
-                    }}
-                  >
-                    {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-                  </button>
-                </div>
-                <button
-                  onClick={handleSaveKey}
-                  disabled={!keyInput.trim()}
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={keyInput}
+                  onChange={e => setKeyInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
+                  placeholder="sk-nous-..."
+                  autoFocus
                   style={{
-                    padding: '6px 12px', borderRadius: 7, flexShrink: 0,
-                    background: keyInput.trim() ? 'rgba(99,102,241,0.25)' : 'rgba(51,65,85,0.3)',
-                    border: '1px solid rgba(99,102,241,0.4)',
-                    color: keyInput.trim() ? '#a5b4fc' : '#475569',
-                    fontSize: 11, fontWeight: 700, cursor: keyInput.trim() ? 'pointer' : 'not-allowed',
+                    width: '100%',
+                    paddingLeft: 10, paddingRight: 32, paddingTop: 6, paddingBottom: 6,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(99,102,241,0.35)',
+                    borderRadius: 7,
+                    color: '#e2e8f0',
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    outline: 'none',
                   }}
+                />
+                <button
+                  onClick={() => setShowKey(v => !v)}
+                  title={showKey ? 'Masquer' : 'Afficher'}
+                  style={{ position: 'absolute', right: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: '#475569', padding: 0, display: 'flex' }}
                 >
-                  Sauvegarder la clé
+                  {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
-                {savedKey && (
-                  <button
-                    onClick={() => { setEditingKey(false); setKeyInput(''); }}
-                    style={{ padding: '6px 10px', background: 'transparent', border: '1px solid rgba(51,65,85,0.5)', borderRadius: 7, color: '#64748b', fontSize: 11, cursor: 'pointer' }}
-                  >
-                    Annuler
-                  </button>
-                )}
               </div>
-              {keySaved && (
-                <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>
-                  Clé sauvegardée localement, jamais partagée
-                </span>
-              )}
-            </>
-          )}
-        </div>
+              <button
+                onClick={handleSaveKey}
+                disabled={!keyInput.trim()}
+                style={{
+                  padding: '6px 12px', borderRadius: 7, flexShrink: 0,
+                  background: keyInput.trim() ? 'rgba(99,102,241,0.25)' : 'rgba(51,65,85,0.3)',
+                  border: '1px solid rgba(99,102,241,0.4)',
+                  color: keyInput.trim() ? '#a5b4fc' : '#475569',
+                  fontSize: 11, fontWeight: 700, cursor: keyInput.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, color: savedKey ? '#22c55e' : '#f59e0b' }}>
+              {savedKey ? '● Clé API configurée' : '⚠ Clé API non configurée'}
+            </span>
+            <button
+              onClick={() => { setPanelOpen(true); setKeyInput(''); }}
+              style={{ fontSize: 10, color: '#818cf8', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+            >
+              {savedKey ? 'Modifier' : 'Configurer'}
+            </button>
+          </div>
+        )
       )}
 
       {/* Control bar */}
