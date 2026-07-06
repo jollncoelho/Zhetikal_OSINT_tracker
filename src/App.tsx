@@ -81,9 +81,8 @@ function AppInner() {
 
   // ✅ FONCTION POUR CORRIGER LES LABELS LOCATION
   const fixLocationLabels = useCallback(() => {
-    const locationNodes = nodes.filter(n => 
-      (n.data as EntityData).entityType === 'location' && 
-      (n.data as EntityData).label === 'Location'
+    const locationNodes = nodes.filter(n =>
+      (n.data as EntityData).entityType === 'location'
     );
 
     if (locationNodes.length === 0) {
@@ -95,7 +94,7 @@ function AppInner() {
     locationNodes.forEach(node => {
       const data = node.data as EntityData;
       const address = data.fields?.address || data.notes || '';
-      
+
       if (address.trim()) {
         updateNodeData(node.id, { label: address.trim() });
         corrected++;
