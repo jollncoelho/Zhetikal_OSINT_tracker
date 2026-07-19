@@ -2,7 +2,9 @@ import { memo, useState, useRef, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
-  FileText, Link, Bitcoin, StickyNote, Trash2, X, Check, NotebookPen,
+  FileText, Link, Bitcoin, StickyNote, Share2, Camera,
+  Server, Network, Fingerprint, ShieldCheck, Crosshair,
+  Trash2, X, Check, NotebookPen,
   ExternalLink, SlidersHorizontal, Search
 } from 'lucide-react';
 import type { EntityData } from '../types';
@@ -10,15 +12,16 @@ import { loadIcons } from './IconPicker';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Globe, Mail, User, Phone, MapPin, Building2,
-  FileText, Link, Bitcoin, StickyNote,
+  FileText, Link, Bitcoin, StickyNote, Share2, Camera,
+  Server, Network, Fingerprint, ShieldCheck, Crosshair,
 };
 
-const TECH_TYPES = ['ip', 'domain', 'url', 'email', 'crypto', 'phone', 'username'];
-const LINK_TYPES = ['url', 'domain'];
+const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp'];
+const LINK_TYPES = ['url', 'domain', 'hostname'];
 
 function buildOpenUrl(entityType: string, label: string): string | null {
   if (entityType === 'url') return label.startsWith('http') ? label : `https://${label}`;
-  if (entityType === 'domain') return `https://${label}`;
+  if (entityType === 'domain' || entityType === 'hostname') return `https://${label}`;
   return null;
 }
 
@@ -33,13 +36,27 @@ function buildOsintPivotUrl(entityType: string, label: string): string | null {
     case 'username':
       return `https://whatsmyname.app/?target=${encodeURIComponent(cleanLabel)}`;
     case 'domain':
+    case 'hostname':
       return `https://www.virustotal.com/gui/domain/${encodeURIComponent(cleanLabel)}`;
-    case 'phone':
+    case 'phone': {
       const cleanPhone = cleanLabel.replace(/[^0-9+]/g, '');
       return `https://intelx.io/?s=${encodeURIComponent(cleanPhone)}`;
+    }
     case 'ip':
     case 'ipaddress':
       return `https://iknowwhatyoudownload.com/en/peer/?ip=${encodeURIComponent(cleanLabel)}`;
+    case 'asn': {
+      const num = cleanLabel.replace(/[^0-9]/g, '');
+      return `https://bgp.he.net/AS${encodeURIComponent(num)}`;
+    }
+    case 'hash':
+      return `https://www.virustotal.com/gui/file/${encodeURIComponent(cleanLabel)}`;
+    case 'sslcert':
+      return `https://crt.sh/?q=${encodeURIComponent(cleanLabel)}`;
+    case 'crypto':
+      return `https://www.walletexplorer.com/?q=${encodeURIComponent(cleanLabel)}`;
+    case 'url':
+      return `https://www.virustotal.com/gui/url/${encodeURIComponent(cleanLabel)}`;
     default:
       return null;
   }

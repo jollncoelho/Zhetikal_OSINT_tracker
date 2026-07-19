@@ -3,18 +3,23 @@ import type { Node, Edge } from '@xyflow/react';
 export type EntityType =
   | 'ip'
   | 'domain'
+  | 'hostname'
   | 'email'
   | 'username'
   | 'phone'
+  | 'asn'
   | 'location'
   | 'organization'
   | 'person'
   | 'file'
+  | 'hash'
+  | 'sslcert'
   | 'url'
   | 'crypto'
   | 'iban'
   | 'note'
   | 'social'
+  | 'ttp'
   | 'photo';
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin' | 'x';
 
@@ -83,54 +88,70 @@ export interface CaseData {
 export const ENTITY_LABELS: Record<EntityType, string> = {
   ip: 'IP Address',
   domain: 'Domain',
+  hostname: 'Hostname',
   email: 'Email',
   username: 'Username',
   phone: 'Phone',
+  asn: 'ASN',
   location: 'Adresse',
   organization: 'Organization',
   person: 'Person',
   file: 'File',
+  hash: 'Hash',
+  sslcert: 'SSL Cert',
   url: 'URL',
   crypto: 'Crypto',
   iban: 'IBAN',
   note: 'Note',
   social: 'Social Media',
+  ttp: 'TTP',
   photo: 'Photo',
 };
 
 export const ENTITY_COLORS: Record<EntityType, string> = {
   ip: '#ef4444',
   domain: '#0ea5e9',
+  hostname: '#38bdf8',
   email: '#f59e0b',
   username: '#8b5cf6',
   phone: '#8b5cf6',
+  asn: '#fb7185',
   location: '#10b981',
   organization: '#0ea5e9',
   person: '#f59e0b',
   file: '#94a3b8',
+  hash: '#a3e635',
+  sslcert: '#22d3ee',
   url: '#0ea5e9',
   crypto: '#f59e0b',
   iban: '#34d399',
   note: '#94a3b8',
   social: '#1877f2',
+  ttp: '#f472b6',
   photo: '#f43f5e',
 };
 
 export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   ip: 'Globe',
   domain: 'Globe',
+  hostname: 'Server',
   email: 'Mail',
   username: 'User',
   phone: 'Phone',
+  asn: 'Network',
   location: 'MapPin',
   organization: 'Building2',
   person: 'User',
   file: 'FileText',
+  hash: 'Fingerprint',
+  sslcert: 'ShieldCheck',
   url: 'Link',
   crypto: 'Bitcoin',
   iban: 'Building2',
   note: 'StickyNote',
   social: 'Share2',
+  ttp: 'Crosshair',
+  photo: 'Camera',
 };
 
 export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; type: 'text' | 'number' }[]> = {
@@ -220,6 +241,39 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'joined',    label: 'Joined',    type: 'text' },
     { key: 'realName',  label: 'Real Name', type: 'text' },
     { key: 'bio',       label: 'Bio',       type: 'text' },
+  ],
+  photo: [],
+  asn: [
+    { key: 'number',   label: 'AS Number',  type: 'text' },
+    { key: 'holder',   label: 'AS Holder',  type: 'text' },
+    { key: 'country',  label: 'Country',    type: 'text' },
+    { key: 'prefixes', label: 'Prefixes',   type: 'text' },
+  ],
+  hash: [
+    { key: 'algorithm', label: 'Algorithm',  type: 'text' },
+    { key: 'value',     label: 'Hash Value', type: 'text' },
+    { key: 'fileType',  label: 'File Type',  type: 'text' },
+    { key: 'source',    label: 'Source',     type: 'text' },
+  ],
+  sslcert: [
+    { key: 'issuer',    label: 'Issuer',     type: 'text' },
+    { key: 'subject',   label: 'Subject',    type: 'text' },
+    { key: 'validFrom', label: 'Valid From', type: 'text' },
+    { key: 'validTo',   label: 'Valid To',   type: 'text' },
+    { key: 'serial',    label: 'Serial',     type: 'text' },
+  ],
+  hostname: [
+    { key: 'resolvedIp', label: 'Resolved IP', type: 'text' },
+    { key: 'provider',   label: 'Provider',    type: 'text' },
+    { key: 'os',         label: 'OS',          type: 'text' },
+    { key: 'country',    label: 'Country',     type: 'text' },
+  ],
+  ttp: [
+    { key: 'id',          label: 'Tactic ID',   type: 'text' },
+    { key: 'tactic',      label: 'Tactic',      type: 'text' },
+    { key: 'technique',   label: 'Technique',   type: 'text' },
+    { key: 'platform',    label: 'Platform',    type: 'text' },
+    { key: 'description', label: 'Description', type: 'text' },
   ],
 };
 
