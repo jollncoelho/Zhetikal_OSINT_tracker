@@ -1,36 +1,38 @@
-# 🛡️ Zhétical OSINT Case Tracker v2.0
+# 🕵️‍♂️ Ghostint Tracker - Ultimate OSINT Hybrid Investigation Platform
 
-Lien vers l'outil en ligne : [https://tracker.prohacking77.me](https://tracker.prohacking77.me)
+Ghostint Tracker est une application web d'investigation et de cartographie OSINT de nouvelle génération. Conçue pour centraliser, visualiser et enrichir vos enquêtes, elle combine un graphe relationnel dynamique (React Flow), une cartographie mondiale synchronisée (React-Leaflet) et une double intelligence artificielle hybride (Locale & Avancée).
 
-## 🔍 À propos
-Le **Zhétical OSINT Tracker** est un outil d'investigation numérique conçu pour aider les enquêteurs à structurer leurs recherches. Il permet de créer des graphes de liens interactifs entre différentes entités (Usernames, IP, Domaines, etc.) tout en garantissant une confidentialité totale.
-
-# Ghostint Tracker v2 - Plateforme d'Investigation OSINT 🕵️‍♂️🛡️
-
-Ghostint Tracker est un outil complet de cartographie et d'analyse d'investigation numérique (OSINT). 
-
-L'application est **hybride** : la majeure partie des fonctionnalités de cartographie, de pivot et de géolocalisation fonctionne instantanément au clic (sans rien installer). Seul le module d'analyse automatique textuelle nécessite l'activation d'une IA locale.
+🎥 **Regarder le tutoriel vidéo complet sur YouTube :** [Ghostint Tracker - Nouvel outil ultime pour l'OSINT](https://www.youtube.com/watch?v=mQl5btUpOwc)
 
 ---
 
-## ⚡ Utilisation Immédiate (Sans installation requise)
+## ⚡ Caractéristiques Principales
 
-Dès l'ouverture du lien de l'application, les fonctionnalités suivantes sont **100 % opérationnelles et prêtes à l'emploi** :
-
-* **Cartographie Dynamique :** Création, liaison et structuration des nœuds d'investigation à la main.
-* **Pivot Géographique 🗺️ :** Un simple double-clic sur un nœud de type "Lieu" ou contenant une adresse ouvre instantanément **Google Maps** dans un nouvel onglet.
-* **Audit d'Infrastructure IP 🌐 :** Un clic sur un nœud "Adresse IP" ouvre automatiquement une plateforme d'analyse externe (ex: IPinfo / Criminal IP) pour localiser l'hébergeur et le pays de l'IP.
-* **Navigation Web :** Les nœuds de type URL ou Réseaux Sociaux intègrent un bouton "Open Link" pour visiter directement la cible.
-* **Extraction Locale Basique :** Copie et survol à la souris des entités découvertes (textes complets sans coupure `...` pour les e-mails et les **IBAN**).
+* **Graphe d'Investigation Dynamique :** Ajoutez, connectez et manipulez vos entités (Emails, Noms, Domaines, Adresses IP, Téléphones, Photos) de manière fluide.
+* **Cartographie Mondiale Synchronisée :** Localisez instantanément vos cibles sur une carte interactive grâce à un outil de géocodage intégré.
+* **Bouton de Correction d'Adresse :** Un outil intelligent pour redresser à la volée les titres d'entités "location" et envoyer l'adresse propre directement au module de cartographie.
+* **Ghostint Tools Intégré :** Accès direct en un clic à un catalogue centralisé de plus de 450 outils d'investigation OSINT externes (moteurs de recherche, réseaux sociaux, reverse image).
+* **Sauvegarde & Rapports :** Exportez et importez vos graphiques au format JSON pour ne jamais perdre votre progression, ou générez des rapports visuels complets en PNG ou PDF.
 
 ---
 
-## 🧠 Activation de l'Analyse Automatique par IA (Optionnel)
+## 🧠 Mode Hybride IA : Choisissez votre OPSEC
 
-Si vous souhaitez utiliser le bouton d'analyse automatique 🧬 pour extraire intelligemment des données textuelles complexes, vous devez coupler l'application à votre environnement local :
+### 1. Mode 100% Local (Sécurité Maximale) 🔒
+Propulsé par **Ollama**, ce mode fonctionne en isolation totale, sans connexion Internet. Vos données d'enquête restent strictement sur votre machine.
+* **Modèle requis :** `gemma2:9b` (~9 Go).
+* **Commande d'installation :** `ollama run gemma2:9b` (via PowerShell ou Terminal).
 
-### Prérequis
-1. **Ollama** installé sur votre machine -> [Télécharger Ollama](https://ollama.com/)
-2. Télécharger le modèle de votre choix dans votre terminal :
+### 2. Mode Avancé (Puissance Augmentée) 🚀
+Propulsé par l'agent autonome **Hermes (Nous Research)** via l'infrastructure **Nous Portal**. L'agent va requêter directement le web pour dénicher des corrélations en temps réel et enrichir votre dossier avec des suggestions d'entités avancées à injecter.
+
+---
+
+## 🛠️ Installation et Prérequis
+
+### Côté IA Locale (Ollama)
+1. Téléchargez et installez Ollama depuis [ollama.com](https://ollama.com).
+2. Lancez l'application (assurez-vous que l'icône de l'ossature / lama est bien présente dans votre barre des tâches).
+3. Ouvrez un terminal et récupérez le modèle :
    ```bash
-   ollama run gemma
+   ollama run gemma2:9b
