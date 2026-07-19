@@ -40,11 +40,8 @@ function AppInner() {
     updateCaseTitle,
     closeCase,
     updateCase,
-    addPin,
     updatePin,
     deletePin,
-    addPinLink,
-    removePinLink,
   } = useStore();
 
   // Calcul de activeCase
@@ -78,31 +75,6 @@ function AppInner() {
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
-
-  // ✅ FONCTION POUR CORRIGER LES LABELS LOCATION
-  const fixLocationLabels = useCallback(() => {
-    const locationNodes = nodes.filter(n =>
-      (n.data as EntityData).entityType === 'location'
-    );
-
-    if (locationNodes.length === 0) {
-      alert('Aucune entité Location à corriger');
-      return;
-    }
-
-    let corrected = 0;
-    locationNodes.forEach(node => {
-      const data = node.data as EntityData;
-      const address = data.fields?.address || data.notes || '';
-
-      if (address.trim()) {
-        updateNodeData(node.id, { label: address.trim() });
-        corrected++;
-      }
-    });
-
-    alert(`✅ ${corrected} entité(s) Location corrigée(s) sur ${locationNodes.length}`);
-  }, [nodes, updateNodeData]);
 
   // ✅ FONCTION POUR SAUVEGARDER LES COORDONNÉES GÉOCODÉES
   const handleGeocodeLocation = useCallback((nodeId: string, lat: number, lng: number) => {
@@ -155,49 +127,21 @@ function AppInner() {
 
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
-      const { nodeId } = (e as CustomEvent).detail;
-      const pinLinks = activeCase?.pinLinks ?? [];
-      const link = pinLinks.find((l) => l.identifierId === nodeId);
-
+      const { nodeId, address } = (e as CustomEvent).detail || {};
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const finalAddress = (address ?? node.data.label ?? '').trim();
+      if (!finalAddress) return;
       setView('map');
-
-      if (link) {
-        const pin = activeCase?.locations?.find((p) => p.id === link.pinId);
-        const lat = pin?.lat ?? 48.8566;
-        const lng = pin?.lng ?? 2.3522;
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
-            detail: { pinId: link.pinId, lat, lng },
-          }));
-        }, 60);
-      } else {
-        const node = nodes.find((n) => n.id === nodeId);
-        if (!node) return;
-        const fields = (node.data.fields ?? {}) as Record<string, string>;
-        const lat = parseFloat(fields.lat ?? '');
-        const lng = parseFloat(fields.lng ?? '');
-        const resolvedLat = isNaN(lat) ? 48.8566 : lat;
-        const resolvedLng = isNaN(lng) ? 2.3522 : lng;
-        const pinId = addPin({
-          label: node.data.label,
-          address: (fields.address ?? '').trim(),
-          notes: node.data.notes ?? '',
-          lat: resolvedLat,
-          lng: resolvedLng,
-          color: node.data.color ?? '#10b981',
-          iconId: null,
-        });
-        addPinLink({ pinId, identifierId: nodeId, context: '' });
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('map-navigate-pin', {
-            detail: { pinId, lat: resolvedLat, lng: resolvedLng },
-          }));
-        }, 60);
-      }
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('map-geocode-address', {
+          detail: { nodeId, address: finalAddress },
+        }));
+      }, 60);
     };
     window.addEventListener('entity-go-to-map', handleGoToMap);
     return () => window.removeEventListener('entity-go-to-map', handleGoToMap);
-  }, [activeCase, nodes, addPin, addPinLink, setView]);
+  }, [nodes, setView]);
 
   useEffect(() => {
     if (cases.length === 0) createCase('Default Case', '');
@@ -258,7 +202,6 @@ function AppInner() {
         onExportPng={exportPngFn}
         onImport={importCase}
         onClearCanvas={clearCanvas}
-        onFixLocationLabels={fixLocationLabels}
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">

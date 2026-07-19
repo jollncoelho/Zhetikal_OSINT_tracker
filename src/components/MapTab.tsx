@@ -126,6 +126,18 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
     }
   }, [onGeocodeLocation]);
 
+  // ✅ Géocodage direct depuis un nœud Adresse (event envoyé par EntityNode via App)
+  useEffect(() => {
+    const handleGeocodeAddress = (e: any) => {
+      const { nodeId, address } = e.detail || {};
+      if (address && address.trim()) {
+        geocodeAndNavigate(address.trim(), nodeId);
+      }
+    };
+    window.addEventListener('map-geocode-address', handleGeocodeAddress);
+    return () => window.removeEventListener('map-geocode-address', handleGeocodeAddress);
+  }, [geocodeAndNavigate]);
+
   // Recherche manuelle
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
@@ -162,8 +174,8 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
     }
   }, [searchQuery]);
 
-  // Extraire les locations
-  const locationNodes = nodes.filter(n => 
+  // Extraire les adresses
+  const locationNodes = nodes.filter(n =>
     (n.data as EntityData)?.entityType === 'location'
   );
 
@@ -259,15 +271,15 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
       <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
         <div className="p-2">
           <p className="text-[10px] text-cyber-text-dim font-mono mb-1 uppercase">
-            Entités Location ({locationNodes.length}) — clic pour géocoder
+            Entités Adresse ({locationNodes.length}) — clic pour géocoder
           </p>
           {locationNodes.length === 0 ? (
-            <p className="text-xs text-cyber-text-dim text-center py-2">Aucune entité Location</p>
+            <p className="text-xs text-cyber-text-dim text-center py-2">Aucune entité Adresse</p>
           ) : (
             <div className="space-y-1">
               {locationNodes.map((node) => {
                 const data = node.data as EntityData;
-                const address = data.fields?.address || data.notes || data.label;
+                const address = data.label || data.fields?.address || data.notes;
                 const hasCoords = data.fields?.lat && data.fields?.lng;
                 const isGeocoding = geocodingId === node.id;
 

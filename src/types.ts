@@ -86,7 +86,7 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   email: 'Email',
   username: 'Username',
   phone: 'Phone',
-  location: 'Location',
+  location: 'Adresse',
   organization: 'Organization',
   person: 'Person',
   file: 'File',
@@ -163,7 +163,7 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
   phone: [
     { key: 'carrier',  label: 'Carrier',  type: 'text' },
     { key: 'country',  label: 'Country',  type: 'text' },
-    { key: 'location', label: 'Location', type: 'text' },
+    { key: 'location', label: 'Adresse', type: 'text' },
     { key: 'type',     label: 'Type',     type: 'text' },
   ],
   location: [

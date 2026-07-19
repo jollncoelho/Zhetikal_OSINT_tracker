@@ -22,7 +22,6 @@ interface SidebarProps {
   onExportPng: () => Promise<void>;
   onImport: (json: string) => void;
   onClearCanvas: () => void;
-  onFixLocationLabels?: () => void; // ✅ AJOUTÉ
 }
 
 const ENTITY_TYPES = Object.keys(ENTITY_LABELS) as EntityType[];
@@ -42,7 +41,6 @@ export default function Sidebar({
   onExportPng,
   onImport,
   onClearCanvas,
-  onFixLocationLabels, // ✅ AJOUTÉ
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [casesOpen, setCasesOpen] = useState(true);
@@ -74,20 +72,13 @@ export default function Sidebar({
     setCreatingCase(false);
   };
 
-  // ✅ CORRECTION : Gestion du label pour les Locations
   const handleAddEntity = (type: EntityType) => {
     setSelectedType(type);
-    
     let label = entityLabel;
-    
-    if (!label.trim()) {
-      if (type === 'location') {
-        label = 'Nouvelle Adresse (à modifier)';
-      } else {
-        label = ENTITY_LABELS[type];
-      }
+    if (!label.trim() && type !== 'location') {
+      label = ENTITY_LABELS[type];
     }
-
+    // Pour location (Adresse): label vide => le nœud affiche un input à valider
     if (type === 'photo') {
       if (photoDataUrl) {
         onAddEntity(type, label, { photoUrl: photoDataUrl });
@@ -304,7 +295,7 @@ export default function Sidebar({
                   <input
                     value={entityLabel}
                     onChange={(e) => setEntityLabel(e.target.value)}
-                    placeholder={selectedType === 'location' ? 'Adresse complète...' : 'Label...'}
+                    placeholder={selectedType === 'location' ? 'Saisir une adresse...' : 'Label...'}
                     className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-1 text-xs text-cyber-text outline-none focus:border-cyber-cyan"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddEntity(selectedType)}
                   />
@@ -480,17 +471,6 @@ export default function Sidebar({
               </button>
             )}
 
-            {/* ✅ NOUVEAU BOUTON : Corriger les labels Location */}
-            {onFixLocationLabels && (
-              <button
-                onClick={onFixLocationLabels}
-                disabled={!activeCaseId}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-purple hover:bg-cyber-purple/10 border border-transparent hover:border-cyber-purple/30 transition-colors disabled:opacity-30"
-              >
-                <Pencil size={12} />
-                Corriger Labels Location
-              </button>
-            )}
           </div>
         </div>
       )}
