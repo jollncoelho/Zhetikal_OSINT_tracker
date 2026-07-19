@@ -8,9 +8,9 @@ Ghostint Tracker est une application web d'investigation et de cartographie OSIN
 
 ## ⚡ Caractéristiques Principales
 
-* **Graphe d'Investigation Dynamique :** Ajoutez, connectez et manipulez vos entités (Emails, Noms, Domaines, Adresses IP, Téléphones, Photos) de manière fluide.
-* **Cartographie Mondiale Synchronisée :** Localisez instantanément vos cibles sur une carte interactive grâce à un outil de géocodage intégré.
-* **Bouton de Correction d'Adresse :** Un outil intelligent pour redresser à la volée les titres d'entités "location" et envoyer l'adresse propre directement au module de cartographie.
+* **Graphe d'Investigation Dynamique :** Ajoutez, connectez et manipulez vos entités (Emails, Noms, Domaines, Adresses IP, Téléphones, Photos, ASN, Hashs, Certificats SSL, Hostnames, TTP) de manière fluide.
+* **Barre d'Actions Flottante (Hover) :** Une interface épurée où les boutons d'analyse (loupes, pivots) apparaissent uniquement au survol du nœud pour ne jamais chevaucher vos textes.
+* **Entité Adresse Automatique :** Plus de bouton de correction fastidieux. Saisissez une adresse, le nœud se met à jour tout seul et se synchronise instantanément avec le module cartographique.
 * **Ghostint Tools Intégré :** Accès direct en un clic à un catalogue centralisé de plus de 450 outils d'investigation OSINT externes (moteurs de recherche, réseaux sociaux, reverse image).
 * **Sauvegarde & Rapports :** Exportez et importez vos graphiques au format JSON pour ne jamais perdre votre progression, ou générez des rapports visuels complets en PNG ou PDF.
 
@@ -23,16 +23,18 @@ Propulsé par **Ollama**, ce mode fonctionne en isolation totale, sans connexion
 * **Modèle requis :** `gemma2:9b` (~9 Go).
 * **Commande d'installation :** `ollama run gemma2:9b` (via PowerShell ou Terminal).
 
-### 2. Mode Avancé (Puissance Augmentée) 🚀
-Propulsé par l'agent autonome **Hermes (Nous Research)** via l'infrastructure **Nous Portal**. L'agent va requêter directement le web pour dénicher des corrélations en temps réel et enrichir votre dossier avec des suggestions d'entités avancées à injecter.
+### 2. Mode Avancé (Puissance Augmentée via Agent Hermes) 🚀
+Propulsé par l'agent autonome **Hermes (Nous Research)** via l'infrastructure **Nous Portal**. Ce mode permet à l'IA de requêter le web en temps réel pour dénicher des corrélations avancées et extraire de nouvelles entités. 
+
+Pour assurer l'anonymat et le routage des requêtes de l'agent sans exposer le tracker, le système utilise un **couplage réseau par double console locale**.
 
 ---
 
 ## 🛠️ Installation et Prérequis
 
-### Côté IA Locale (Ollama)
+### Configuration de l'IA Locale (Ollama)
 1. Téléchargez et installez Ollama depuis [ollama.com](https://ollama.com).
-2. Lancez l'application (assurez-vous que l'icône de l'ossature / lama est bien présente dans votre barre des tâches).
+2. Lancez l'application (assurez-vous que l'icône de l'ossature / lama est présente dans la barre des tâches).
 3. Ouvrez un terminal et récupérez le modèle :
    ```bash
    ollama run gemma2:9b
