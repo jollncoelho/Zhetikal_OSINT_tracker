@@ -24,13 +24,11 @@ Propulsé par **Ollama**, ce mode fonctionne en isolation totale, sans connexion
 * **Commande d'installation :** `ollama run gemma2:9b` (via PowerShell ou Terminal).
 
 ### 2. Mode Avancé (Puissance Augmentée via Agent Hermes) 🚀
-Propulsé par l'agent autonome **Hermes (Nous Research)** via l'infrastructure **Nous Portal**. Ce mode permet à l'IA de requêter le web en temps réel pour dénicher des corrélations avancées et extraire de nouvelles entités. 
-
-Pour assurer l'anonymat et le routage des requêtes de l'agent sans exposer le tracker, le système utilise un **couplage réseau par double console locale**.
+Propulsé par l'agent autonome **Hermes (Nous Research)** via l'infrastructure **Nous Portal**. Ce mode permet à l'IA de requêter le web en temps réel pour dénicher des corrélations avancées et extraire de nouvelles entités directement injectables dans le graphe. L'intégration est désormais instantanée et ne nécessite aucune configuration serveur locale.
 
 ---
 
-## 🛠️ Installation et Prérequis
+## 🛠️ Installation et Configuration
 
 ### Configuration de l'IA Locale (Ollama)
 1. Téléchargez et installez Ollama depuis [ollama.com](https://ollama.com).
