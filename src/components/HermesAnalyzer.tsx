@@ -77,7 +77,7 @@ export const HermesAnalyzer: React.FC = () => {
     for (const entity of newEntities) {
       const key = entity.label.trim().toLowerCase();
       if (!newLabelToId.has(key)) {
-        const id = addEntity(entity.type, entity.label);
+        const id = addEntity(entity.type, entity.label, entity.properties?.notes ? { notes: entity.properties.notes } : undefined);
         newLabelToId.set(key, id);
       }
     }
@@ -107,7 +107,7 @@ export const HermesAnalyzer: React.FC = () => {
   const handleInjectOne = (entity: HermesEntity) => {
     const key = entity.label.trim().toLowerCase();
     if (!existingLabels.has(key)) {
-      addEntity(entity.type, entity.label);
+      addEntity(entity.type, entity.label, entity.properties?.notes ? { notes: entity.properties.notes } : undefined);
     }
     // Remove this single entity from the list
     setDiscovery((d) =>
@@ -320,6 +320,19 @@ export const HermesAnalyzer: React.FC = () => {
                           >
                             {e.label}
                           </span>
+                          {e.properties?.notes && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: '#94a3b8',
+                                fontStyle: 'italic',
+                                lineHeight: 1.3,
+                                marginTop: 2,
+                              }}
+                            >
+                              {e.properties.notes}
+                            </span>
+                          )}
                         </div>
 
                         {/* Individual inject button */}

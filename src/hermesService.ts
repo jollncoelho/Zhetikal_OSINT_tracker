@@ -79,6 +79,12 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName
     })
     .join('\n');
 
+  // Liste brute des valeurs déjà présentes pour la déduplication
+  const existingValues = graphData.nodes
+    .map((n) => String(n.data?.label ?? '').trim())
+    .filter(Boolean)
+    .join(' | ');
+
   return `Tu es un expert d'élite en OSINT et en investigation numérique. Tu agis comme le co-enquêteur de ${analyst}. Ton but est d'analyser les entités fournies issues d'un graphique d'investigation, de croiser les données de manière logique et de proposer de nouvelles pistes d'enquêtes ultra-précises. Tu ne résumes JAMAIS ce qui est déjà visible — tu vas au-delà : croisements de registres, DNS, géolocalisation, réseaux sociaux, banques, structures offshore, incohérences, hypothèses de relocalisation.
 
 Voici les données actuelles du graphique sous forme d'entités :
@@ -89,6 +95,9 @@ ${nodeLines || '(aucune)'}
 LIENS:
 ${edgeLines || '(aucun)'}
 
+VALEURS DÉJÀ PRÉSENTES (NE PAS REPROPOSER):
+${existingValues || '(aucune)'}
+
 ---
 
 Tu dois générer une réponse STRICTEMENT structurée sous la forme suivante (respecte les balises textuelles) :
@@ -98,11 +107,22 @@ Rédige ton rapport d'investigation de manière fluide et immersive. Adresse-toi
 
 === NOUVELLES ENTITÉS ===
 Liste UNIQUEMENT les entités NOUVELLES découvertes ou déduites lors de ton analyse. N'inclus JAMAIS les entités de départ fournies ci-dessus.
-Format strict pour chaque entité :
-- TYPE: [TYPE EN MAJUSCULE]
-- VALUE: [valeur précise]
 
-Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
+RÈGLES STRICTES POUR LA VALEUR (VALUE) DE CHAQUE ENTITÉ :
+1. La valeur doit être EXCLUSIVEMENT la donnée brute, exacte, sans aucun texte descriptif ni parenthèses.
+   - IP : "185.220.101.5" et JAMAIS "[IP Adress] (Requête...)"
+   - IBAN : "FR763000..." et JAMAIS "IBAN1"
+   - Domaine : "k-digital.com" et JAMAIS "Domaine suspect k-digital.com"
+2. La description, la justification ou le contexte va dans le champ NOTES, jamais dans VALUE.
+3. DÉDUPLICATION : Ne propose JAMAIS une entité dont la valeur brute existe déjà dans la liste "VALEURS DÉJÀ PRÉSENTES" ci-dessus. Vérifie chaque valeur avant de la proposer.
+
+Format strict pour chaque entité (4 lignes par entité) :
+- TYPE: [TYPE EN MAJUSCULE]
+- VALUE: [valeur brute exacte]
+- NOTES: [description/court contexte ou justification]
+- ---
+
+Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, HOSTNAME, ASN, HASH, SSL_CERT, TTP, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
 Si aucune nouvelle entité, écris : (aucune nouvelle entité)
 
 ---
@@ -111,7 +131,7 @@ Réponds UNIQUEMENT avec ces deux sections dans l'ordre. Aucun JSON. Aucun markd
 
 function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edges: any[] }): HermesDiscovery {
   const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTITÉS\s*===|$)/i);
-  const entitesMatch = text.match(/===\s*NOUVELLES ENTITÉS\s*===\s*\n([\s\S]*?)(?:---|$)/i);
+  const entitesMatch = text.match(/===\s*NOUVELLES ENTIT[ÉE]S?\s*===\s*\n([\s\S]*?)$/i);
 
   let summary = '';
   const entities: HermesEntity[] = [];
@@ -121,12 +141,20 @@ function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edg
 
   if (entitesMatch) {
     const block = entitesMatch[1];
-    // Parse pairs of "- TYPE: X\n- VALUE: Y"
-    const typeValuePairs = [...block.matchAll(/[-*]\s*TYPE\s*:\s*([A-Z_]+)[^\n]*\n[-*]\s*VALUE\s*:\s*(.+)/gi)];
-    for (const [, type, value] of typeValuePairs) {
-      const t = type.trim().toUpperCase();
-      const v = value.trim();
-      if (t && v) entities.push({ type: t, label: v });
+    // Parse blocks: TYPE / VALUE / NOTES (optional) separated by --- lines
+    const entityBlocks = block.split(/^\s*-{3,}\s*$/m).map((b) => b.trim()).filter(Boolean);
+    for (const eb of entityBlocks) {
+      const typeMatch = eb.match(/TYPE\s*:\s*([A-Z_]+)/i);
+      const valueMatch = eb.match(/VALUE\s*:\s*(.+)/i);
+      const notesMatch = eb.match(/NOTES\s*:\s*([\s\S]*?)(?:\n[-*]\s*(?:TYPE|VALUE|NOTES)|$)/i);
+      if (typeMatch && valueMatch) {
+        const t = typeMatch[1].trim().toUpperCase();
+        const v = valueMatch[1].trim();
+        const notes = notesMatch ? notesMatch[1].trim() : '';
+        if (t && v) {
+          entities.push({ type: t, label: v, properties: notes ? { notes } : undefined });
+        }
+      }
     }
 
     // Fallback: legacy TYPE|VALUE pipe format (in case the model uses old style)
