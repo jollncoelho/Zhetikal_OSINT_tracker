@@ -15,3 +15,189 @@
   min-height: 0;
   z-index: 0;
 }
+
+/* ── Dark / Cyberpunk Leaflet Popup ─────────────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  background: #0a0e1a !important;
+  border: 1px solid #06b6d4 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.25), 0 4px 24px rgba(0, 0, 0, 0.6) !important;
+  color: #e2e8f0 !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: 260px !important;
+}
+
+.leaflet-popup-tip {
+  background: #0a0e1a !important;
+  border: 1px solid #06b6d4 !important;
+  box-shadow: none !important;
+}
+
+.leaflet-popup-close-button {
+  color: #64748b !important;
+  font-size: 18px !important;
+  padding: 6px 8px 0 0 !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #06b6d4 !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  text-decoration: none;
+}
+
+/* ── Popup inner layout ────────────────────────────────────────────────── */
+.pin-popup {
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.pin-popup-header {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(16, 185, 129, 0.1));
+  border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+  padding: 10px 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pin-popup-header-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #06b6d4;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+  flex-shrink: 0;
+}
+
+.pin-popup-header-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #06b6d4;
+}
+
+.pin-popup-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pin-popup-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.pin-popup-address {
+  font-size: 11px;
+  color: #e2e8f0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.pin-popup-coords {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #10b981;
+  font-variant-numeric: tabular-nums;
+}
+
+.pin-popup-coords span {
+  white-space: nowrap;
+}
+
+.pin-popup-notes {
+  width: 100%;
+  background: #050810;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px 8px;
+  resize: vertical;
+  min-height: 48px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.pin-popup-notes:focus {
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15);
+}
+
+.pin-popup-notes::placeholder {
+  color: #475569;
+}
+
+.pin-popup-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+
+.pin-popup-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.15s;
+  background: transparent;
+}
+
+.pin-popup-btn-copy {
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.pin-popup-btn-copy:hover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: #10b981;
+}
+
+.pin-popup-btn-gmaps {
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #06b6d4;
+  text-decoration: none;
+}
+
+.pin-popup-btn-gmaps:hover {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: #06b6d4;
+}
+
+.pin-popup-copied {
+  font-size: 9px;
+  color: #10b981;
+  text-align: center;
+  padding-bottom: 4px;
+  animation: fadeInOut 1.5s ease;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}

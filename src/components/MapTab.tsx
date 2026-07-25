@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './MapTab.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 
 // Fix icônes Leaflet
@@ -49,9 +50,10 @@ interface MapTabProps {
   nodes: EntityNode[];
   onUpdatePins: (pins: MapPin[]) => void;
   onGeocodeLocation?: (nodeId: string, lat: number, lng: number) => void;
+  onUpdatePin?: (id: string, updates: Partial<MapPin>) => void;
 }
 
-export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }: MapTabProps) {
+export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
@@ -61,6 +63,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
   const [isClient, setIsClient] = useState(false);
   const [mapKey, setMapKey] = useState(0);
   const [geocodingId, setGeocodingId] = useState<string | null>(null);
+  const [copiedPinId, setCopiedPinId] = useState<string | null>(null);
 
   useEffect(() => { setIsClient(true); }, []);
 
@@ -105,17 +108,40 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
 
       const lat = parseFloat(results[0].lat);
       const lng = parseFloat(results[0].lon);
+      const displayName: string = results[0].display_name || address;
 
       if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
         setMapCenter([lat, lng]);
         setMapZoom(15);
         setMapKey(prev => prev + 1);
-        setAlertMessage(`✅ ${results[0].display_name}`);
+        setAlertMessage(`✅ ${displayName}`);
         setTimeout(() => setAlertMessage(null), 4000);
 
         // Sauvegarder les coordonnées dans le node
         if (onGeocodeLocation) {
           onGeocodeLocation(nodeId, lat, lng);
+        }
+
+        // Créer ou mettre à jour le pin correspondant sur la carte
+        const existingPin = pins.find(p => p.id === nodeId);
+        if (!existingPin) {
+          const newPin: MapPin = {
+            id: nodeId,
+            label: address,
+            address: displayName,
+            lat,
+            lng,
+            notes: '',
+            color: '#06b6d4',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          onUpdatePins([...pins, newPin]);
+        } else {
+          onUpdatePins(pins.map(p => p.id === nodeId
+            ? { ...p, lat, lng, address: displayName, updatedAt: new Date().toISOString() }
+            : p
+          ));
         }
       }
     } catch (err) {
@@ -124,9 +150,9 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
     } finally {
       setGeocodingId(null);
     }
-  }, [onGeocodeLocation]);
+  }, [onGeocodeLocation, pins, onUpdatePins]);
 
-  // ✅ Géocodage direct depuis un nœud Adresse (event envoyé par EntityNode via App)
+  // ✅ Géocodage direct depuis un nœud Adresse
   useEffect(() => {
     const handleGeocodeAddress = (e: any) => {
       const { nodeId, address } = e.detail || {};
@@ -174,12 +200,41 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
     }
   }, [searchQuery]);
 
+  // Mise à jour des notes d'un pin
+  const handlePinNotesChange = useCallback((pinId: string, notes: string) => {
+    if (onUpdatePin) {
+      onUpdatePin(pinId, { notes, updatedAt: new Date().toISOString() });
+    } else {
+      onUpdatePins(pins.map(p => p.id === pinId
+        ? { ...p, notes, updatedAt: new Date().toISOString() }
+        : p
+      ));
+    }
+  }, [onUpdatePin, onUpdatePins, pins]);
+
+  // Copie des coordonnées GPS
+  const handleCopyCoords = useCallback(async (pin: MapPin) => {
+    const text = `${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopiedPinId(pin.id);
+    setTimeout(() => setCopiedPinId(null), 1500);
+  }, []);
+
   // Extraire les adresses
   const locationNodes = nodes.filter(n =>
     (n.data as EntityData)?.entityType === 'location'
   );
 
-  const safePins = Array.isArray(pins) ? pins.filter(p => 
+  const safePins = Array.isArray(pins) ? pins.filter(p =>
     p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng)
   ) : [];
 
@@ -192,7 +247,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
   }
 
   return (
-    <div className="flex-1 flex flex-col relative w-full h-full" style={{ minHeight: '600px' }}>
+    <div className="map-tab-root">
       {/* Barre recherche */}
       <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-20 flex-shrink-0">
         <input
@@ -218,7 +273,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
       )}
 
       {/* Carte */}
-      <div className="flex-1 relative" style={{ height: 'calc(100% - 180px)', minHeight: '400px' }}>
+      <div className="map-leaflet-container">
         <MapContainer
           key={mapKey}
           center={mapCenter}
@@ -231,13 +286,41 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
             attribution="&copy; OSM"
           />
           <RecenterMap center={mapCenter} zoom={mapZoom} />
-          
+
           <Marker position={mapCenter} icon={redIcon}>
             <Popup>
-              <div className="text-xs font-mono">
-                Position<br/>
-                Lat: {mapCenter[0].toFixed(6)}<br/>
-                Lng: {mapCenter[1].toFixed(6)}
+              <div className="pin-popup">
+                <div className="pin-popup-header">
+                  <div className="pin-popup-header-icon" />
+                  <div className="pin-popup-header-title">Position recherchée</div>
+                </div>
+                <div className="pin-popup-body">
+                  <div>
+                    <div className="pin-popup-label">Coordonnées GPS</div>
+                    <div className="pin-popup-coords">
+                      <span>Lat: {mapCenter[0].toFixed(6)}</span>
+                      <span>Lng: {mapCenter[1].toFixed(6)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="pin-popup-actions">
+                  <button
+                    className="pin-popup-btn pin-popup-btn-copy"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(`${mapCenter[0].toFixed(6)}, ${mapCenter[1].toFixed(6)}`); } catch {}
+                    }}
+                  >
+                    Copier GPS
+                  </button>
+                  <a
+                    className="pin-popup-btn pin-popup-btn-gmaps"
+                    href={`https://www.google.com/maps/search/?api=1&query=${mapCenter[0].toFixed(6)},${mapCenter[1].toFixed(6)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Maps
+                  </a>
+                </div>
               </div>
             </Popup>
           </Marker>
@@ -257,9 +340,54 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
               }}
             >
               <Popup>
-                <div className="text-xs font-mono">
-                  <strong>{pin.label}</strong><br/>
-                  {pin.address && <span className="text-gray-600">{pin.address}</span>}
+                <div className="pin-popup">
+                  <div className="pin-popup-header">
+                    <div className="pin-popup-header-icon" />
+                    <div className="pin-popup-header-title">{pin.label || 'Lieu'}</div>
+                  </div>
+                  <div className="pin-popup-body">
+                    <div>
+                      <div className="pin-popup-label">Adresse</div>
+                      <div className="pin-popup-address">
+                        {pin.address || '(non renseignée)'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="pin-popup-label">Coordonnées GPS</div>
+                      <div className="pin-popup-coords">
+                        <span>Lat: {pin.lat.toFixed(6)}</span>
+                        <span>Lng: {pin.lng.toFixed(6)}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="pin-popup-label">Notes / Observations</div>
+                      <textarea
+                        className="pin-popup-notes"
+                        defaultValue={pin.notes || ''}
+                        placeholder="Ex: Maison du suspect, Siège social..."
+                        onChange={(e) => handlePinNotesChange(pin.id, e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {copiedPinId === pin.id && (
+                    <div className="pin-popup-copied">Coordonnées copiées</div>
+                  )}
+                  <div className="pin-popup-actions">
+                    <button
+                      className="pin-popup-btn pin-popup-btn-copy"
+                      onClick={() => handleCopyCoords(pin)}
+                    >
+                      Copier GPS
+                    </button>
+                    <a
+                      className="pin-popup-btn pin-popup-btn-gmaps"
+                      href={`https://www.google.com/maps/search/?api=1&query=${pin.lat.toFixed(6)},${pin.lng.toFixed(6)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Google Maps
+                    </a>
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -289,15 +417,15 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation }:
                     onClick={() => geocodeAndNavigate(address, node.id)}
                     disabled={isGeocoding}
                     className={`w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors ${
-                      isGeocoding 
-                        ? 'bg-cyber-yellow/10 text-cyber-yellow' 
-                        : hasCoords 
-                          ? 'bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20' 
+                      isGeocoding
+                        ? 'bg-cyber-yellow/10 text-cyber-yellow'
+                        : hasCoords
+                          ? 'bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20'
                           : 'hover:bg-cyber-panel text-cyber-text-dim'
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full inline-block mr-2" 
-                      style={{ background: hasCoords ? '#10b981' : '#6b7280' }} 
+                    <span className="w-2 h-2 rounded-full inline-block mr-2"
+                      style={{ background: hasCoords ? '#10b981' : '#6b7280' }}
                     />
                     {isGeocoding ? '...' : address || 'Sans adresse'}
                     {hasCoords && <span className="ml-1 text-[10px]">✅</span>}

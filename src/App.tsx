@@ -342,6 +342,7 @@ function AppInner() {
                 updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
               }}
               onGeocodeLocation={handleGeocodeLocation}
+              onUpdatePin={updatePin}
             />
           </div>
         )}
