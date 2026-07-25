@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapTab.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 
-// Fix icônes Leaflet
+// Fix Leaflet default icon paths
 if (typeof window !== 'undefined') {
   try {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -14,34 +14,36 @@ if (typeof window !== 'undefined') {
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
     });
-  } catch (e) {}
+  } catch (_) {}
 }
 
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [0, -38],
-  shadowSize: [41, 41],
-});
+const SHADOW = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png';
 
-const blueIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [0, -38],
-  shadowSize: [41, 41],
-});
+const makeIcon = (color: string) =>
+  new L.Icon({
+    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+    shadowUrl: SHADOW,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [0, -44],
+    shadowSize: [41, 41],
+  });
 
-function RecenterMap({ center, zoom }: { center: [number, number]; zoom: number }) {
+const searchIcon = makeIcon('red');
+const pinIcon = makeIcon('blue');
+
+// ── Inner helper: fly-to without remounting the MapContainer ────────────────
+interface FlyProps { target: [number, number] | null; zoom: number }
+function FlyToTarget({ target, zoom }: FlyProps) {
   const map = useMap();
+  const prev = useRef<string>('');
   useEffect(() => {
-    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
-      map.flyTo(center, zoom, { duration: 1.5 });
-    }
-  }, [center, zoom, map]);
+    if (!target) return;
+    const key = `${target[0]},${target[1]},${zoom}`;
+    if (key === prev.current) return;
+    prev.current = key;
+    map.flyTo(target, zoom, { duration: 1.2 });
+  }, [target, zoom, map]);
   return null;
 }
 
@@ -56,385 +58,278 @@ interface MapTabProps {
 export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([46.603354, 1.888334]);
-  const [mapZoom, setMapZoom] = useState(6);
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
-  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const [flyZoom, setFlyZoom] = useState(6);
+  const [alert, setAlert] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const [mapKey, setMapKey] = useState(0);
   const [geocodingId, setGeocodingId] = useState<string | null>(null);
   const [copiedPinId, setCopiedPinId] = useState<string | null>(null);
 
   useEffect(() => { setIsClient(true); }, []);
 
-  // Navigation depuis un pin
-  useEffect(() => {
-    const handleNavigate = (e: any) => {
-      const { pinId, lat, lng } = e.detail || {};
-      if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-        setMapCenter([lat, lng]);
-        setMapZoom(15);
-        if (pinId) setSelectedPinId(pinId);
-        setMapKey(prev => prev + 1);
-      }
-    };
-    window.addEventListener('map-navigate-pin', handleNavigate);
-    return () => window.removeEventListener('map-navigate-pin', handleNavigate);
+  const showAlert = useCallback((msg: string, ms = 4000) => {
+    setAlert(msg);
+    setTimeout(() => setAlert(null), ms);
   }, []);
 
-  // ✅ FONCTION CLÉ : Géocoder une adresse et naviguer
+  // ── External navigation event ───────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { lat, lng } = e.detail || {};
+      if (typeof lat === 'number' && !isNaN(lat)) {
+        setFlyTarget([lat, lng]);
+        setFlyZoom(15);
+      }
+    };
+    window.addEventListener('map-navigate-pin', handler);
+    return () => window.removeEventListener('map-navigate-pin', handler);
+  }, []);
+
+  // ── Geocode + create/update pin ─────────────────────────────────────────
   const geocodeAndNavigate = useCallback(async (address: string, nodeId: string) => {
-    if (!address || address.trim() === '') {
-      setAlertMessage('❌ Aucune adresse pour cette entité');
-      setTimeout(() => setAlertMessage(null), 3000);
-      return;
-    }
-
+    if (!address?.trim()) { showAlert('Aucune adresse pour cette entité', 3000); return; }
     setGeocodingId(nodeId);
-    setAlertMessage(`🔍 Recherche: ${address}`);
-
+    showAlert(`Recherche : ${address}`);
     try {
-      const response = await fetch(
+      const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`
       );
-      const results = await response.json();
+      const data = await res.json();
+      if (!data?.length) { showAlert(`Adresse introuvable : ${address}`); setGeocodingId(null); return; }
 
-      if (!results || results.length === 0) {
-        setAlertMessage(`❌ Adresse introuvable: ${address}`);
-        setTimeout(() => setAlertMessage(null), 4000);
-        setGeocodingId(null);
-        return;
+      const lat = parseFloat(data[0].lat);
+      const lng = parseFloat(data[0].lon);
+      const displayName: string = data[0].display_name || address;
+
+      if (isNaN(lat) || !isFinite(lat)) { showAlert('Coordonnées invalides'); setGeocodingId(null); return; }
+
+      setFlyTarget([lat, lng]);
+      setFlyZoom(15);
+      showAlert(`${displayName}`);
+
+      onGeocodeLocation?.(nodeId, lat, lng);
+
+      const existing = pins.find(p => p.id === nodeId);
+      if (!existing) {
+        onUpdatePins([...pins, {
+          id: nodeId, label: address, address: displayName,
+          lat, lng, notes: '', color: '#06b6d4',
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        }]);
+      } else {
+        onUpdatePins(pins.map(p =>
+          p.id === nodeId ? { ...p, lat, lng, address: displayName, updatedAt: new Date().toISOString() } : p
+        ));
       }
-
-      const lat = parseFloat(results[0].lat);
-      const lng = parseFloat(results[0].lon);
-      const displayName: string = results[0].display_name || address;
-
-      if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
-        setMapCenter([lat, lng]);
-        setMapZoom(15);
-        setMapKey(prev => prev + 1);
-        setAlertMessage(`✅ ${displayName}`);
-        setTimeout(() => setAlertMessage(null), 4000);
-
-        // Sauvegarder les coordonnées dans le node
-        if (onGeocodeLocation) {
-          onGeocodeLocation(nodeId, lat, lng);
-        }
-
-        // Créer ou mettre à jour le pin correspondant sur la carte
-        const existingPin = pins.find(p => p.id === nodeId);
-        if (!existingPin) {
-          const newPin: MapPin = {
-            id: nodeId,
-            label: address,
-            address: displayName,
-            lat,
-            lng,
-            notes: '',
-            color: '#06b6d4',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          onUpdatePins([...pins, newPin]);
-        } else {
-          onUpdatePins(pins.map(p => p.id === nodeId
-            ? { ...p, lat, lng, address: displayName, updatedAt: new Date().toISOString() }
-            : p
-          ));
-        }
-      }
-    } catch (err) {
-      setAlertMessage('❌ Erreur de géocodage');
-      setTimeout(() => setAlertMessage(null), 4000);
+    } catch {
+      showAlert('Erreur de géocodage');
     } finally {
       setGeocodingId(null);
     }
-  }, [onGeocodeLocation, pins, onUpdatePins]);
+  }, [onGeocodeLocation, pins, onUpdatePins, showAlert]);
 
-  // ✅ Géocodage direct depuis un nœud Adresse
   useEffect(() => {
-    const handleGeocodeAddress = (e: any) => {
+    const handler = (e: any) => {
       const { nodeId, address } = e.detail || {};
-      if (address && address.trim()) {
-        geocodeAndNavigate(address.trim(), nodeId);
-      }
+      if (address?.trim()) geocodeAndNavigate(address.trim(), nodeId);
     };
-    window.addEventListener('map-geocode-address', handleGeocodeAddress);
-    return () => window.removeEventListener('map-geocode-address', handleGeocodeAddress);
+    window.addEventListener('map-geocode-address', handler);
+    return () => window.removeEventListener('map-geocode-address', handler);
   }, [geocodeAndNavigate]);
 
-  // Recherche manuelle
+  // ── Manual search (no new pin, just fly) ────────────────────────────────
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
-    setAlertMessage(null);
-
     try {
-      const response = await fetch(
+      const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
       );
-      const results = await response.json();
+      const data = await res.json();
+      if (!data?.length) { showAlert('Adresse introuvable'); return; }
+      const lat = parseFloat(data[0].lat);
+      const lng = parseFloat(data[0].lon);
+      if (!isNaN(lat)) { setFlyTarget([lat, lng]); setFlyZoom(15); showAlert(data[0].display_name); }
+    } catch { showAlert('Erreur'); }
+    finally { setSearching(false); }
+  }, [searchQuery, showAlert]);
 
-      if (!results || results.length === 0) {
-        setAlertMessage('❌ Adresse introuvable');
-        setTimeout(() => setAlertMessage(null), 4000);
-        return;
-      }
-
-      const lat = parseFloat(results[0].lat);
-      const lng = parseFloat(results[0].lon);
-
-      if (!isNaN(lat) && !isNaN(lng)) {
-        setMapCenter([lat, lng]);
-        setMapZoom(15);
-        setMapKey(prev => prev + 1);
-        setAlertMessage(`✅ ${results[0].display_name}`);
-        setTimeout(() => setAlertMessage(null), 4000);
-      }
-    } catch (err) {
-      setAlertMessage('❌ Erreur');
-      setTimeout(() => setAlertMessage(null), 4000);
-    } finally {
-      setSearching(false);
-    }
-  }, [searchQuery]);
-
-  // Mise à jour des notes d'un pin
   const handlePinNotesChange = useCallback((pinId: string, notes: string) => {
     if (onUpdatePin) {
       onUpdatePin(pinId, { notes, updatedAt: new Date().toISOString() });
     } else {
-      onUpdatePins(pins.map(p => p.id === pinId
-        ? { ...p, notes, updatedAt: new Date().toISOString() }
-        : p
-      ));
+      onUpdatePins(pins.map(p => p.id === pinId ? { ...p, notes, updatedAt: new Date().toISOString() } : p));
     }
   }, [onUpdatePin, onUpdatePins, pins]);
 
-  // Copie des coordonnées GPS
   const handleCopyCoords = useCallback(async (pin: MapPin) => {
-    const text = `${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}`;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); } catch {}
-      document.body.removeChild(ta);
+    const txt = `${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}`;
+    try { await navigator.clipboard.writeText(txt); } catch {
+      const ta = Object.assign(document.createElement('textarea'), { value: txt });
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch {} document.body.removeChild(ta);
     }
     setCopiedPinId(pin.id);
-    setTimeout(() => setCopiedPinId(null), 1500);
+    setTimeout(() => setCopiedPinId(null), 1600);
   }, []);
 
-  // Extraire les adresses
-  const locationNodes = nodes.filter(n =>
-    (n.data as EntityData)?.entityType === 'location'
-  );
-
-  const safePins = Array.isArray(pins) ? pins.filter(p =>
-    p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng)
-  ) : [];
+  const locationNodes = nodes.filter(n => (n.data as EntityData)?.entityType === 'location');
+  const safePins = Array.isArray(pins)
+    ? pins.filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && isFinite(p.lat))
+    : [];
 
   if (!isClient) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-cyber-dark" style={{ minHeight: '500px' }}>
-        <p className="text-cyber-text-dim font-mono">Chargement...</p>
+      <div className="flex-1 flex items-center justify-center bg-cyber-dark">
+        <p className="text-cyber-text-dim font-mono text-xs">Chargement de la carte…</p>
       </div>
     );
   }
 
   return (
     <div className="map-tab-root">
-      {/* Barre recherche */}
-      <div className="h-12 flex items-center gap-2 px-4 border-b border-cyber-border bg-cyber-dark/90 z-20 flex-shrink-0">
+      {/* Search bar */}
+      <div className="map-search-bar">
+        <span className="map-search-icon">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </span>
         <input
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Rechercher une adresse..."
-          className="flex-1 bg-cyber-black border border-cyber-border rounded px-3 py-1.5 text-xs text-cyber-text outline-none focus:border-cyber-cyan"
+          onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          placeholder="Rechercher une adresse, un lieu…"
+          className="map-search-input"
         />
-        <button
-          onClick={handleSearch}
-          disabled={searching || !searchQuery.trim()}
-          className="px-3 py-1.5 rounded bg-cyber-cyan/20 text-cyber-cyan text-xs disabled:opacity-40"
-        >
-          {searching ? '🔍...' : 'OK'}
+        <button onClick={handleSearch} disabled={searching || !searchQuery.trim()} className="map-search-btn">
+          {searching ? '…' : 'OK'}
         </button>
       </div>
 
-      {alertMessage && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded bg-cyber-dark/95 border border-cyber-border text-xs font-mono shadow-lg max-w-md">
-          {alertMessage}
-        </div>
-      )}
+      {alert && <div className="map-alert">{alert}</div>}
 
-      {/* Carte */}
+      {/* Map — single MapContainer, never remounted */}
       <div className="map-leaflet-container">
         <MapContainer
-          key={mapKey}
-          center={mapCenter}
-          zoom={mapZoom}
-          style={{ height: '100%', width: '100%', zIndex: 1 }}
-          className="z-0"
+          center={[46.603354, 1.888334]}
+          zoom={6}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl
         >
+          {/* CartoDB Voyager: dark but with readable streets + labels */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+            subdomains="abcd"
+            maxZoom={19}
           />
-          <RecenterMap center={mapCenter} zoom={mapZoom} />
+          <FlyToTarget target={flyTarget} zoom={flyZoom} />
 
-          <Marker position={mapCenter} icon={redIcon}>
-            <Popup>
-              <div className="pin-popup">
-                <div className="pin-popup-header">
-                  <div className="pin-popup-header-icon" />
-                  <div className="pin-popup-header-title">Position recherchée</div>
-                </div>
-                <div className="pin-popup-body">
-                  <div>
-                    <div className="pin-popup-label">Coordonnées GPS</div>
-                    <div className="pin-popup-coords">
-                      <span>Lat: {mapCenter[0].toFixed(6)}</span>
-                      <span>Lng: {mapCenter[1].toFixed(6)}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="pin-popup-actions">
-                  <button
-                    className="pin-popup-btn pin-popup-btn-copy"
-                    onClick={async () => {
-                      try { await navigator.clipboard.writeText(`${mapCenter[0].toFixed(6)}, ${mapCenter[1].toFixed(6)}`); } catch {}
-                    }}
-                  >
-                    Copier GPS
-                  </button>
-                  <a
-                    className="pin-popup-btn pin-popup-btn-gmaps"
-                    href={`https://www.google.com/maps/search/?api=1&query=${mapCenter[0].toFixed(6)},${mapCenter[1].toFixed(6)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Google Maps
-                  </a>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-
-          {safePins.map((pin) => (
-            <Marker
-              key={pin.id}
-              position={[pin.lat, pin.lng]}
-              icon={blueIcon}
-              eventHandlers={{
-                click: () => {
-                  setSelectedPinId(pin.id);
-                  setMapCenter([pin.lat, pin.lng]);
-                  setMapZoom(15);
-                  setMapKey(prev => prev + 1);
-                }
-              }}
-            >
-              <Popup>
-                <div className="pin-popup">
-                  <div className="pin-popup-header">
-                    <div className="pin-popup-header-icon" />
-                    <div className="pin-popup-header-title">{pin.label || 'Lieu'}</div>
-                  </div>
-                  <div className="pin-popup-body">
-                    <div>
-                      <div className="pin-popup-label">Adresse</div>
-                      <div className="pin-popup-address">
-                        {pin.address || '(non renseignée)'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="pin-popup-label">Coordonnées GPS</div>
-                      <div className="pin-popup-coords">
-                        <span>Lat: {pin.lat.toFixed(6)}</span>
-                        <span>Lng: {pin.lng.toFixed(6)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="pin-popup-label">Notes / Observations</div>
-                      <textarea
-                        className="pin-popup-notes"
-                        defaultValue={pin.notes || ''}
-                        placeholder="Ex: Maison du suspect, Siège social..."
-                        onChange={(e) => handlePinNotesChange(pin.id, e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  {copiedPinId === pin.id && (
-                    <div className="pin-popup-copied">Coordonnées copiées</div>
-                  )}
-                  <div className="pin-popup-actions">
-                    <button
-                      className="pin-popup-btn pin-popup-btn-copy"
-                      onClick={() => handleCopyCoords(pin)}
-                    >
-                      Copier GPS
-                    </button>
-                    <a
-                      className="pin-popup-btn pin-popup-btn-gmaps"
-                      href={`https://www.google.com/maps/search/?api=1&query=${pin.lat.toFixed(6)},${pin.lng.toFixed(6)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Google Maps
-                    </a>
-                  </div>
-                </div>
+          {/* Pins from geocoded entities */}
+          {safePins.map(pin => (
+            <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={pinIcon}>
+              <Popup className="pin-popup-wrapper" minWidth={270} maxWidth={310}>
+                <PinPopupContent
+                  pin={pin}
+                  copied={copiedPinId === pin.id}
+                  onCopy={handleCopyCoords}
+                  onNotesChange={handlePinNotesChange}
+                />
               </Popup>
             </Marker>
           ))}
         </MapContainer>
       </div>
 
-      {/* Liste des locations avec géocodage au clic */}
-      <div className="h-32 border-t border-cyber-border bg-cyber-dark/90 overflow-y-auto flex-shrink-0">
-        <div className="p-2">
-          <p className="text-[10px] text-cyber-text-dim font-mono mb-1 uppercase">
-            Entités Adresse ({locationNodes.length}) — clic pour géocoder
-          </p>
-          {locationNodes.length === 0 ? (
-            <p className="text-xs text-cyber-text-dim text-center py-2">Aucune entité Adresse</p>
-          ) : (
-            <div className="space-y-1">
-              {locationNodes.map((node) => {
-                const data = node.data as EntityData;
-                const address = data.label || data.fields?.address || data.notes;
-                const hasCoords = data.fields?.lat && data.fields?.lng;
-                const isGeocoding = geocodingId === node.id;
+      {/* Entity list */}
+      <div className="map-entity-list">
+        <p className="map-entity-list-title">
+          Entités Adresse ({locationNodes.length}) — cliquer pour géocoder
+        </p>
+        {locationNodes.length === 0 ? (
+          <p className="map-entity-empty">Aucune entité Adresse dans ce cas</p>
+        ) : (
+          <div className="map-entity-items">
+            {locationNodes.map(node => {
+              const data = node.data as EntityData;
+              const address = String(data.label || data.fields?.address || data.notes || '');
+              const hasCoords = !!(data.fields?.lat && data.fields?.lng);
+              const isLoading = geocodingId === node.id;
+              return (
+                <button
+                  key={node.id}
+                  onClick={() => geocodeAndNavigate(address, node.id)}
+                  disabled={isLoading}
+                  className={`map-entity-item ${isLoading ? 'loading' : hasCoords ? 'geocoded' : ''}`}
+                >
+                  <span className="map-entity-dot" style={{ background: hasCoords ? '#10b981' : '#475569' }} />
+                  <span className="map-entity-label">{isLoading ? 'Géocodage…' : address || 'Sans adresse'}</span>
+                  {hasCoords && <span className="map-entity-badge">GPS ✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-                return (
-                  <button
-                    key={node.id}
-                    onClick={() => geocodeAndNavigate(address, node.id)}
-                    disabled={isGeocoding}
-                    className={`w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors ${
-                      isGeocoding
-                        ? 'bg-cyber-yellow/10 text-cyber-yellow'
-                        : hasCoords
-                          ? 'bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20'
-                          : 'hover:bg-cyber-panel text-cyber-text-dim'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full inline-block mr-2"
-                      style={{ background: hasCoords ? '#10b981' : '#6b7280' }}
-                    />
-                    {isGeocoding ? '...' : address || 'Sans adresse'}
-                    {hasCoords && <span className="ml-1 text-[10px]">✅</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+// ── Popup content as a separate component ──────────────────────────────────
+interface PinPopupProps {
+  pin: MapPin;
+  copied: boolean;
+  onCopy: (pin: MapPin) => void;
+  onNotesChange: (id: string, notes: string) => void;
+}
+function PinPopupContent({ pin, copied, onCopy, onNotesChange }: PinPopupProps) {
+  return (
+    <div className="pin-popup">
+      <div className="pin-popup-header">
+        <span className="pin-popup-dot" />
+        <span className="pin-popup-title">{pin.label || 'Lieu'}</span>
+      </div>
+      <div className="pin-popup-body">
+        <div className="pin-popup-section">
+          <div className="pin-popup-label">Adresse</div>
+          <div className="pin-popup-address">{pin.address || '(non renseignée)'}</div>
         </div>
+        <div className="pin-popup-section">
+          <div className="pin-popup-label">Coordonnées GPS</div>
+          <div className="pin-popup-coords">
+            <span>Lat: {pin.lat.toFixed(6)}</span>
+            <span>Lng: {pin.lng.toFixed(6)}</span>
+          </div>
+        </div>
+        <div className="pin-popup-section">
+          <div className="pin-popup-label">Notes / Observations</div>
+          <textarea
+            className="pin-popup-notes"
+            defaultValue={pin.notes || ''}
+            placeholder="Ex: Maison du suspect, siège social…"
+            onChange={e => onNotesChange(pin.id, e.target.value)}
+          />
+        </div>
+      </div>
+      {copied && <div className="pin-popup-copied">Coordonnées copiées !</div>}
+      <div className="pin-popup-actions">
+        <button className="pin-popup-btn pin-popup-btn-copy" onClick={() => onCopy(pin)}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copier GPS
+        </button>
+        <a
+          className="pin-popup-btn pin-popup-btn-gmaps"
+          href={`https://www.google.com/maps/search/?api=1&query=${pin.lat.toFixed(6)},${pin.lng.toFixed(6)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          Google Maps
+        </a>
       </div>
     </div>
   );
