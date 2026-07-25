@@ -22,7 +22,7 @@ const redIcon = new L.Icon({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
+  popupAnchor: [0, -38],
   shadowSize: [41, 41],
 });
 
@@ -31,7 +31,7 @@ const blueIcon = new L.Icon({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
+  popupAnchor: [0, -38],
   shadowSize: [41, 41],
 });
 
@@ -282,8 +282,8 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
           className="z-0"
         >
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OSM"
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
           />
           <RecenterMap center={mapCenter} zoom={mapZoom} />
 

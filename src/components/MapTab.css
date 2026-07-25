@@ -14,14 +14,19 @@
   width: 100%;
   min-height: 0;
   z-index: 0;
+  background: #0f172a;
+}
+
+.map-leaflet-container .leaflet-container {
+  background: #0f172a;
 }
 
 /* ── Dark / Cyberpunk Leaflet Popup ─────────────────────────────────────── */
 .leaflet-popup-content-wrapper {
-  background: #0a0e1a !important;
+  background: #0f172a !important;
   border: 1px solid #06b6d4 !important;
   border-radius: 8px !important;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.25), 0 4px 24px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.45), 0 0 4px rgba(6, 182, 212, 0.3), 0 8px 32px rgba(0, 0, 0, 0.7) !important;
   color: #e2e8f0 !important;
   padding: 0 !important;
 }
@@ -29,18 +34,26 @@
 .leaflet-popup-content {
   margin: 0 !important;
   width: 260px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip-container {
+  margin-top: -1px;
 }
 
 .leaflet-popup-tip {
-  background: #0a0e1a !important;
+  background: #0f172a !important;
   border: 1px solid #06b6d4 !important;
   box-shadow: none !important;
+  width: 14px !important;
+  height: 14px !important;
 }
 
 .leaflet-popup-close-button {
   color: #64748b !important;
   font-size: 18px !important;
   padding: 6px 8px 0 0 !important;
+  z-index: 10 !important;
 }
 
 .leaflet-popup-close-button:hover {
