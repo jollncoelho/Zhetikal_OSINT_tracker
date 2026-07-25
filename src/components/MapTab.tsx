@@ -292,7 +292,9 @@ function PinPopupContent({ pin, copied, onCopy, onNotesChange }: PinPopupProps) 
       <div className="pin-popup-body">
         <div className="pin-popup-section">
           <div className="pin-popup-label">Address</div>
-          <div className="pin-popup-address">{pin.address || '(non renseignée)'}</div>
+          <div className="pin-popup-address-box">
+            <p className="pin-popup-address">{pin.address || '(non renseignée)'}</p>
+          </div>
         </div>
         <div className="pin-popup-section">
           <div className="pin-popup-label">GPS Coordinates</div>

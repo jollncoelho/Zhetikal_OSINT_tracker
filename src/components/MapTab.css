@@ -160,14 +160,13 @@
 }
 
 /* ── Leaflet popup shell override (dark theme) ──────────────────────────── */
+/* NOTE: No backdrop-filter — it picks up light map tiles and makes bg appear light */
 .leaflet-popup-content-wrapper {
-  background: rgba(10, 18, 36, 0.96) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  background: #0d1a2e !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.4) !important;
   border-radius: 14px !important;
-  box-shadow: 0 0 0 1px rgba(56,189,248,0.1), 0 20px 60px rgba(0,0,0,0.75), 0 4px 16px rgba(0,0,0,0.5) !important;
-  color: #f1f5f9 !important;
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.08), 0 24px 64px rgba(0,0,0,0.85), 0 4px 16px rgba(0,0,0,0.6) !important;
+  color: #ffffff !important;
   padding: 0 !important;
   overflow: hidden;
 }
@@ -178,11 +177,10 @@
   line-height: 1.6 !important;
 }
 
-/* Fix: ensure tip colour matches */
 .leaflet-popup-tip-container { margin-top: -1px; }
 .leaflet-popup-tip {
-  background: rgba(10, 18, 36, 0.96) !important;
-  box-shadow: 1px 1px 0 0 rgba(56,189,248,0.35) !important;
+  background: #0d1a2e !important;
+  box-shadow: 1px 1px 0 0 rgba(56,189,248,0.4) !important;
 }
 
 .leaflet-popup-close-button {
@@ -201,7 +199,8 @@
 .pin-popup {
   font-size: 14px;
   font-family: -apple-system, 'Segoe UI', sans-serif;
-  color: #f1f5f9;
+  color: #ffffff;
+  background: #0d1a2e;
 }
 
 .pin-popup-header {
@@ -209,15 +208,15 @@
   align-items: center;
   gap: 10px;
   padding: 16px 20px 14px;
-  border-bottom: 1px solid rgba(56,189,248,0.15);
-  background: rgba(6, 15, 30, 0.85);
+  border-bottom: 1px solid rgba(56,189,248,0.18);
+  background: #07101e;
 }
 
 .pin-popup-dot {
   width: 14px; height: 14px;
   border-radius: 50%;
   background: #38bdf8;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
   flex-shrink: 0;
 }
 
@@ -231,14 +230,16 @@
   letter-spacing: -0.01em;
 }
 
+/* Body: solid dark so text is always readable regardless of map tile colour */
 .pin-popup-body {
   padding: 16px 20px 8px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  background: #0d1a2e;
 }
 
-.pin-popup-section { display: flex; flex-direction: column; gap: 5px; }
+.pin-popup-section { display: flex; flex-direction: column; gap: 6px; }
 
 .pin-popup-label {
   font-size: 11px;
@@ -248,12 +249,21 @@
   color: #64748b;
 }
 
+/* Address box: explicit dark bg + white text */
+.pin-popup-address-box {
+  background: #111f35;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56,189,248,0.12);
+}
+
 .pin-popup-address {
   font-size: 15px;
   font-weight: 500;
-  color: #ffffff;
-  line-height: 1.6;
+  color: #ffffff !important;
+  line-height: 1.65;
   word-break: break-word;
+  margin: 0;
 }
 
 .pin-popup-coords {
@@ -269,8 +279,8 @@
 .pin-popup-notes {
   width: 100%;
   box-sizing: border-box;
-  background: #020817;
-  border: 1px solid rgba(56,189,248,0.2);
+  background: #07101e;
+  border: 1px solid rgba(56,189,248,0.22);
   border-radius: 8px;
   color: #ffffff;
   font-family: inherit;
@@ -294,12 +304,14 @@
   padding: 0 0 6px;
   font-weight: 700;
   letter-spacing: 0.05em;
+  background: #0d1a2e;
 }
 
 .pin-popup-actions {
   display: flex;
   gap: 10px;
   padding: 6px 20px 16px;
+  background: #0d1a2e;
 }
 
 .pin-popup-btn {
@@ -325,9 +337,9 @@
   color: #2dd4bf;
 }
 .pin-popup-btn-copy:hover {
-  background: rgba(45,212,191,0.12);
+  background: rgba(45,212,191,0.14);
   border-color: #2dd4bf;
-  box-shadow: 0 0 12px rgba(45,212,191,0.2);
+  box-shadow: 0 0 14px rgba(45,212,191,0.25);
 }
 
 .pin-popup-btn-gmaps {
@@ -335,7 +347,7 @@
   color: #38bdf8;
 }
 .pin-popup-btn-gmaps:hover {
-  background: rgba(56,189,248,0.12);
+  background: rgba(56,189,248,0.14);
   border-color: #38bdf8;
-  box-shadow: 0 0 12px rgba(56,189,248,0.2);
+  box-shadow: 0 0 14px rgba(56,189,248,0.25);
 }
