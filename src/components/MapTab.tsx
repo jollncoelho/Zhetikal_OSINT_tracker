@@ -228,7 +228,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
           {/* Pins from geocoded entities */}
           {safePins.map(pin => (
             <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={pinIcon}>
-              <Popup className="pin-popup-wrapper" minWidth={270} maxWidth={310}>
+              <Popup className="pin-popup-wrapper" minWidth={340} maxWidth={360}>
                 <PinPopupContent
                   pin={pin}
                   copied={copiedPinId === pin.id}
@@ -291,22 +291,22 @@ function PinPopupContent({ pin, copied, onCopy, onNotesChange }: PinPopupProps) 
       </div>
       <div className="pin-popup-body">
         <div className="pin-popup-section">
-          <div className="pin-popup-label">Adresse</div>
+          <div className="pin-popup-label">Address</div>
           <div className="pin-popup-address">{pin.address || '(non renseignée)'}</div>
         </div>
         <div className="pin-popup-section">
-          <div className="pin-popup-label">Coordonnées GPS</div>
+          <div className="pin-popup-label">GPS Coordinates</div>
           <div className="pin-popup-coords">
             <span>Lat: {pin.lat.toFixed(6)}</span>
             <span>Lng: {pin.lng.toFixed(6)}</span>
           </div>
         </div>
         <div className="pin-popup-section">
-          <div className="pin-popup-label">Notes / Observations</div>
+          <div className="pin-popup-label">Investigator Notes</div>
           <textarea
             className="pin-popup-notes"
             defaultValue={pin.notes || ''}
-            placeholder="Ex: Maison du suspect, siège social…"
+            placeholder="Investigator notes (e.g. Suspect home, shell company address, social scene)…"
             onChange={e => onNotesChange(pin.id, e.target.value)}
           />
         </div>

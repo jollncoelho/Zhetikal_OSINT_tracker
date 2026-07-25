@@ -161,33 +161,35 @@
 
 /* ── Leaflet popup shell override (dark theme) ──────────────────────────── */
 .leaflet-popup-content-wrapper {
-  background: #111827 !important;
-  border: 1px solid #38bdf8 !important;
-  border-radius: 10px !important;
-  box-shadow: 0 0 0 1px rgba(56,189,248,0.15), 0 8px 32px rgba(0,0,0,0.7) !important;
-  color: #e2e8f0 !important;
+  background: rgba(10, 18, 36, 0.96) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.1), 0 20px 60px rgba(0,0,0,0.75), 0 4px 16px rgba(0,0,0,0.5) !important;
+  color: #f1f5f9 !important;
   padding: 0 !important;
   overflow: hidden;
 }
 
 .leaflet-popup-content {
   margin: 0 !important;
-  width: 280px !important;
-  line-height: 1.5 !important;
+  width: 340px !important;
+  line-height: 1.6 !important;
 }
 
 /* Fix: ensure tip colour matches */
 .leaflet-popup-tip-container { margin-top: -1px; }
 .leaflet-popup-tip {
-  background: #111827 !important;
-  box-shadow: 1px 1px 0 0 #38bdf8 !important;
+  background: rgba(10, 18, 36, 0.96) !important;
+  box-shadow: 1px 1px 0 0 rgba(56,189,248,0.35) !important;
 }
 
 .leaflet-popup-close-button {
-  top: 8px !important;
-  right: 10px !important;
+  top: 10px !important;
+  right: 12px !important;
   color: #64748b !important;
-  font-size: 20px !important;
+  font-size: 22px !important;
   padding: 0 !important;
   line-height: 1 !important;
   z-index: 10;
@@ -197,103 +199,107 @@
 
 /* ── Popup inner content ────────────────────────────────────────────────── */
 .pin-popup {
-  font-size: 12px;
+  font-size: 14px;
   font-family: -apple-system, 'Segoe UI', sans-serif;
-  color: #e2e8f0;
+  color: #f1f5f9;
 }
 
 .pin-popup-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid #1e293b;
-  background: #0f172a;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid rgba(56,189,248,0.15);
+  background: rgba(6, 15, 30, 0.85);
 }
 
 .pin-popup-dot {
-  width: 10px; height: 10px;
+  width: 14px; height: 14px;
   border-radius: 50%;
   background: #38bdf8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
   flex-shrink: 0;
 }
 
 .pin-popup-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #f1f5f9;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
 .pin-popup-body {
-  padding: 10px 16px 6px;
+  padding: 16px 20px 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.pin-popup-section { display: flex; flex-direction: column; gap: 3px; }
+.pin-popup-section { display: flex; flex-direction: column; gap: 5px; }
 
 .pin-popup-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #475569;
+  letter-spacing: 0.12em;
+  color: #64748b;
 }
 
 .pin-popup-address {
-  font-size: 12px;
-  color: #cbd5e1;
-  line-height: 1.5;
+  font-size: 15px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1.6;
   word-break: break-word;
 }
 
 .pin-popup-coords {
   display: flex;
-  gap: 14px;
-  font-size: 12px;
-  font-family: 'Fira Code', monospace;
-  color: #34d399;
+  gap: 20px;
+  font-size: 14px;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-weight: 600;
+  color: #2dd4bf;
 }
 .pin-popup-coords span { white-space: nowrap; }
 
 .pin-popup-notes {
   width: 100%;
   box-sizing: border-box;
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 5px;
-  color: #e2e8f0;
+  background: #020817;
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 8px;
+  color: #ffffff;
   font-family: inherit;
-  font-size: 12px;
-  padding: 7px 9px;
+  font-size: 14px;
+  padding: 10px 12px;
   resize: vertical;
-  min-height: 52px;
+  min-height: 80px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .pin-popup-notes:focus {
   border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56,189,248,0.12);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
 }
-.pin-popup-notes::placeholder { color: #334155; }
+.pin-popup-notes::placeholder { color: #4b5563; font-size: 14px; }
 
 .pin-popup-copied {
   text-align: center;
-  font-size: 10px;
-  color: #34d399;
-  padding: 2px 0 4px;
-  font-weight: 600;
+  font-size: 11px;
+  color: #2dd4bf;
+  padding: 0 0 6px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .pin-popup-actions {
   display: flex;
-  gap: 7px;
-  padding: 6px 16px 14px;
+  gap: 10px;
+  padding: 6px 20px 16px;
 }
 
 .pin-popup-btn {
@@ -301,13 +307,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
+  gap: 7px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  border: 1px solid;
+  border: 1.5px solid;
   transition: all 0.14s;
   background: transparent;
   font-family: inherit;
@@ -315,13 +321,21 @@
 }
 
 .pin-popup-btn-copy {
-  border-color: rgba(52,211,153,0.5);
-  color: #34d399;
+  border-color: rgba(45,212,191,0.6);
+  color: #2dd4bf;
 }
-.pin-popup-btn-copy:hover { background: rgba(52,211,153,0.12); border-color: #34d399; }
+.pin-popup-btn-copy:hover {
+  background: rgba(45,212,191,0.12);
+  border-color: #2dd4bf;
+  box-shadow: 0 0 12px rgba(45,212,191,0.2);
+}
 
 .pin-popup-btn-gmaps {
-  border-color: rgba(56,189,248,0.5);
+  border-color: rgba(56,189,248,0.6);
   color: #38bdf8;
 }
-.pin-popup-btn-gmaps:hover { background: rgba(56,189,248,0.12); border-color: #38bdf8; }
+.pin-popup-btn-gmaps:hover {
+  background: rgba(56,189,248,0.12);
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56,189,248,0.2);
+}
