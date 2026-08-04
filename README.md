@@ -1,3 +1,4 @@
+ ⭐ If you find Ghostint Tracker useful, please give it a star on GitHub!
 # 🕵️‍♂️ Ghostint Tracker - Ultimate OSINT Hybrid Investigation Platform
 
 Ghostint Tracker est une application web d'investigation et de cartographie OSINT de nouvelle génération. Conçue pour centraliser, visualiser et enrichir vos enquêtes, elle combine un graphe relationnel dynamique (React Flow), une cartographie mondiale synchronisée (React-Leaflet) et une double intelligence artificielle hybride (Locale & Avancée).
