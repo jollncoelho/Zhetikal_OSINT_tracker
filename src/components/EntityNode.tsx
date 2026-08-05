@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { loadIcons } from './IconPicker';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Globe, Mail, User, Phone, MapPin, Building2,
@@ -69,6 +70,7 @@ interface EntityNodeProps {
 }
 
 export default memo(function EntityNode({ id, data, selected }: EntityNodeProps) {
+  const { t } = useLanguage();
   const [renamingLabel, setRenamingLabel] = useState(false);
   const [label, setLabel] = useState(data.label);
   const [addressInput, setAddressInput] = useState(data.label);
@@ -182,7 +184,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             onBlur={handleSaveAddress}
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
-            placeholder="Saisir une adresse..."
+            placeholder={t('node.addressPlaceholder')}
             className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono min-w-0"
             style={{ color: data.color }}
           />
@@ -190,7 +192,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           <input ref={labelRef} value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSaveLabel} onClick={(e) => e.stopPropagation()} className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono min-w-0" style={{ color: data.color }} />
         ) : (
           <>
-            <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: data.color }} onDoubleClick={handleLabelDoubleClick} title="Double-clic pour renommer">
+            <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: data.color }} onDoubleClick={handleLabelDoubleClick} title={t('node.rename')}>
               {data.label}
             </span>
             {data.entityType === 'url' && openUrl && (
@@ -198,7 +200,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
                 href={data.label}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Ouvrir le lien"
+                title={t('node.openLink')}
                 onClick={(e) => e.stopPropagation()}
                 className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-all duration-150"
               >
@@ -217,7 +219,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
       <div className="px-3 pb-3">
         <p className="text-xs font-mono text-cyber-text-dim italic line-clamp-2">
-          {data.notes || <span className="opacity-40">Aucune note...</span>}
+          {data.notes || <span className="opacity-40">{t('node.noNotes')}</span>}
         </p>
       </div>
 
@@ -238,30 +240,30 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           className="absolute -top-9 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1 py-1 rounded-lg bg-cyber-dark/95 border border-cyber-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 pointer-events-auto whitespace-nowrap"
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={handleDelete} title="Supprimer" className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 transition-colors">
+          <button onClick={handleDelete} title={t('node.delete')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 transition-colors">
             <Trash2 size={12} />
           </button>
-          <button onClick={handleExpandNote} title="Ouvrir le bloc-notes" className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
+          <button onClick={handleExpandNote} title={t('node.openNote')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
             <NotebookPen size={12} />
           </button>
-          <button onClick={handleOpenFields} title="Champs personnalisés" className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
+          <button onClick={handleOpenFields} title={t('node.fields')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
             <SlidersHorizontal size={12} />
           </button>
 
           {isLocation && (
-            <button onClick={handleGoToMap} title="Voir sur la carte" className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 transition-colors">
+            <button onClick={handleGoToMap} title={t('node.viewMap')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-green hover:bg-cyber-green/10 transition-colors">
               <MapPin size={12} />
             </button>
           )}
 
           {pivotOsintUrl && (
-            <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={`Analyser via outil OSINT`} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
+            <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={t('node.osint')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
               <ExternalLink size={12} />
             </a>
           )}
 
           {LINK_TYPES.includes(data.entityType) && openUrl && (
-            <a href={data.entityType === 'url' ? data.label : openUrl} target="_blank" rel="noopener noreferrer" title="Visiter le lien" onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
+            <a href={data.entityType === 'url' ? data.label : openUrl} target="_blank" rel="noopener noreferrer" title={t('node.visitLink')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
               <Search size={12} />
             </a>
           )}

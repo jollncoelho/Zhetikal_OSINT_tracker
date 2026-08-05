@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapTab.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Fix Leaflet default icon paths
 if (typeof window !== 'undefined') {
@@ -56,6 +57,7 @@ interface MapTabProps {
 }
 
 export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
@@ -87,21 +89,21 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
 
   // ── Geocode + create/update pin ─────────────────────────────────────────
   const geocodeAndNavigate = useCallback(async (address: string, nodeId: string) => {
-    if (!address?.trim()) { showAlert('Aucune adresse pour cette entité', 3000); return; }
+    if (!address?.trim()) { showAlert(t('map.noAddress'), 3000); return; }
     setGeocodingId(nodeId);
-    showAlert(`Recherche : ${address}`);
+    showAlert(`${t('map.searching')} ${address}`);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`
       );
       const data = await res.json();
-      if (!data?.length) { showAlert(`Adresse introuvable : ${address}`); setGeocodingId(null); return; }
+      if (!data?.length) { showAlert(`${t('map.notFound')} ${address}`); setGeocodingId(null); return; }
 
       const lat = parseFloat(data[0].lat);
       const lng = parseFloat(data[0].lon);
       const displayName: string = data[0].display_name || address;
 
-      if (isNaN(lat) || !isFinite(lat)) { showAlert('Coordonnées invalides'); setGeocodingId(null); return; }
+      if (isNaN(lat) || !isFinite(lat)) { showAlert(t('map.invalidCoords')); setGeocodingId(null); return; }
 
       setFlyTarget([lat, lng]);
       setFlyZoom(15);
@@ -122,7 +124,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
         ));
       }
     } catch {
-      showAlert('Erreur de géocodage');
+      showAlert(t('map.geocodeError'));
     } finally {
       setGeocodingId(null);
     }
@@ -146,11 +148,11 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
       );
       const data = await res.json();
-      if (!data?.length) { showAlert('Adresse introuvable'); return; }
+      if (!data?.length) { showAlert(t('map.notFoundShort')); return; }
       const lat = parseFloat(data[0].lat);
       const lng = parseFloat(data[0].lon);
       if (!isNaN(lat)) { setFlyTarget([lat, lng]); setFlyZoom(15); showAlert(data[0].display_name); }
-    } catch { showAlert('Erreur'); }
+    } catch { showAlert(t('map.error')); }
     finally { setSearching(false); }
   }, [searchQuery, showAlert]);
 
@@ -180,7 +182,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
   if (!isClient) {
     return (
       <div className="flex-1 flex items-center justify-center bg-cyber-dark">
-        <p className="text-cyber-text-dim font-mono text-xs">Chargement de la carte…</p>
+        <p className="text-cyber-text-dim font-mono text-xs">{t('map.loading')}</p>
       </div>
     );
   }
@@ -198,7 +200,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Rechercher une adresse, un lieu…"
+          placeholder={t('map.searchPlaceholder')}
           className="map-search-input"
         />
         <button onClick={handleSearch} disabled={searching || !searchQuery.trim()} className="map-search-btn">
@@ -244,10 +246,10 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
       {/* Entity list */}
       <div className="map-entity-list">
         <p className="map-entity-list-title">
-          Entités Adresse ({locationNodes.length}) — cliquer pour géocoder
+          {t('map.entityListTitle')} ({locationNodes.length}) — {t('map.entityListHint')}
         </p>
         {locationNodes.length === 0 ? (
-          <p className="map-entity-empty">Aucune entité Adresse dans ce cas</p>
+          <p className="map-entity-empty">{t('map.entityEmpty')}</p>
         ) : (
           <div className="map-entity-items">
             {locationNodes.map(node => {
@@ -263,8 +265,8 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
                   className={`map-entity-item ${isLoading ? 'loading' : hasCoords ? 'geocoded' : ''}`}
                 >
                   <span className="map-entity-dot" style={{ background: hasCoords ? '#10b981' : '#475569' }} />
-                  <span className="map-entity-label">{isLoading ? 'Géocodage…' : address || 'Sans adresse'}</span>
-                  {hasCoords && <span className="map-entity-badge">GPS ✓</span>}
+                  <span className="map-entity-label">{isLoading ? t('map.geocoding') : address || t('map.noAddressShort')}</span>
+                  {hasCoords && <span className="map-entity-badge">{t('map.gpsBadge')}</span>}
                 </button>
               );
             })}
@@ -283,43 +285,44 @@ interface PinPopupProps {
   onNotesChange: (id: string, notes: string) => void;
 }
 function PinPopupContent({ pin, copied, onCopy, onNotesChange }: PinPopupProps) {
+  const { t } = useLanguage();
   return (
     <div className="pin-popup">
       <div className="pin-popup-header">
         <span className="pin-popup-dot" />
-        <span className="pin-popup-title">{pin.label || 'Lieu'}</span>
+        <span className="pin-popup-title">{pin.label || t('popup.place')}</span>
       </div>
       <div className="pin-popup-body">
         <div className="pin-popup-section">
-          <div className="pin-popup-label">Address</div>
+          <div className="pin-popup-label">{t('popup.address')}</div>
           <div className="pin-popup-address-box">
-            <p className="pin-popup-address">{pin.address || '(non renseignée)'}</p>
+            <p className="pin-popup-address">{pin.address || t('popup.addressEmpty')}</p>
           </div>
         </div>
         <div className="pin-popup-section">
-          <div className="pin-popup-label">GPS Coordinates</div>
+          <div className="pin-popup-label">{t('popup.gpsCoords')}</div>
           <div className="pin-popup-coords">
-            <span>Lat: {pin.lat.toFixed(6)}</span>
-            <span>Lng: {pin.lng.toFixed(6)}</span>
+            <span>{t('popup.lat')}: {pin.lat.toFixed(6)}</span>
+            <span>{t('popup.lng')}: {pin.lng.toFixed(6)}</span>
           </div>
         </div>
         <div className="pin-popup-section">
-          <div className="pin-popup-label">Investigator Notes</div>
+          <div className="pin-popup-label">{t('popup.notes')}</div>
           <textarea
             className="pin-popup-notes"
             defaultValue={pin.notes || ''}
-            placeholder="Investigator notes (e.g. Suspect home, shell company address, social scene)…"
+            placeholder={t('popup.notesPlaceholder')}
             onChange={e => onNotesChange(pin.id, e.target.value)}
           />
         </div>
       </div>
-      {copied && <div className="pin-popup-copied">Coordonnées copiées !</div>}
+      {copied && <div className="pin-popup-copied">{t('popup.copied')}</div>}
       <div className="pin-popup-actions">
         <button className="pin-popup-btn pin-popup-btn-copy" onClick={() => onCopy(pin)}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
-          Copier GPS
+          {t('popup.copyGps')}
         </button>
         <a
           className="pin-popup-btn pin-popup-btn-gmaps"
@@ -330,7 +333,7 @@ function PinPopupContent({ pin, copied, onCopy, onNotesChange }: PinPopupProps) 
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
           </svg>
-          Google Maps
+          {t('popup.googleMaps')}
         </a>
       </div>
     </div>

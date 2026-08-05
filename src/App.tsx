@@ -11,6 +11,8 @@ import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
 import IdentifierModal from './components/IdentifierModal';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import { useStore } from './store/useStore';
 import type { EntityData, EntityNode as EntityNodeType, EntityType } from './types';
 import type { Edge } from '@xyflow/react';
@@ -54,6 +56,7 @@ function AppInner() {
   }, [storeOnConnect]);
 
   const { view, setView } = useNavigation();
+  const { t } = useLanguage();
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
@@ -234,7 +237,7 @@ function AppInner() {
                   : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
               }`}
             >
-              <Network size={11} /> Information
+              <Network size={11} /> {t('header.information')}
             </button>
             <button
               onClick={() => setView('map')}
@@ -244,7 +247,7 @@ function AppInner() {
                   : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
               }`}
             >
-              <Map size={11} /> Map
+              <Map size={11} /> {t('header.map')}
             </button>
           </div>
 
@@ -257,14 +260,15 @@ function AppInner() {
                   : 'text-cyber-text-dim hover:bg-cyber-panel border border-transparent'
               }`}
             >
-              <Activity size={12} /> Stats
+              <Activity size={12} /> {t('header.stats')}
             </button>
             <button
               onClick={() => setToolkitOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
             >
-              <Ghost size={12} /> Ghostint-Tools
+              <Ghost size={12} /> {t('header.tools')}
             </button>
+            <LanguageSwitcher />
             <a
               href="https://prohacking77.me"
               target="_blank"
@@ -391,8 +395,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <NavigationProvider>
-      <AppInner />
-    </NavigationProvider>
+    <LanguageProvider>
+      <NavigationProvider>
+        <AppInner />
+      </NavigationProvider>
+    </LanguageProvider>
   );
 }
