@@ -2,7 +2,7 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -269,6 +269,16 @@ function AppInner() {
               <Ghost size={12} /> {t('header.tools')}
             </button>
             <LanguageSwitcher />
+            <a
+              href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Soutenez le projet sur GitHub ! ⭐"
+              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyber-border bg-cyber-panel text-cyber-text-dim text-[11px] font-medium hover:border-yellow-500/50 hover:bg-yellow-500/5 hover:text-yellow-400 transition-all duration-150"
+            >
+              <Star size={12} className="transition-colors duration-150 group-hover:text-yellow-400 group-hover:fill-yellow-400/30" />
+              Star
+            </a>
             <a
               href="https://prohacking77.me"
               target="_blank"
