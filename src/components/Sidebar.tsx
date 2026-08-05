@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import type { CaseData, EntityType, EntityData } from '../types';
 import { ENTITY_COLORS, ENTITY_LABELS } from '../types';
+import { useLanguage } from '../i18n/LanguageContext';
+import { translateEntityLabel } from '../i18n/translations';
 
 interface SidebarProps {
   cases: CaseData[];
@@ -57,6 +59,7 @@ export default function Sidebar({
   const [confirmClear, setConfirmClear] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t, lang } = useLanguage();
 
   const filteredTypes = ENTITY_TYPES.filter((t) =>
     t.toLowerCase().includes(typeSearch.toLowerCase()) ||
@@ -76,7 +79,7 @@ export default function Sidebar({
     setSelectedType(type);
     let label = entityLabel;
     if (!label.trim() && type !== 'location') {
-      label = ENTITY_LABELS[type];
+      label = translateEntityLabel(lang, type);
     }
     // Pour location (Adresse): label vide => le nœud affiche un input à valider
     if (type === 'photo') {
@@ -154,7 +157,7 @@ export default function Sidebar({
               onClick={() => setCasesOpen(!casesOpen)}
               className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-cyber-text-dim uppercase tracking-wider hover:bg-cyber-panel/50 transition-colors"
             >
-              <span>Cases ({cases.length})</span>
+              <span>{t('sidebar.cases')} ({cases.length})</span>
               {casesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
 
@@ -177,13 +180,13 @@ export default function Sidebar({
                         <input
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}
-                          placeholder="Description..."
+                          placeholder={t('sidebar.description')}
                           className="w-full bg-cyber-dark border border-cyber-border rounded px-2 py-1 text-xs text-cyber-text-dim outline-none focus:border-cyber-cyan"
                           onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingCaseId(null); }}
                         />
                         <div className="flex gap-1">
                           <button onClick={commitEdit} className="flex items-center gap-1 flex-1 justify-center py-1 rounded text-[10px] font-semibold bg-cyber-cyan/20 text-cyber-cyan hover:bg-cyber-cyan/30 transition-colors">
-                            <Check size={9} /> Save
+                            <Check size={9} /> {t('sidebar.save')}
                           </button>
                           <button onClick={() => setEditingCaseId(null)} className="px-2 py-1 rounded text-[10px] text-cyber-text-dim hover:bg-cyber-dark transition-colors">
                             <X size={10} />
@@ -212,14 +215,14 @@ export default function Sidebar({
                           <button
                             onClick={(e) => startEdit(c, e)}
                             className="p-0.5 rounded hover:bg-cyber-cyan/20 text-cyber-text-dim hover:text-cyber-cyan transition-all"
-                            title="Renommer"
+                            title={t('sidebar.rename')}
                           >
                             <Pencil size={9} />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); onDeleteCase(c.id); }}
                             className="p-0.5 rounded hover:bg-cyber-red/20 text-cyber-text-dim hover:text-cyber-red transition-all"
-                            title="Supprimer"
+                            title={t('sidebar.delete')}
                           >
                             <Trash2 size={10} />
                           </button>
@@ -239,7 +242,7 @@ export default function Sidebar({
                     <input
                       value={newCaseName}
                       onChange={(e) => setNewCaseName(e.target.value)}
-                      placeholder="Case name..."
+                      placeholder={t('sidebar.caseName')}
                       autoFocus
                       className="w-full bg-cyber-dark border border-cyber-border rounded px-2 py-1 text-xs text-cyber-text outline-none focus:border-cyber-cyan"
                       onKeyDown={(e) => e.key === 'Enter' && handleCreateCase()}
@@ -247,7 +250,7 @@ export default function Sidebar({
                     <input
                       value={newCaseDesc}
                       onChange={(e) => setNewCaseDesc(e.target.value)}
-                      placeholder="Description (optional)..."
+                      placeholder={t('sidebar.descriptionOptional')}
                       className="w-full bg-cyber-dark border border-cyber-border rounded px-2 py-1 text-xs text-cyber-text-dim outline-none focus:border-cyber-cyan"
                       onKeyDown={(e) => e.key === 'Enter' && handleCreateCase()}
                     />
@@ -256,7 +259,7 @@ export default function Sidebar({
                         onClick={handleCreateCase}
                         className="flex-1 py-1 rounded text-[10px] font-semibold bg-cyber-cyan/20 text-cyber-cyan hover:bg-cyber-cyan/30 transition-colors"
                       >
-                        Create
+                        {t('sidebar.create')}
                       </button>
                       <button
                         onClick={() => setCreatingCase(false)}
@@ -272,7 +275,7 @@ export default function Sidebar({
                     className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-cyber-border text-xs text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-cyan transition-colors"
                   >
                     <Plus size={12} />
-                    New Case
+                    {t('sidebar.newCase')}
                   </button>
                 )}
               </div>
@@ -285,7 +288,7 @@ export default function Sidebar({
               onClick={() => setEntitiesOpen(!entitiesOpen)}
               className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-cyber-text-dim uppercase tracking-wider hover:bg-cyber-panel/50 transition-colors"
             >
-              <span>Entities</span>
+              <span>{t('sidebar.entities')}</span>
               {entitiesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
 
@@ -295,7 +298,7 @@ export default function Sidebar({
                   <input
                     value={entityLabel}
                     onChange={(e) => setEntityLabel(e.target.value)}
-                    placeholder={selectedType === 'location' ? 'Saisir une adresse...' : 'Label...'}
+                    placeholder={selectedType === 'location' ? t('node.addressPlaceholder') : t('sidebar.labelPlaceholder')}
                     className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-1 text-xs text-cyber-text outline-none focus:border-cyber-cyan"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddEntity(selectedType)}
                   />
@@ -313,14 +316,14 @@ export default function Sidebar({
                   <input
                     value={typeSearch}
                     onChange={(e) => setTypeSearch(e.target.value)}
-                    placeholder="Search types..."
+                    placeholder={t('sidebar.searchTypes')}
                     className="w-full bg-cyber-dark border border-cyber-border rounded pl-6 pr-2 py-1 text-[10px] text-cyber-text outline-none focus:border-cyber-cyan"
                   />
                 </div>
 
                 {selectedType === 'photo' && (
                   <div>
-                    <label className="text-[10px] text-cyber-text-dim">Photo</label>
+                    <label className="text-[10px] text-cyber-text-dim">{t('sidebar.photo')}</label>
                     <input
                       type="file"
                       accept="image/*"
@@ -368,7 +371,7 @@ export default function Sidebar({
                         }}
                       >
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                        {ENTITY_LABELS[type]}
+                        {translateEntityLabel(lang, type)}
                       </button>
                     );
                   })}
@@ -385,7 +388,7 @@ export default function Sidebar({
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-cyber-green bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/30 hover:border-cyber-green/50 transition-colors disabled:opacity-30"
             >
               <Save size={12} />
-              Save Progress
+              {t('sidebar.saveProgress')}
             </button>
 
             {activeCaseId && (
@@ -394,7 +397,7 @@ export default function Sidebar({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-orange hover:bg-cyber-orange/10 border border-transparent hover:border-cyber-orange/30 transition-colors"
               >
                 <FolderX size={12} />
-                Close Case
+                {t('sidebar.closeCase')}
               </button>
             )}
 
@@ -404,7 +407,7 @@ export default function Sidebar({
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-text-dim hover:bg-cyber-panel hover:text-cyber-text transition-colors disabled:opacity-30"
             >
               <Download size={12} />
-              Export JSON
+              {t('sidebar.exportJson')}
             </button>
 
             <button
@@ -413,7 +416,7 @@ export default function Sidebar({
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-text-dim hover:bg-cyber-panel hover:text-cyber-text transition-colors disabled:opacity-30"
             >
               <FileText size={12} />
-              Export PDF
+              {t('sidebar.exportPdf')}
             </button>
 
             <button
@@ -422,7 +425,7 @@ export default function Sidebar({
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-text-dim hover:bg-cyber-panel hover:text-cyber-text transition-colors disabled:opacity-30"
             >
               <Image size={12} />
-              Export PNG
+              {t('sidebar.exportPng')}
             </button>
 
             <button
@@ -430,7 +433,7 @@ export default function Sidebar({
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-cyber-text-dim hover:bg-cyber-panel hover:text-cyber-text transition-colors"
             >
               <Upload size={12} />
-              Import JSON
+              {t('sidebar.importJson')}
             </button>
 
             <div className="h-px bg-cyber-border my-1" />
@@ -441,8 +444,8 @@ export default function Sidebar({
                 <div className="flex items-start gap-1.5">
                   <AlertTriangle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
                   <p className="text-[10px] text-red-300 leading-tight">
-                    Supprimer toutes les entités et tous les liens du graphe ?<br />
-                    <span className="text-red-400/70">Cette action est irréversible.</span>
+                    {t('sidebar.clearConfirm')}<br />
+                    <span className="text-red-400/70">{t('sidebar.clearIrreversible')}</span>
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -450,7 +453,7 @@ export default function Sidebar({
                     onClick={() => { onClearCanvas(); setConfirmClear(false); }}
                     className="flex items-center gap-1 flex-1 justify-center py-1 rounded text-[10px] font-bold bg-red-500/25 text-red-400 hover:bg-red-500/40 border border-red-500/40 transition-colors"
                   >
-                    <Check size={9} /> Confirmer
+                    <Check size={9} /> {t('sidebar.confirm')}
                   </button>
                   <button
                     onClick={() => setConfirmClear(false)}
@@ -467,7 +470,7 @@ export default function Sidebar({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-red-400/70 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-colors disabled:opacity-30"
               >
                 <Eraser size={12} />
-                Clear Canvas
+                {t('sidebar.clearCanvas')}
               </button>
             )}
 

@@ -3,6 +3,7 @@ import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle } from 'lucide
 import { useStore } from '../store/useStore';
 import { runAnalysis, checkOllama, checkHermes } from '../hermesService';
 import type { AnalysisMode, HermesDiscovery, HermesEntity } from '../types/hermes';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const LS_KEY = 'portal_api_key';
 
@@ -29,6 +30,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [panelOpen, setPanelOpen] = useState<boolean>(() => !localStorage.getItem(LS_KEY));
+  const { t } = useLanguage();
 
   useEffect(() => {
     Promise.all([checkOllama(), checkHermes()]).then(([ollama, hermes]) => {
@@ -250,7 +252,7 @@ export const HermesAnalyzer: React.FC = () => {
                         color: '#818cf8',
                       }}
                     >
-                      {newEntities.length} nouvelle{newEntities.length > 1 ? 's' : ''} entit{newEntities.length === 1 ? 'é' : 'és'} détecté{newEntities.length === 1 ? 'e' : 'es'}
+                      {newEntities.length} {t('analyzer.newEntities')}
                     </span>
                     <button
                       onClick={handleInject}
@@ -269,7 +271,7 @@ export const HermesAnalyzer: React.FC = () => {
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.4)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(99,102,241,0.25)')}
                     >
-                      Tout injecter
+                      {t('analyzer.injectAll')}
                     </button>
                   </div>
 
@@ -338,7 +340,7 @@ export const HermesAnalyzer: React.FC = () => {
                         {/* Individual inject button */}
                         <button
                           onClick={() => handleInjectOne(e)}
-                          title="Ajouter au graphe"
+                          title={t('analyzer.addToGraph')}
                           style={{
                             flexShrink: 0,
                             width: 26,
@@ -378,7 +380,7 @@ export const HermesAnalyzer: React.FC = () => {
       {mode === 'hermes' && (
         keySaved ? (
           <div style={{ textAlign: 'center', fontSize: 11, color: '#22c55e', fontWeight: 600, letterSpacing: '0.02em' }}>
-            Clé sauvegardée localement, jamais partagée
+            {t('analyzer.apiKeySaved')}
           </div>
         ) : panelOpen ? (
           <div style={{
@@ -396,7 +398,7 @@ export const HermesAnalyzer: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Key size={12} color="#818cf8" />
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#818cf8' }}>
-                  Clé API Portal
+                  {t('analyzer.apiKeyTitle')}
                 </span>
               </div>
               {savedKey && (
@@ -416,7 +418,7 @@ export const HermesAnalyzer: React.FC = () => {
                   value={keyInput}
                   onChange={e => setKeyInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
-                  placeholder="sk-nous-..."
+                  placeholder={t('analyzer.apiKeyPlaceholder')}
                   autoFocus
                   style={{
                     width: '100%',
@@ -432,7 +434,7 @@ export const HermesAnalyzer: React.FC = () => {
                 />
                 <button
                   onClick={() => setShowKey(v => !v)}
-                  title={showKey ? 'Masquer' : 'Afficher'}
+                  title={showKey ? t('analyzer.hide') : t('analyzer.show')}
                   style={{ position: 'absolute', right: 8, background: 'transparent', border: 'none', cursor: 'pointer', color: '#475569', padding: 0, display: 'flex' }}
                 >
                   {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -449,20 +451,20 @@ export const HermesAnalyzer: React.FC = () => {
                   fontSize: 11, fontWeight: 700, cursor: keyInput.trim() ? 'pointer' : 'not-allowed',
                 }}
               >
-                Sauvegarder
+                {t('analyzer.saveKey')}
               </button>
             </div>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <span style={{ fontSize: 10, color: savedKey ? '#22c55e' : '#f59e0b' }}>
-              {savedKey ? '● Clé API configurée' : '⚠ Clé API non configurée'}
+              {savedKey ? t('analyzer.apiKeyConfigured') : t('analyzer.apiKeyNotConfigured')}
             </span>
             <button
               onClick={() => { setPanelOpen(true); setKeyInput(''); }}
               style={{ fontSize: 10, color: '#818cf8', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
             >
-              {savedKey ? 'Modifier' : 'Configurer'}
+              {savedKey ? t('analyzer.edit') : t('analyzer.configure')}
             </button>
           </div>
         )
@@ -513,7 +515,7 @@ export const HermesAnalyzer: React.FC = () => {
             }}
           >
             {statusDot(ollamaStatus)}
-            Local (Ollama)
+            {t('analyzer.local')}
           </button>
           <div style={{ width: 1, height: 20, background: 'rgba(51,65,85,0.6)' }} />
           <button
@@ -535,7 +537,7 @@ export const HermesAnalyzer: React.FC = () => {
             }}
           >
             {statusDot(hermesStatus)}
-            Avancé (Hermes)
+            {t('analyzer.advanced')}
           </button>
         </div>
 
@@ -543,7 +545,7 @@ export const HermesAnalyzer: React.FC = () => {
         <button
           onClick={handleAnalyze}
           disabled={loading}
-          title={loading ? 'Analyse en cours...' : 'Lancer l\'Analyse'}
+          title={loading ? t('analyzer.analyzing') : t('analyzer.launch')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -580,10 +582,10 @@ export const HermesAnalyzer: React.FC = () => {
                   flexShrink: 0,
                 }}
               />
-              Analyse en cours...
+              {t('analyzer.analyzing')}
             </>
           ) : (
-            <>🧬 Lancer l'Analyse</>
+            <>🧬 {t('analyzer.launch')}</>
           )}
         </button>
 
@@ -591,7 +593,7 @@ export const HermesAnalyzer: React.FC = () => {
         {(discovery || error) && (
           <button
             onClick={handleSave}
-            title="Sauvegarder le rapport"
+            title={t('analyzer.saveReport')}
             style={{
               width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -609,7 +611,7 @@ export const HermesAnalyzer: React.FC = () => {
         {(discovery || error) && (
           <button
             onClick={() => setMinimized((v) => !v)}
-            title={minimized ? 'Restaurer' : 'Réduire'}
+            title={minimized ? t('analyzer.restore') : t('analyzer.minimize')}
             style={{
               width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -627,7 +629,7 @@ export const HermesAnalyzer: React.FC = () => {
         {(discovery || error) && (
           <button
             onClick={() => { setDiscovery(null); setError(null); setMinimized(false); }}
-            title="Effacer"
+            title={t('analyzer.clear')}
             style={{
               width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',

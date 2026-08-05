@@ -283,28 +283,28 @@ function AppInner() {
 
         {statsOpen && (
           <div className="absolute top-14 right-4 z-20 w-64 rounded-xl border border-cyber-border bg-cyber-dark/95 backdrop-blur-sm p-4 animate-fade-in">
-            <h3 className="text-xs font-semibold text-cyber-text-dim uppercase tracking-wider mb-3">Case Statistics</h3>
+            <h3 className="text-xs font-semibold text-cyber-text-dim uppercase tracking-wider mb-3">{t('stats.title')}</h3>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-cyber-text-dim">Entities</span>
+                <span className="text-xs text-cyber-text-dim">{t('stats.entities')}</span>
                 <span className="text-sm font-mono font-bold text-cyber-cyan">{nodeCount}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-cyber-text-dim">Connections</span>
+                <span className="text-xs text-cyber-text-dim">{t('stats.connections')}</span>
                 <span className="text-sm font-mono font-bold text-cyber-blue">{edgeCount}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-cyber-text-dim">Entity Types</span>
+                <span className="text-xs text-cyber-text-dim">{t('stats.entityTypes')}</span>
                 <span className="text-sm font-mono font-bold text-cyber-green">{entityTypes}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-cyber-text-dim">Map Pins</span>
+                <span className="text-xs text-cyber-text-dim">{t('stats.mapPins')}</span>
                 <span className="text-sm font-mono font-bold text-cyber-cyan">{pinCount}</span>
               </div>
               <div className="h-px bg-cyber-border my-2" />
               <div className="flex justify-between items-center">
-                <span className="text-xs text-cyber-text-dim">Storage</span>
-                <span className="text-[10px] font-mono text-cyber-green">Local Only (OPSEC)</span>
+                <span className="text-xs text-cyber-text-dim">{t('stats.storage')}</span>
+                <span className="text-[10px] font-mono text-cyber-green">{t('stats.storageValue')}</span>
               </div>
             </div>
           </div>
@@ -355,18 +355,18 @@ function AppInner() {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
-              OPSEC: Local Storage Only
+              OPSEC: {t('footer.opsec')}
             </span>
             <span className="text-cyber-border">|</span>
-            <span className="text-cyber-text-dim/60">Usage éthique et légal requis</span>
+            <span className="text-cyber-text-dim/60">{t('footer.ethical')}</span>
             <span className="text-cyber-border">|</span>
-            <span>Ghostint / CyberZ7 — OSINT Tracker</span>
+            <span>{t('footer.brand')}</span>
           </div>
           <div className="flex items-center gap-3">
             {lastSaved && (
               <span className="flex items-center gap-1 text-cyber-green/70">
                 <span className="w-1 h-1 rounded-full bg-cyber-green" />
-                Saved {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {t('footer.saved')} {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             )}
             <span>
