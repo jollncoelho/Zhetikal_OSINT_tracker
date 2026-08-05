@@ -159,13 +159,14 @@
   white-space: nowrap;
 }
 
-/* ── Leaflet popup shell override (dark theme) ──────────────────────────── */
-/* NOTE: No backdrop-filter — it picks up light map tiles and makes bg appear light */
+/* ── Leaflet popup shell override (frosted glass) ───────────────────────── */
 .leaflet-popup-content-wrapper {
-  background: #0d1a2e !important;
-  border: 1.5px solid rgba(56, 189, 248, 0.4) !important;
+  background: rgba(11, 17, 33, 0.6) !important;
+  backdrop-filter: blur(20px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
   border-radius: 14px !important;
-  box-shadow: 0 0 0 1px rgba(56,189,248,0.08), 0 24px 64px rgba(0,0,0,0.85), 0 4px 16px rgba(0,0,0,0.6) !important;
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.08), 0 24px 64px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5) !important;
   color: #ffffff !important;
   padding: 0 !important;
   overflow: hidden;
@@ -179,7 +180,9 @@
 
 .leaflet-popup-tip-container { margin-top: -1px; }
 .leaflet-popup-tip {
-  background: #0d1a2e !important;
+  background: rgba(11, 17, 33, 0.6) !important;
+  backdrop-filter: blur(20px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
   box-shadow: 1px 1px 0 0 rgba(56,189,248,0.4) !important;
 }
 
@@ -200,7 +203,7 @@
   font-size: 14px;
   font-family: -apple-system, 'Segoe UI', sans-serif;
   color: #ffffff;
-  background: #0d1a2e;
+  background: transparent;
 }
 
 .pin-popup-header {
@@ -209,7 +212,7 @@
   gap: 10px;
   padding: 16px 20px 14px;
   border-bottom: 1px solid rgba(56,189,248,0.18);
-  background: #07101e;
+  background: transparent;
 }
 
 .pin-popup-dot {
@@ -230,13 +233,13 @@
   letter-spacing: -0.01em;
 }
 
-/* Body: solid dark so text is always readable regardless of map tile colour */
+/* Body: transparent so frosted wrapper shows through */
 .pin-popup-body {
   padding: 16px 20px 8px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: #0d1a2e;
+  background: transparent;
 }
 
 .pin-popup-section { display: flex; flex-direction: column; gap: 6px; }
@@ -249,9 +252,11 @@
   color: #64748b;
 }
 
-/* Address box: explicit dark bg + white text */
+/* Address box: subtle dark tint + white text */
 .pin-popup-address-box {
-  background: #111f35;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: 8px;
   padding: 10px 12px;
   border: 1px solid rgba(56,189,248,0.12);
@@ -279,7 +284,9 @@
 .pin-popup-notes {
   width: 100%;
   box-sizing: border-box;
-  background: #07101e;
+  background: rgba(7, 16, 30, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(56,189,248,0.22);
   border-radius: 8px;
   color: #ffffff;
@@ -304,14 +311,14 @@
   padding: 0 0 6px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  background: #0d1a2e;
+  background: transparent;
 }
 
 .pin-popup-actions {
   display: flex;
   gap: 10px;
   padding: 6px 20px 16px;
-  background: #0d1a2e;
+  background: transparent;
 }
 
 .pin-popup-btn {
