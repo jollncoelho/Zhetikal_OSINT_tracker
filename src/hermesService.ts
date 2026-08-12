@@ -59,7 +59,29 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
 // ── Analysis backends ────────────────────────────────────────────────────────
 
 const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
-const OLLAMA_GENERATE_MODEL = 'gemma4:e2b';
+
+export const RECOMMENDED_MODELS = [
+  { id: 'nemotron-3.5-lightning', label: 'nemotron-3.5-lightning (NVIDIA — Recommandé pour l\'extraction d\'entités)' },
+  { id: 'gemma:2b', label: 'gemma:2b' },
+  { id: 'llama3.2', label: 'llama3.2' },
+  { id: 'hermes3', label: 'hermes3' },
+];
+
+const LS_MODEL_KEY = 'ollama_model';
+
+export function getOllamaModel(): string {
+  if (typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem(LS_MODEL_KEY);
+    if (stored?.trim()) return stored.trim();
+  }
+  return '';
+}
+
+export function setOllamaModel(model: string): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(LS_MODEL_KEY, model.trim());
+  }
+}
 
 function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName?: string): string {
   const analyst = analystName?.trim() || 'Analyste';
@@ -190,13 +212,17 @@ function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edg
 }
 
 async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
+  const model = getOllamaModel();
+  if (!model) {
+    throw new Error('Aucun modèle Ollama sélectionné. Choisis un modèle dans le menu de configuration avant de lancer l\'analyse.');
+  }
   let response: Response;
   try {
     response = await fetch(OLLAMA_GENERATE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: OLLAMA_GENERATE_MODEL,
+        model,
         prompt: buildGraphPrompt(graphData, analystName),
         stream: false,
       }),

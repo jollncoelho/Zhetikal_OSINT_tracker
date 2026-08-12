@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { runAnalysis, checkOllama, checkHermes } from '../hermesService';
+import { runAnalysis, checkOllama, checkHermes, RECOMMENDED_MODELS, getOllamaModel, setOllamaModel } from '../hermesService';
 import type { AnalysisMode, HermesDiscovery, HermesEntity } from '../types/hermes';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -30,6 +30,8 @@ export const HermesAnalyzer: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [panelOpen, setPanelOpen] = useState<boolean>(() => !localStorage.getItem(LS_KEY));
+  const [ollamaModel, setOllamaModelState] = useState<string>(() => getOllamaModel());
+  const [customModel, setCustomModel] = useState<string>('');
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -49,6 +51,23 @@ export const HermesAnalyzer: React.FC = () => {
     setPanelOpen(false);
     setKeySaved(true);
     setTimeout(() => setKeySaved(false), 3000);
+  };
+
+  const handleModelChange = (value: string) => {
+    if (value === '__custom__') {
+      setOllamaModelState('');
+      return;
+    }
+    setOllamaModelState(value);
+    setOllamaModel(value);
+  };
+
+  const handleCustomModelSave = () => {
+    const trimmed = customModel.trim();
+    if (!trimmed) return;
+    setOllamaModelState(trimmed);
+    setOllamaModel(trimmed);
+    setCustomModel('');
   };
 
   const handleAnalyze = async () => {
@@ -540,6 +559,74 @@ export const HermesAnalyzer: React.FC = () => {
             {t('analyzer.advanced')}
           </button>
         </div>
+
+        {/* Model selector — only in local mode */}
+        {mode === 'local' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              value={ollamaModel || (RECOMMENDED_MODELS.some(m => m.id === ollamaModel) ? ollamaModel : '__custom__')}
+              onChange={(e) => handleModelChange(e.target.value)}
+              title="Modèle Ollama pour l'extraction d'entités"
+              style={{
+                padding: '5px 8px',
+                fontSize: 11,
+                background: 'rgba(15,23,42,0.8)',
+                border: '1px solid rgba(99,102,241,0.35)',
+                borderRadius: 6,
+                color: '#e2e8f0',
+                outline: 'none',
+                cursor: 'pointer',
+                maxWidth: 160,
+              }}
+            >
+              <option value="" disabled>Sélectionner un modèle…</option>
+              {RECOMMENDED_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+              <option value="__custom__">Personnalisé…</option>
+              {ollamaModel && !RECOMMENDED_MODELS.some(m => m.id === ollamaModel) && (
+                <option value={ollamaModel}>{ollamaModel}</option>
+              )}
+            </select>
+            {(!ollamaModel || (RECOMMENDED_MODELS.some(m => m.id === ollamaModel) === false && !RECOMMENDED_MODELS.some(m => m.id === ollamaModel))) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input
+                  type="text"
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCustomModelSave()}
+                  placeholder="nom-du-modèle"
+                  style={{
+                    padding: '5px 8px',
+                    fontSize: 11,
+                    width: 120,
+                    background: 'rgba(15,23,42,0.8)',
+                    border: '1px solid rgba(99,102,241,0.35)',
+                    borderRadius: 6,
+                    color: '#e2e8f0',
+                    outline: 'none',
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <button
+                  onClick={handleCustomModelSave}
+                  disabled={!customModel.trim()}
+                  style={{
+                    padding: '5px 8px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    background: customModel.trim() ? 'rgba(99,102,241,0.25)' : 'rgba(51,65,85,0.3)',
+                    border: '1px solid rgba(99,102,241,0.4)',
+                    borderRadius: 6,
+                    color: customModel.trim() ? '#a5b4fc' : '#475569',
+                    cursor: customModel.trim() ? 'pointer' : 'not-allowed',
+                    whiteSpace: 'nowrap',
+                  }}
+                >OK</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Launch button */}
         <button
