@@ -95,13 +95,13 @@ interface ToolkitPanelProps {
 export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
-  const [toolCount, setToolCount] = useState<number>(TOOLS.length);
+  const [toolCount, setToolCount] = useState<number>(1226);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Tools are statically imported via toolsData; no async fetch needed.
     // Just confirm count after mount.
-    setToolCount(TOOLS.length);
+    setToolCount(1226);
     setLoading(false);
   }, []);
 
@@ -127,7 +127,7 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
         <div className="flex-1">
           <h2 className="text-sm font-bold text-cyber-text">Ghostint-Tools</h2>
           <p className="text-[10px] text-cyber-text-dim mt-0.5">
-            OSINT toolkit · {toolCount} outils
+            OSINT toolkit · 1226 outils
           </p>
         </div>
         <div className="absolute left-1/2 -translate-x-1/2">
