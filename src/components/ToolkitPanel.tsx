@@ -18,7 +18,6 @@ const CATEGORIES = ['All', ...Array.from(new Set(TOOLS.map((t) => t.category)))]
 );
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Username: '#8b5cf6',
   Recon: '#0ea5e9',
   Network: '#00c8d4',
   Breach: '#ef4444',
