@@ -233,7 +233,7 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-medium hover:bg-cyber-cyan/20 transition-colors"
         >
           <ExternalLink size={12} />
-          Catalogue complet · {toolCount} outils
+          Catalogue complet · 1226 outils
         </a>
       </div>
 
