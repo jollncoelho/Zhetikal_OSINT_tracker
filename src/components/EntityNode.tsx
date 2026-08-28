@@ -213,7 +213,15 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
       {data.entityType === 'photo' && data.photoUrl && (
         <div className="px-3 pt-2">
-          <img src={data.photoUrl} alt="" className="w-full h-24 object-cover rounded border border-cyber-border" />
+          <img
+            src={data.photoUrl}
+            alt=""
+            className="w-full h-24 object-cover rounded border border-cyber-border cursor-pointer hover:border-cyber-cyan/50 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent('entity-view-photo', { detail: { photoUrl: data.photoUrl, label: data.label } }));
+            }}
+          />
         </div>
       )}
 

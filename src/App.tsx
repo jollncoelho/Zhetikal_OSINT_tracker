@@ -2,7 +2,7 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star, X } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -74,6 +74,7 @@ function AppInner() {
   const handleRegisterExportPdf = useCallback((fn: () => Promise<void>) => setExportPdfFn(() => fn), []);
   
   const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
+  const [photoViewer, setPhotoViewer] = useState<{ url: string; label: string } | null>(null);
 
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
@@ -114,17 +115,23 @@ function AppInner() {
       const { id } = (e as CustomEvent).detail;
       setFieldsNodeId(id);
     };
+    const handleViewPhoto = (e: Event) => {
+      const { photoUrl, label } = (e as CustomEvent).detail;
+      if (photoUrl) setPhotoViewer({ url: photoUrl, label: label || '' });
+    };
     window.addEventListener('entity-update', handleUpdate);
     window.addEventListener('entity-delete', handleDeleteNode);
     window.addEventListener('edge-delete', handleDeleteEdge);
     window.addEventListener('entity-expand-note', handleExpandNote);
     window.addEventListener('entity-open-fields', handleOpenFields);
+    window.addEventListener('entity-view-photo', handleViewPhoto);
     return () => {
       window.removeEventListener('entity-update', handleUpdate);
       window.removeEventListener('entity-delete', handleDeleteNode);
       window.removeEventListener('edge-delete', handleDeleteEdge);
       window.removeEventListener('entity-expand-note', handleExpandNote);
       window.removeEventListener('entity-open-fields', handleOpenFields);
+      window.removeEventListener('entity-view-photo', handleViewPhoto);
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
 
@@ -390,6 +397,32 @@ function AppInner() {
           <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
         </div>
       </div>
+
+      {photoViewer && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setPhotoViewer(null)}
+        >
+          <button
+            onClick={() => setPhotoViewer(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-lg flex items-center justify-center text-cyber-text-dim hover:text-cyber-text hover:bg-cyber-panel transition-colors z-10"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={photoViewer.url}
+            alt={photoViewer.label}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {photoViewer.label && (
+            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-cyber-text-dim font-mono">
+              {photoViewer.label}
+            </p>
+          )}
+        </div>
+      )}
 
       {fieldsNode && (
         <IdentifierModal
