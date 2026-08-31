@@ -3,8 +3,10 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapTab.css';
+import './GodsEyeView.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import GodsEyeView from './GodsEyeView';
 
 // Fix Leaflet default icon paths
 if (typeof window !== 'undefined') {
@@ -58,6 +60,7 @@ interface MapTabProps {
 
 export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
   const { t } = useLanguage();
+  const [mapMode, setMapMode] = useState<'tracker' | 'godsEye'>('tracker');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
@@ -187,10 +190,55 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
     );
   }
 
+  if (mapMode === 'godsEye') {
+    return (
+      <div className="map-tab-root">
+        <div className="map-search-bar">
+          <div className="map-mode-switcher">
+            <button
+              className={`map-mode-btn ${mapMode === 'tracker' ? 'active' : ''}`}
+              onClick={() => setMapMode('tracker')}
+            >
+              📍 {t('godsEye.trackerMode') || 'TRACKER STANDARD'}
+            </button>
+            <button
+              className={`map-mode-btn ${mapMode === 'godsEye' ? 'active' : ''}`}
+              onClick={() => setMapMode('godsEye')}
+            >
+              🛰️ {t('godsEye.godsEyeMode') || "GOD'S EYE VIEW"}
+            </button>
+          </div>
+        </div>
+        <GodsEyeView
+          pins={pins}
+          nodes={nodes}
+          onGeocodeLocation={onGeocodeLocation}
+          onUpdatePins={onUpdatePins}
+          flyTarget={flyTarget}
+          flyZoom={flyZoom}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="map-tab-root">
       {/* Search bar */}
       <div className="map-search-bar">
+        <div className="map-mode-switcher">
+          <button
+            className={`map-mode-btn ${mapMode === 'tracker' ? 'active' : ''}`}
+            onClick={() => setMapMode('tracker')}
+          >
+            📍 {t('godsEye.trackerMode') || 'TRACKER STANDARD'}
+          </button>
+          <button
+            className={`map-mode-btn ${mapMode === 'godsEye' ? 'active' : ''}`}
+            onClick={() => setMapMode('godsEye')}
+          >
+            🛰️ {t('godsEye.godsEyeMode') || "GOD'S EYE VIEW"}
+          </button>
+        </div>
         <span className="map-search-icon">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>

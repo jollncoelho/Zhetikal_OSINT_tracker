@@ -128,6 +128,13 @@ const fr: Dict = {
   'entity.photo': 'Photo',
 };
 
+const frGodsEye: Record<string, string> = {
+  'godsEye.trackerMode': 'VUE TRACKER STANDARD',
+  'godsEye.godsEyeMode': "GOD'S EYE VIEW",
+  'godsEye.searchPlaceholder': 'Rechercher un lieu ou lat, lon…',
+  'godsEye.streetView': 'VUE AU SOL (STREET VIEW)',
+};
+
 const en: Dict = {
   'header.information': 'Information',
   'header.map': 'Map',
@@ -245,6 +252,13 @@ const en: Dict = {
   'entity.social': 'Social Media',
   'entity.ttp': 'TTP',
   'entity.photo': 'Photo',
+};
+
+const enGodsEye: Record<string, string> = {
+  'godsEye.trackerMode': 'TRACKER STANDARD',
+  'godsEye.godsEyeMode': "GOD'S EYE VIEW",
+  'godsEye.searchPlaceholder': 'Search location or lat, lon…',
+  'godsEye.streetView': 'STREET VIEW',
 };
 
 const es: Dict = {
@@ -366,6 +380,13 @@ const es: Dict = {
   'entity.photo': 'Foto',
 };
 
+const esGodsEye: Record<string, string> = {
+  'godsEye.trackerMode': 'VISTA TRACKER STANDARD',
+  'godsEye.godsEyeMode': "GOD'S EYE VIEW",
+  'godsEye.searchPlaceholder': 'Buscar un lugar o lat, lon…',
+  'godsEye.streetView': 'VISTA A NIVEL DEL SUELO (STREET VIEW)',
+};
+
 const pt: Dict = {
   'header.information': 'Informação',
   'header.map': 'Mapa',
@@ -485,7 +506,19 @@ const pt: Dict = {
   'entity.photo': 'Foto',
 };
 
-export const translations: Record<Language, Dict> = { fr, en, es, pt };
+const ptGodsEye: Record<string, string> = {
+  'godsEye.trackerMode': 'VISTA TRACKER STANDARD',
+  'godsEye.godsEyeMode': "GOD'S EYE VIEW",
+  'godsEye.searchPlaceholder': 'Pesquisar um local ou lat, lon…',
+  'godsEye.streetView': 'VISTA AO NIVEL DO SOLO (STREET VIEW)',
+};
+
+export const translations: Record<Language, Dict> = {
+  fr: { ...fr, ...frGodsEye },
+  en: { ...en, ...enGodsEye },
+  es: { ...es, ...esGodsEye },
+  pt: { ...pt, ...ptGodsEye },
+};
 
 export function translateEntityLabel(lang: Language, type: string): string {
   return translations[lang][`entity.${type}`] ?? translations.en[`entity.${type}`] ?? type;

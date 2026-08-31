@@ -1,0 +1,384 @@
+/* ── God's Eye View ──────────────────────────────────────────────────────── */
+.gods-eye-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── HUD filter bar ─────────────────────────────────────────────────────── */
+.gods-eye-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 12px;
+  background: #0a0f1a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.gods-eye-hud-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gods-eye-hud-label {
+  font-size: 9px;
+  font-family: 'Fira Code', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #475569;
+  margin-right: 4px;
+}
+
+.gods-eye-hud-btn {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  color: #64748b;
+  font-size: 10px;
+  font-family: 'Fira Code', monospace;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gods-eye-hud-btn:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.gods-eye-hud-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+/* ── Tile filter overlays ───────────────────────────────────────────────── */
+.gods-eye-map-container .leaflet-tile-pane {
+  transition: filter 0.3s ease;
+}
+
+.gods-eye-filter-NVG .leaflet-tile-pane {
+  filter: brightness(1.2) contrast(1.5) sepia(100%) hue-rotate(85deg) saturate(300%);
+}
+
+.gods-eye-filter-FLIR .leaflet-tile-pane {
+  filter: invert(100%) contrast(180%) hue-rotate(180deg) saturate(200%);
+}
+
+.gods-eye-filter-CRT .leaflet-tile-pane {
+  filter: brightness(0.9) contrast(1.3) sepia(60%) hue-rotate(120deg) saturate(200%);
+}
+
+/* ── CRT scanlines overlay ──────────────────────────────────────────────── */
+.gods-eye-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 255, 100, 0.04) 0px,
+    rgba(0, 255, 100, 0.04) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  animation: gods-eye-scan 6s linear infinite;
+}
+
+@keyframes gods-eye-scan {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100px; }
+}
+
+/* ── Tactical markers (gold/cyan diamond) ────────────────────────────────── */
+.tactical-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.tac-marker-inner {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+
+.tac-marker-diamond {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  background: rgba(250, 204, 21, 0.2);
+  border: 2px solid #facc15;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
+
+.tac-marker-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(56, 189, 248, 0.5);
+  animation: tac-pulse 2s ease-out infinite;
+}
+
+@keyframes tac-pulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* ── Target reticle ─────────────────────────────────────────────────────── */
+.target-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.target-reticle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.target-ring {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 36px;
+  height: 36px;
+  border: 2px solid #facc15;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.5);
+  animation: target-rotate 4s linear infinite;
+  border-style: dashed;
+}
+
+@keyframes target-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.target-cross-h {
+  position: absolute;
+  top: 19px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: rgba(250, 204, 21, 0.7);
+}
+
+.target-cross-v {
+  position: absolute;
+  left: 19px;
+  top: 0;
+  width: 2px;
+  height: 40px;
+  background: rgba(250, 204, 21, 0.7);
+}
+
+.target-center {
+  position: absolute;
+  top: 17px;
+  left: 17px;
+  width: 6px;
+  height: 6px;
+  background: #facc15;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #facc15;
+  animation: target-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes target-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Target inspection HUD panel ─────────────────────────────────────────── */
+.gods-eye-inspection {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 340px;
+  max-height: 50%;
+  overflow-y: auto;
+  background: rgba(10, 15, 26, 0.92);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 12px;
+  z-index: 500;
+  font-family: 'Fira Code', monospace;
+}
+
+.gods-eye-inspection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.gods-eye-inspection-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #facc15;
+  text-transform: uppercase;
+}
+
+.gods-eye-inspection-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+.gods-eye-inspection-close:hover { color: #f87171; }
+
+.gods-eye-inspection-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gods-eye-inspection-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gods-eye-inspection-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.gods-eye-inspection-value {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.gods-eye-inspection-wiki {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 8px;
+}
+
+.gods-eye-wiki-thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.gods-eye-wiki-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.gods-eye-wiki-extract {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gods-eye-streetview-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(250, 204, 21, 0.1);
+  border: 1.5px solid rgba(250, 204, 21, 0.5);
+  border-radius: 8px;
+  color: #facc15;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Fira Code', monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.gods-eye-streetview-btn:hover {
+  background: rgba(250, 204, 21, 0.2);
+  border-color: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.3);
+}
+
+/* ── Mode switcher ───────────────────────────────────────────────────────── */
+.map-mode-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #0a0f1a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.map-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 10px;
+  font-family: 'Fira Code', monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.map-mode-btn:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.map-mode-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.15);
+}
+
+.map-mode-btn + .map-mode-btn {
+  border-left: 1px solid #1e293b;
+}
