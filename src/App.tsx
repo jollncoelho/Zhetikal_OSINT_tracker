@@ -2,14 +2,13 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star, X, Satellite } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star, X } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
 import DisclaimerModal from './components/DisclaimerModal';
 import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
-import GodsEyeView from './components/GodsEyeView';
 import IdentifierModal from './components/IdentifierModal';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -76,7 +75,6 @@ function AppInner() {
   
   const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
   const [photoViewer, setPhotoViewer] = useState<{ url: string; label: string } | null>(null);
-  const [godsEyeOpen, setGodsEyeOpen] = useState(false);
 
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
@@ -199,18 +197,6 @@ function AppInner() {
     <div className="h-screen w-screen flex overflow-hidden bg-cyber-black">
       {!disclaimerAccepted && <DisclaimerModal onAccept={handleAcceptDisclaimer} />}
 
-      {godsEyeOpen && (
-        <GodsEyeView
-          pins={activeCase?.locations || []}
-          nodes={nodes}
-          onExit={() => setGodsEyeOpen(false)}
-          onUpdatePins={(pins) => {
-            if (!activeCaseId) return;
-            updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
-          }}
-        />
-      )}
-
       <Sidebar
         cases={cases}
         activeCaseId={activeCaseId}
@@ -273,13 +259,6 @@ function AppInner() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setGodsEyeOpen(true)}
-              title="God's Eye View"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
-            >
-              <Satellite size={12} /> God's Eye
-            </button>
             <button
               onClick={() => setStatsOpen(!statsOpen)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
@@ -415,7 +394,7 @@ function AppInner() {
 
         <div className="flex flex-col">
           <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} hidden={godsEyeOpen} />
+          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
         </div>
       </div>
 

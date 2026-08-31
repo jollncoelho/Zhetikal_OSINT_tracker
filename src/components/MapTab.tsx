@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapTab.css';
-import './GodsEyeView.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -55,7 +54,6 @@ interface MapTabProps {
   onUpdatePins: (pins: MapPin[]) => void;
   onGeocodeLocation?: (nodeId: string, lat: number, lng: number) => void;
   onUpdatePin?: (id: string, updates: Partial<MapPin>) => void;
-  onLaunchGodsEye?: () => void;
 }
 
 export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
