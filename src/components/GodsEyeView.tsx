@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import './MapTab.css';
 import './GodsEyeView.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -21,13 +20,6 @@ if (typeof window !== 'undefined') {
 
 type HudFilter = 'STD' | 'NVG' | 'FLIR' | 'CRT';
 type BaseLayer = 'satellite' | 'dark' | 'osm';
-
-const FILTER_CSS: Record<HudFilter, string> = {
-  STD: 'none',
-  NVG: 'brightness(1.2) contrast(1.5) sepia(100%) hue-rotate(85deg) saturate(300%)',
-  FLIR: 'invert(100%) contrast(180%) hue-rotate(180deg) saturate(200%)',
-  CRT: 'brightness(0.9) contrast(1.3) sepia(60%) hue-rotate(120deg) saturate(200%)',
-};
 
 const TILE_LAYERS: Record<BaseLayer, { url: string; attribution: string; maxZoom: number; maxNativeZoom?: number; subdomains?: string }> = {
   satellite: {
@@ -50,7 +42,6 @@ const TILE_LAYERS: Record<BaseLayer, { url: string; attribution: string; maxZoom
   },
 };
 
-// ── Tactical marker icon (gold/cyan diamond) ────────────────────────────────
 const tacticalIcon = L.divIcon({
   className: 'tactical-marker',
   html: `<div class="tac-marker-inner"><div class="tac-marker-diamond"></div><div class="tac-marker-pulse"></div></div>`,
@@ -65,7 +56,6 @@ const targetIcon = L.divIcon({
   iconAnchor: [20, 20],
 });
 
-// ── Fly-to helper ────────────────────────────────────────────────────────────
 interface FlyProps { target: [number, number] | null; zoom: number }
 function FlyToTarget({ target, zoom }: FlyProps) {
   const map = useMap();
@@ -80,17 +70,13 @@ function FlyToTarget({ target, zoom }: FlyProps) {
   return null;
 }
 
-// ── Click handler component ─────────────────────────────────────────────────
 function MapClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
   useMapEvents({
-    click(e) {
-      onClick(e.latlng.lat, e.latlng.lng);
-    },
+    click(e) { onClick(e.latlng.lat, e.latlng.lng); },
   });
   return null;
 }
 
-// ── Inspection data types ────────────────────────────────────────────────────
 interface InspectionData {
   lat: number;
   lng: number;
@@ -111,25 +97,46 @@ const WEATHER_CODES: Record<number, string> = {
 interface GodsEyeViewProps {
   pins: MapPin[];
   nodes: EntityNode[];
-  onGeocodeLocation?: (nodeId: string, lat: number, lng: number) => void;
+  onExit: () => void;
   onUpdatePins?: (pins: MapPin[]) => void;
-  flyTarget: [number, number] | null;
-  flyZoom: number;
 }
 
-export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZoom }: GodsEyeViewProps) {
+export default function GodsEyeView({ pins, nodes, onExit, onUpdatePins }: GodsEyeViewProps) {
   const { t } = useLanguage();
   const [hudFilter, setHudFilter] = useState<HudFilter>('STD');
   const [baseLayer, setBaseLayer] = useState<BaseLayer>('satellite');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [internalFlyTarget, setInternalFlyTarget] = useState<[number, number] | null>(null);
-  const [internalFlyZoom, setInternalFlyZoom] = useState(18);
+  const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const [flyZoom, setFlyZoom] = useState(18);
   const [alert, setAlert] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
+  const [brusselsTime, setBrusselsTime] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [accordionOpen, setAccordionOpen] = useState<Record<string, boolean>>({
+    filters: true,
+    baseMaps: true,
+    layers: false,
+  });
+  const [cam3dOpen, setCam3dOpen] = useState(false);
 
   useEffect(() => { setIsClient(true); }, []);
+
+  // Belgium clock
+  useEffect(() => {
+    const update = () => {
+      setBrusselsTime(new Date().toLocaleTimeString('fr-BE', {
+        timeZone: 'Europe/Brussels',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }));
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const showAlert = useCallback((msg: string, ms = 4000) => {
     setAlert(msg);
@@ -141,28 +148,26 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
     const handler = (e: any) => {
       const { lat, lng } = e.detail || {};
       if (typeof lat === 'number' && !isNaN(lat)) {
-        setInternalFlyTarget([lat, lng]);
-        setInternalFlyZoom(18);
+        setFlyTarget([lat, lng]);
+        setFlyZoom(18);
       }
     };
     window.addEventListener('map-navigate-pin', handler);
     return () => window.removeEventListener('map-navigate-pin', handler);
   }, []);
 
-  // Search: Nominatim + coordinate detection
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) return;
     setSearching(true);
 
-    // Check if it's a coordinate pair "lat, lon"
     const coordMatch = query.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
     if (coordMatch) {
       const lat = parseFloat(coordMatch[1]);
       const lng = parseFloat(coordMatch[2]);
       if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-        setInternalFlyTarget([lat, lng]);
-        setInternalFlyZoom(18);
+        setFlyTarget([lat, lng]);
+        setFlyZoom(18);
         showAlert(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         setSearching(false);
         return;
@@ -178,21 +183,19 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
       const lat = parseFloat(data[0].lat);
       const lng = parseFloat(data[0].lon);
       if (!isNaN(lat)) {
-        setInternalFlyTarget([lat, lng]);
-        setInternalFlyZoom(18);
+        setFlyTarget([lat, lng]);
+        setFlyZoom(18);
         showAlert(data[0].display_name);
       }
     } catch { showAlert(t('map.error')); }
     finally { setSearching(false); }
   }, [searchQuery, showAlert, t]);
 
-  // Click on map → target inspection
   const handleMapClick = useCallback(async (lat: number, lng: number) => {
-    setInternalFlyTarget([lat, lng]);
-    setInternalFlyZoom(18);
+    setFlyTarget([lat, lng]);
+    setFlyZoom(18);
     setInspection({ lat, lng, placeName: '', weather: null, wiki: null, loading: true });
 
-    // Reverse geocode
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
@@ -204,7 +207,6 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
       setInspection(prev => prev ? { ...prev, placeName: `${lat.toFixed(4)}, ${lng.toFixed(4)}` } : null);
     }
 
-    // Weather
     try {
       const res = await fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
@@ -224,7 +226,6 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
       }
     } catch {}
 
-    // Wikipedia
     try {
       const res = await fetch(
         `https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lng}&gsradius=5000&gslimit=1&format=json&origin=*`
@@ -253,7 +254,6 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
     setInspection(prev => prev ? { ...prev, loading: false } : null);
   }, []);
 
-  // Entity nodes with coordinates for tactical overlay
   const entityNodesWithCoords = nodes.filter(n => {
     const data = n.data as EntityData;
     const lat = data.fields?.lat;
@@ -265,12 +265,13 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
     ? pins.filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && isFinite(p.lat))
     : [];
 
-  const activeFlyTarget = flyTarget || internalFlyTarget;
-  const activeFlyZoom = flyTarget ? flyZoom : internalFlyZoom;
+  const toggleAccordion = (key: string) => {
+    setAccordionOpen(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   if (!isClient) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-cyber-dark">
+      <div className="gods-eye-fullscreen gods-eye-loading">
         <p className="text-cyber-text-dim font-mono text-xs">{t('map.loading')}</p>
       </div>
     );
@@ -279,64 +280,128 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
   const layer = TILE_LAYERS[baseLayer];
 
   return (
-    <div className={`gods-eye-root gods-eye-filter-${hudFilter}`}>
-      {/* Search bar */}
-      <div className="map-search-bar">
-        <span className="map-search-icon">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-        </span>
-        <input
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder={t('godsEye.searchPlaceholder') || 'Search location or lat, lon…'}
-          className="map-search-input"
-        />
-        <button onClick={handleSearch} disabled={searching || !searchQuery.trim()} className="map-search-btn">
-          {searching ? '…' : 'OK'}
+    <div className={`gods-eye-fullscreen gods-eye-filter-${hudFilter}`}>
+      {/* Top bar: clock + search + exit */}
+      <div className="gods-eye-topbar">
+        <div className="gods-eye-clock">
+          <span className="gods-eye-clock-label">BRUSSELS</span>
+          <span className="gods-eye-clock-time">{brusselsTime}</span>
+        </div>
+        <div className="gods-eye-search-wrapper">
+          <span className="gods-eye-search-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </span>
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder={t('godsEye.searchPlaceholder') || 'Search location or lat, lon…'}
+            className="gods-eye-search-input"
+          />
+          <button onClick={handleSearch} disabled={searching || !searchQuery.trim()} className="gods-eye-search-btn">
+            {searching ? '…' : 'OK'}
+          </button>
+        </div>
+        <button className="gods-eye-exit-btn" onClick={onExit}>
+          ⬅ {t('godsEye.backToTracker') || 'RETOUR TRACKER'}
         </button>
       </div>
 
-      {/* HUD filter bar */}
-      <div className="gods-eye-hud-bar">
-        <div className="gods-eye-hud-group">
-          <span className="gods-eye-hud-label">FILTERS</span>
-          {(['STD', 'NVG', 'FLIR', 'CRT'] as HudFilter[]).map(f => (
-            <button
-              key={f}
-              onClick={() => setHudFilter(f)}
-              className={`gods-eye-hud-btn ${hudFilter === f ? 'active' : ''}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <div className="gods-eye-hud-group">
-          <span className="gods-eye-hud-label">BASE</span>
-          {([
-            { id: 'satellite' as BaseLayer, label: 'SAT' },
-            { id: 'dark' as BaseLayer, label: 'DRK' },
-            { id: 'osm' as BaseLayer, label: 'OSM' },
-          ]).map(b => (
-            <button
-              key={b.id}
-              onClick={() => setBaseLayer(b.id)}
-              className={`gods-eye-hud-btn ${baseLayer === b.id ? 'active' : ''}`}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
+      {alert && <div className="gods-eye-alert">{alert}</div>}
+
+      {/* Left sidebar accordion */}
+      <div className={`gods-eye-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <button className="gods-eye-sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          {sidebarOpen ? '◀' : '▶'}
+        </button>
+        {sidebarOpen && (
+          <div className="gods-eye-sidebar-content">
+            {/* Filters accordion */}
+            <div className="gods-eye-accordion">
+              <button className="gods-eye-accordion-header" onClick={() => toggleAccordion('filters')}>
+                <span className="gods-eye-accordion-arrow">{accordionOpen.filters ? '▼' : '▶'}</span>
+                <span className="gods-eye-accordion-title">FILTRES HUD</span>
+              </button>
+              {accordionOpen.filters && (
+                <div className="gods-eye-accordion-body">
+                  {(['STD', 'NVG', 'FLIR', 'CRT'] as HudFilter[]).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setHudFilter(f)}
+                      className={`gods-eye-hud-btn ${hudFilter === f ? 'active' : ''}`}
+                    >
+                      <span className="gods-eye-hud-btn-key">{f}</span>
+                      <span className="gods-eye-hud-btn-desc">
+                        {f === 'STD' && 'Standard'}
+                        {f === 'NVG' && 'Night Vision'}
+                        {f === 'FLIR' && 'Thermal IR'}
+                        {f === 'CRT' && 'Radar CRT'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Base maps accordion */}
+            <div className="gods-eye-accordion">
+              <button className="gods-eye-accordion-header" onClick={() => toggleAccordion('baseMaps')}>
+                <span className="gods-eye-accordion-arrow">{accordionOpen.baseMaps ? '▼' : '▶'}</span>
+                <span className="gods-eye-accordion-title">BASE MAPS</span>
+              </button>
+              {accordionOpen.baseMaps && (
+                <div className="gods-eye-accordion-body">
+                  {([
+                    { id: 'satellite' as BaseLayer, label: 'SAT HD', desc: 'Esri Imagery' },
+                    { id: 'dark' as BaseLayer, label: 'DRK', desc: 'Dark Canvas' },
+                    { id: 'osm' as BaseLayer, label: 'OSM', desc: 'OpenStreetMap' },
+                  ]).map(b => (
+                    <button
+                      key={b.id}
+                      onClick={() => setBaseLayer(b.id)}
+                      className={`gods-eye-hud-btn ${baseLayer === b.id ? 'active' : ''}`}
+                    >
+                      <span className="gods-eye-hud-btn-key">{b.label}</span>
+                      <span className="gods-eye-hud-btn-desc">{b.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Layers accordion */}
+            <div className="gods-eye-accordion">
+              <button className="gods-eye-accordion-header" onClick={() => toggleAccordion('layers')}>
+                <span className="gods-eye-accordion-arrow">{accordionOpen.layers ? '▼' : '▶'}</span>
+                <span className="gods-eye-accordion-title">CALQUES</span>
+              </button>
+              {accordionOpen.layers && (
+                <div className="gods-eye-accordion-body">
+                  <div className="gods-eye-layer-row">
+                    <span>Avions (ADS-B)</span>
+                    <span className="gods-eye-layer-soon">Bientôt</span>
+                  </div>
+                  <div className="gods-eye-layer-row">
+                    <span>Bateaux (Marine)</span>
+                    <span className="gods-eye-layer-soon">Bientôt</span>
+                  </div>
+                  <div className="gods-eye-layer-row">
+                    <span>Entités Tracker</span>
+                    <span className="gods-eye-layer-active">{safePins.length + entityNodesWithCoords.length}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {alert && <div className="map-alert">{alert}</div>}
-
-      {/* Map */}
-      <div className="map-leaflet-container gods-eye-map-container">
+      {/* Map fills entire screen */}
+      <div className="gods-eye-map-wrapper">
         <MapContainer
-          center={[46.603354, 1.888334]}
+          center={[50.5039, 4.4699]}
           zoom={6}
           style={{ height: '100%', width: '100%' }}
           zoomControl
@@ -357,15 +422,13 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
               opacity={0.7}
             />
           )}
-          <FlyToTarget target={activeFlyTarget} zoom={activeFlyZoom} />
+          <FlyToTarget target={flyTarget} zoom={flyZoom} />
           <MapClickHandler onClick={handleMapClick} />
 
-          {/* Target reticle at inspection point */}
           {inspection && (
             <Marker position={[inspection.lat, inspection.lng]} icon={targetIcon} interactive={false} />
           )}
 
-          {/* Entity pins (tactical markers) */}
           {safePins.map(pin => (
             <Marker key={pin.id} position={[pin.lat, pin.lng]} icon={tacticalIcon}>
               <Popup className="pin-popup-wrapper" minWidth={340} maxWidth={360}>
@@ -388,35 +451,12 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
                         <span>{t('popup.lng')}: {pin.lng.toFixed(6)}</span>
                       </div>
                     </div>
-                    <div className="pin-popup-section">
-                      <div className="pin-popup-label">{t('popup.notes')}</div>
-                      <textarea
-                        className="pin-popup-notes"
-                        defaultValue={pin.notes || ''}
-                        placeholder={t('popup.notesPlaceholder')}
-                        onChange={e => {
-                          const updated = pins.map(p => p.id === pin.id ? { ...p, notes: e.target.value, updatedAt: new Date().toISOString() } : p);
-                          onUpdatePins?.(updated);
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="pin-popup-actions">
-                    <a
-                      className="pin-popup-btn pin-popup-btn-gmaps"
-                      href={`https://www.google.com/maps/search/?api=1&query=${pin.lat.toFixed(6)},${pin.lng.toFixed(6)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t('popup.googleMaps')}
-                    </a>
                   </div>
                 </div>
               </Popup>
             </Marker>
           ))}
 
-          {/* Entity nodes with coordinates as tactical markers */}
           {entityNodesWithCoords.map(node => {
             const data = node.data as EntityData;
             const lat = parseFloat(data.fields!.lat as string);
@@ -445,15 +485,14 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
           })}
         </MapContainer>
 
-        {/* CRT scanline overlay */}
         {hudFilter === 'CRT' && <div className="gods-eye-scanlines" />}
       </div>
 
-      {/* Target inspection HUD panel */}
+      {/* Right: Target inspection panel */}
       {inspection && (
         <div className="gods-eye-inspection">
           <div className="gods-eye-inspection-header">
-            <span className="gods-eye-inspection-title">TARGET INSPECTION</span>
+            <span className="gods-eye-inspection-title">TARGET ACQUIRED</span>
             <button className="gods-eye-inspection-close" onClick={() => setInspection(null)}>✕</button>
           </div>
           <div className="gods-eye-inspection-body">
@@ -499,6 +538,19 @@ export default function GodsEyeView({ pins, nodes, onUpdatePins, flyTarget, flyZ
           </div>
         </div>
       )}
+
+      {/* Bottom-right: retractable 3D camera button */}
+      <div className={`gods-eye-cam3d ${cam3dOpen ? 'open' : ''}`}>
+        <button className="gods-eye-cam3d-toggle" onClick={() => setCam3dOpen(!cam3dOpen)}>
+          {cam3dOpen ? '▼' : '🎥 3D'}
+        </button>
+        {cam3dOpen && (
+          <div className="gods-eye-cam3d-panel">
+            <p className="gods-eye-cam3d-text">Caméra 3D tactique</p>
+            <p className="gods-eye-cam3d-soon">Bientôt disponible</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

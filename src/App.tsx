@@ -9,6 +9,7 @@ import ToolkitPanel from './components/ToolkitPanel';
 import DisclaimerModal from './components/DisclaimerModal';
 import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
+import GodsEyeView from './components/GodsEyeView';
 import IdentifierModal from './components/IdentifierModal';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -75,6 +76,7 @@ function AppInner() {
   
   const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
   const [photoViewer, setPhotoViewer] = useState<{ url: string; label: string } | null>(null);
+  const [godsEyeOpen, setGodsEyeOpen] = useState(false);
 
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
@@ -196,6 +198,18 @@ function AppInner() {
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-cyber-black">
       {!disclaimerAccepted && <DisclaimerModal onAccept={handleAcceptDisclaimer} />}
+
+      {godsEyeOpen && (
+        <GodsEyeView
+          pins={activeCase?.locations || []}
+          nodes={nodes}
+          onExit={() => setGodsEyeOpen(false)}
+          onUpdatePins={(pins) => {
+            if (!activeCaseId) return;
+            updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
+          }}
+        />
+      )}
 
       <Sidebar
         cases={cases}
@@ -364,6 +378,7 @@ function AppInner() {
               }}
               onGeocodeLocation={handleGeocodeLocation}
               onUpdatePin={updatePin}
+              onLaunchGodsEye={() => setGodsEyeOpen(true)}
             />
           </div>
         )}

@@ -133,6 +133,9 @@ const frGodsEye: Record<string, string> = {
   'godsEye.godsEyeMode': "GOD'S EYE VIEW",
   'godsEye.searchPlaceholder': 'Rechercher un lieu ou lat, lon…',
   'godsEye.streetView': 'VUE AU SOL (STREET VIEW)',
+  'godsEye.launchTitle': "LANCER LE TERMINAL GOD'S EYE",
+  'godsEye.launchSubtitle': 'PLEIN ÉCRAN · SATELLITE TACTIQUE',
+  'godsEye.backToTracker': 'RETOUR TRACKER',
 };
 
 const en: Dict = {
@@ -259,6 +262,9 @@ const enGodsEye: Record<string, string> = {
   'godsEye.godsEyeMode': "GOD'S EYE VIEW",
   'godsEye.searchPlaceholder': 'Search location or lat, lon…',
   'godsEye.streetView': 'STREET VIEW',
+  'godsEye.launchTitle': "LAUNCH GOD'S EYE TERMINAL",
+  'godsEye.launchSubtitle': 'FULL SCREEN · TACTICAL SATELLITE',
+  'godsEye.backToTracker': 'BACK TO TRACKER',
 };
 
 const es: Dict = {
@@ -385,6 +391,9 @@ const esGodsEye: Record<string, string> = {
   'godsEye.godsEyeMode': "GOD'S EYE VIEW",
   'godsEye.searchPlaceholder': 'Buscar un lugar o lat, lon…',
   'godsEye.streetView': 'VISTA A NIVEL DEL SUELO (STREET VIEW)',
+  'godsEye.launchTitle': "INICIAR TERMINAL GOD'S EYE",
+  'godsEye.launchSubtitle': 'PANTALLA COMPLETA · SATÉLITE TÁCTICO',
+  'godsEye.backToTracker': 'VOLVER AL TRACKER',
 };
 
 const pt: Dict = {
@@ -511,6 +520,9 @@ const ptGodsEye: Record<string, string> = {
   'godsEye.godsEyeMode': "GOD'S EYE VIEW",
   'godsEye.searchPlaceholder': 'Pesquisar um local ou lat, lon…',
   'godsEye.streetView': 'VISTA AO NIVEL DO SOLO (STREET VIEW)',
+  'godsEye.launchTitle': "INICIAR TERMINAL GOD'S EYE",
+  'godsEye.launchSubtitle': 'TELA CHEIA · SATÉLITE TÁTICO',
+  'godsEye.backToTracker': 'VOLTAR AO TRACKER',
 };
 
 export const translations: Record<Language, Dict> = {

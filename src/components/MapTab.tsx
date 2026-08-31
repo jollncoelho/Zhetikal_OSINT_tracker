@@ -6,7 +6,6 @@ import './MapTab.css';
 import './GodsEyeView.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
-import GodsEyeView from './GodsEyeView';
 
 // Fix Leaflet default icon paths
 if (typeof window !== 'undefined') {
@@ -56,11 +55,11 @@ interface MapTabProps {
   onUpdatePins: (pins: MapPin[]) => void;
   onGeocodeLocation?: (nodeId: string, lat: number, lng: number) => void;
   onUpdatePin?: (id: string, updates: Partial<MapPin>) => void;
+  onLaunchGodsEye?: () => void;
 }
 
-export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
+export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin, onLaunchGodsEye }: MapTabProps) {
   const { t } = useLanguage();
-  const [mapMode, setMapMode] = useState<'tracker' | 'godsEye'>('tracker');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
@@ -190,55 +189,10 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
     );
   }
 
-  if (mapMode === 'godsEye') {
-    return (
-      <div className="map-tab-root">
-        <div className="map-search-bar">
-          <div className="map-mode-switcher">
-            <button
-              className={`map-mode-btn ${mapMode === 'tracker' ? 'active' : ''}`}
-              onClick={() => setMapMode('tracker')}
-            >
-              📍 {t('godsEye.trackerMode') || 'TRACKER STANDARD'}
-            </button>
-            <button
-              className={`map-mode-btn ${mapMode === 'godsEye' ? 'active' : ''}`}
-              onClick={() => setMapMode('godsEye')}
-            >
-              🛰️ {t('godsEye.godsEyeMode') || "GOD'S EYE VIEW"}
-            </button>
-          </div>
-        </div>
-        <GodsEyeView
-          pins={pins}
-          nodes={nodes}
-          onGeocodeLocation={onGeocodeLocation}
-          onUpdatePins={onUpdatePins}
-          flyTarget={flyTarget}
-          flyZoom={flyZoom}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="map-tab-root">
       {/* Search bar */}
       <div className="map-search-bar">
-        <div className="map-mode-switcher">
-          <button
-            className={`map-mode-btn ${mapMode === 'tracker' ? 'active' : ''}`}
-            onClick={() => setMapMode('tracker')}
-          >
-            📍 {t('godsEye.trackerMode') || 'TRACKER STANDARD'}
-          </button>
-          <button
-            className={`map-mode-btn ${mapMode === 'godsEye' ? 'active' : ''}`}
-            onClick={() => setMapMode('godsEye')}
-          >
-            🛰️ {t('godsEye.godsEyeMode') || "GOD'S EYE VIEW"}
-          </button>
-        </div>
         <span className="map-search-icon">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -290,6 +244,15 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
           ))}
         </MapContainer>
       </div>
+
+      {/* God's Eye launch card */}
+      {onLaunchGodsEye && (
+        <div className="gods-eye-launch-card" onClick={onLaunchGodsEye}>
+          <span className="gods-eye-launch-icon">🛰️</span>
+          <span className="gods-eye-launch-title">{t('godsEye.launchTitle') || "LANCER LE TERMINAL GOD'S EYE"}</span>
+          <span className="gods-eye-launch-subtitle">{t('godsEye.launchSubtitle') || 'PLEIN ÉCRAN · SATELLITE TACTIQUE'}</span>
+        </div>
+      )}
 
       {/* Entity list */}
       <div className="map-entity-list">
