@@ -58,7 +58,7 @@ interface MapTabProps {
   onLaunchGodsEye?: () => void;
 }
 
-export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin, onLaunchGodsEye }: MapTabProps) {
+export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, onUpdatePin }: MapTabProps) {
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -244,15 +244,6 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
           ))}
         </MapContainer>
       </div>
-
-      {/* God's Eye launch card */}
-      {onLaunchGodsEye && (
-        <div className="gods-eye-launch-card" onClick={onLaunchGodsEye}>
-          <span className="gods-eye-launch-icon">🛰️</span>
-          <span className="gods-eye-launch-title">{t('godsEye.launchTitle') || "LANCER LE TERMINAL GOD'S EYE"}</span>
-          <span className="gods-eye-launch-subtitle">{t('godsEye.launchSubtitle') || 'PLEIN ÉCRAN · SATELLITE TACTIQUE'}</span>
-        </div>
-      )}
 
       {/* Entity list */}
       <div className="map-entity-list">

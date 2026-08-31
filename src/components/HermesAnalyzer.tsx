@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle } from 'lucide-react';
+import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { runAnalysis, checkOllama, checkHermes, RECOMMENDED_MODELS, getOllamaModel, setOllamaModel } from '../hermesService';
 import type { AnalysisMode, HermesDiscovery, HermesEntity } from '../types/hermes';
@@ -9,10 +9,7 @@ const LS_KEY = 'portal_api_key';
 
 type ServiceStatus = 'unknown' | 'up' | 'down';
 
-export const HermesAnalyzer: React.FC = () => {
-  const nodes = useStore((s) => s.nodes);
-  const edges = useStore((s) => s.edges);
-  const addEntity = useStore((s) => s.addEntity);
+export const HermesAnalyzer: React.FC<{ addEntity: any; nodes: any[]; edges: any[]; activeCase: any; hidden?: boolean }> = ({ addEntity, nodes, edges, activeCase, hidden }) => {
   const onConnect = useStore((s) => s.onConnect);
   const analystName = useStore((s) => s.analystName);
 
@@ -23,6 +20,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [ollamaStatus, setOllamaStatus] = useState<ServiceStatus>('unknown');
   const [hermesStatus, setHermesStatus] = useState<ServiceStatus>('unknown');
   const [minimized, setMinimized] = useState(false);
+  const [barCollapsed, setBarCollapsed] = useState(false);
 
   // API key state
   const [savedKey, setSavedKey] = useState<string>(() => localStorage.getItem(LS_KEY) ?? '');
@@ -184,21 +182,53 @@ export const HermesAnalyzer: React.FC = () => {
     <div
       style={{
         position: 'absolute',
-        bottom: 24,
+        bottom: 0,
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: `translateX(-50%) translateY(${hidden || barCollapsed ? 'calc(100% + 40px)' : '24px'})`,
         zIndex: 9999,
         width: '100%',
         maxWidth: 560,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 8,
+        gap: 0,
         padding: '0 16px',
         boxSizing: 'border-box',
+        transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Results panel */}
+      {/* Toggle tab — always visible (unless hidden by GodsEye) */}
+      {!hidden && (
+        <button
+          onClick={() => setBarCollapsed(v => !v)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 14px',
+            background: 'rgba(11,15,25,0.80)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(56,189,248,0.30)',
+            borderBottom: 'none',
+            borderRadius: '8px 8px 0 0',
+            color: '#38bdf8',
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: 'monospace',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            marginBottom: 0,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(56,189,248,0.12)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(11,15,25,0.80)'; }}
+        >
+          <Zap size={11} />
+          {barCollapsed ? '⚡ IA / ANALYSE ▲' : '⚡ IA / ANALYSE ▼'}
+        </button>
+      )}
+
+      {/* Inner content with gap */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: '100%' }}>
       {!minimized && (discovery || error) && (
         <div
           style={{
@@ -395,7 +425,7 @@ export const HermesAnalyzer: React.FC = () => {
         </div>
       )}
 
-      {/* API key — only in hermes mode */}
+      {/* Results panel */}
       {mode === 'hermes' && (
         keySaved ? (
           <div style={{ textAlign: 'center', fontSize: 11, color: '#22c55e', fontWeight: 600, letterSpacing: '0.02em' }}>
@@ -729,6 +759,8 @@ export const HermesAnalyzer: React.FC = () => {
             ✕
           </button>
         )}
+      </div>
+
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

@@ -2,7 +2,7 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star, X } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star, X, Satellite } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -274,6 +274,13 @@ function AppInner() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setGodsEyeOpen(true)}
+              title="God's Eye View"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
+            >
+              <Satellite size={12} /> God's Eye
+            </button>
+            <button
               onClick={() => setStatsOpen(!statsOpen)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
                 statsOpen
@@ -378,7 +385,6 @@ function AppInner() {
               }}
               onGeocodeLocation={handleGeocodeLocation}
               onUpdatePin={updatePin}
-              onLaunchGodsEye={() => setGodsEyeOpen(true)}
             />
           </div>
         )}
@@ -409,7 +415,7 @@ function AppInner() {
 
         <div className="flex flex-col">
           <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} hidden={godsEyeOpen} />
         </div>
       </div>
 
