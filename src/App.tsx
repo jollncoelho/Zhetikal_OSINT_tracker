@@ -232,19 +232,19 @@ function AppInner() {
                   {nodeCount}e / {edgeCount}l / {pinCount}p
                 </span>
               )}
-              <a
-                href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="God's Eye — Terminal de projection tactique"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[16px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
-              >
-                <Satellite size={12} /> God's Eye
-              </a>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-cyber-black/60 rounded-xl border border-cyber-border p-1">
+          <div className="flex items-center gap-2 mx-auto">
+            <a
+              href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="God's Eye — Terminal de projection tactique"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
+            >
+              <Satellite size={11} /> God's Eye
+            </a>
             <button
               onClick={() => setView('graph')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
