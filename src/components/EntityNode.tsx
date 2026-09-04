@@ -5,7 +5,7 @@ import {
   FileText, Link, Bitcoin, StickyNote, Share2, Camera,
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
   Trash2, X, Check, NotebookPen,
-  ExternalLink, SlidersHorizontal, Search
+  ExternalLink, SlidersHorizontal, Search, Satellite
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { loadIcons } from './IconPicker';
@@ -19,6 +19,28 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp'];
 const LINK_TYPES = ['url', 'domain', 'hostname'];
+
+const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
+
+function extractCoords(data: EntityData): { lat: number; lon: number } | null {
+  const f = data.fields;
+  if (f) {
+    const lat = parseFloat(String(f.lat));
+    const lon = parseFloat(String(f.lng ?? f.lon ?? f.longitude));
+    if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
+      return { lat, lon };
+    }
+  }
+  return null;
+}
+
+function buildGodsEyeUrl(data: EntityData): string | null {
+  const coords = extractCoords(data);
+  if (!coords) return null;
+  const label = encodeURIComponent(data.label || '');
+  const type = encodeURIComponent(data.entityType || '');
+  return `${GODSEYE_BASE}/?lat=${coords.lat}&lon=${coords.lon}&zoom=14&label=${label}&type=${type}`;
+}
 
 function buildOpenUrl(entityType: string, label: string): string | null {
   if (entityType === 'url') return label.startsWith('http') ? label : `https://${label}`;
@@ -263,6 +285,12 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
               <MapPin size={12} />
             </button>
           )}
+
+          {(() => { const gye = buildGodsEyeUrl(data); return gye ? (
+            <a href={gye} target="_blank" rel="noopener noreferrer" title="Projeter dans God's Eye" onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
+              <Satellite size={12} />
+            </a>
+          ) : null; })()}
 
           {pivotOsintUrl && (
             <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={t('node.osint')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 transition-colors">

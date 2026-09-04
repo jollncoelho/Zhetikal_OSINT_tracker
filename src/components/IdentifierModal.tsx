@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, SlidersHorizontal } from 'lucide-react';
+import { X, SlidersHorizontal, Satellite } from 'lucide-react';
 import type { EntityData, EntityType } from '../types';
 import { ENTITY_FIELDS, ENTITY_LABELS, ENTITY_COLORS } from '../types';
 import IconPicker from './IconPicker';
+
+const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
 
 interface Props {
   nodeId: string;
@@ -112,6 +114,28 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
             Annuler
           </button>
         </div>
+
+        {/* God's Eye projection — visible only when GPS coords exist */}
+        {(() => {
+          const f = data.fields;
+          if (!f) return null;
+          const lat = parseFloat(String(f.lat));
+          const lon = parseFloat(String(f.lng ?? f.lon ?? f.longitude));
+          if (isNaN(lat) || isNaN(lon) || !isFinite(lat) || !isFinite(lon)) return null;
+          const label = encodeURIComponent(data.label || '');
+          const type = encodeURIComponent(data.entityType || '');
+          const href = `${GODSEYE_BASE}/?lat=${lat}&lon=${lon}&zoom=14&label=${label}&type=${type}`;
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 border-t border-cyber-cyan/20 bg-cyber-cyan/5 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/15 transition-colors"
+            >
+              <Satellite size={13} /> PROJETER DANS GOD'S EYE
+            </a>
+          );
+        })()}
       </div>
 
       {showIconPicker && (

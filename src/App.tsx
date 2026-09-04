@@ -2,7 +2,7 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star, X } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star, X, Satellite } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -276,6 +276,15 @@ function AppInner() {
               <Ghost size={12} /> {t('header.tools')}
             </button>
             <LanguageSwitcher />
+            <a
+              href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="God's Eye — Terminal de projection tactique"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
+            >
+              <Satellite size={12} /> God's Eye
+            </a>
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
               target="_blank"
