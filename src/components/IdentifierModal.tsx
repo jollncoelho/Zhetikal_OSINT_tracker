@@ -115,25 +115,49 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
           </button>
         </div>
 
-        {/* God's Eye projection — visible only when GPS coords exist */}
+        {/* God's Eye projection — geocodes address if no GPS coords */}
         {(() => {
           const f = data.fields;
-          if (!f) return null;
-          const lat = parseFloat(String(f.lat));
-          const lon = parseFloat(String(f.lng ?? f.lon ?? f.longitude));
-          if (isNaN(lat) || isNaN(lon) || !isFinite(lat) || !isFinite(lon)) return null;
-          const label = encodeURIComponent(data.label || '');
-          const type = encodeURIComponent(data.entityType || '');
-          const href = `${GODSEYE_BASE}/?lat=${lat}&lon=${lon}&zoom=14&label=${label}&type=${type}`;
+          const lat = f ? parseFloat(String(f.lat)) : NaN;
+          const lon = f ? parseFloat(String(f.lng ?? f.lon ?? f.longitude)) : NaN;
+          const hasCoords = !isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon);
+          const isLoc = data.entityType === 'location';
+          if (!hasCoords && !isLoc) return null;
+
+          const handleProject = async () => {
+            const label = encodeURIComponent(data.label || '');
+            const type = encodeURIComponent(data.entityType || '');
+            if (hasCoords) {
+              window.open(`${GODSEYE_BASE}/?lat=${lat}&lon=${lon}&zoom=16&label=${label}&type=${type}`, '_blank');
+              return;
+            }
+            const address = data.label?.trim();
+            if (!address) return;
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+              const results = await res.json();
+              if (Array.isArray(results) && results.length > 0) {
+                const glat = parseFloat(results[0].lat);
+                const glon = parseFloat(results[0].lon);
+                if (!isNaN(glat) && !isNaN(glon)) {
+                  onUpdate(nodeId, { fields: { ...(data.fields || {}), lat: String(glat), lng: String(glon) } });
+                  window.open(`${GODSEYE_BASE}/?lat=${glat}&lon=${glon}&zoom=16&label=${label}&type=${type}`, '_blank');
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error('Geocoding failed', e);
+            }
+            window.open(`${GODSEYE_BASE}/?label=${label}&type=${type}`, '_blank');
+          };
+
           return (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-5 py-2.5 border-t border-cyber-cyan/20 bg-cyber-cyan/5 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/15 transition-colors"
+            <button
+              onClick={handleProject}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 border-t border-cyber-cyan/20 bg-cyber-cyan/5 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/15 transition-colors w-full"
             >
               <Satellite size={13} /> PROJETER DANS GOD'S EYE
-            </a>
+            </button>
           );
         })()}
       </div>

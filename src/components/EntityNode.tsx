@@ -39,7 +39,35 @@ function buildGodsEyeUrl(data: EntityData): string | null {
   if (!coords) return null;
   const label = encodeURIComponent(data.label || '');
   const type = encodeURIComponent(data.entityType || '');
-  return `${GODSEYE_BASE}/?lat=${coords.lat}&lon=${coords.lon}&zoom=14&label=${label}&type=${type}`;
+  return `${GODSEYE_BASE}/?lat=${coords.lat}&lon=${coords.lon}&zoom=16&label=${label}&type=${type}`;
+}
+
+async function geocodeAndOpenGodsEye(data: EntityData, id: string): Promise<void> {
+  const coords = extractCoords(data);
+  const label = encodeURIComponent(data.label || '');
+  const type = encodeURIComponent(data.entityType || '');
+  if (coords) {
+    window.open(`${GODSEYE_BASE}/?lat=${coords.lat}&lon=${coords.lon}&zoom=16&label=${label}&type=${type}`, '_blank');
+    return;
+  }
+  const address = data.label?.trim();
+  if (!address) return;
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+    const results = await res.json();
+    if (Array.isArray(results) && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lon = parseFloat(results[0].lon);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        window.dispatchEvent(new CustomEvent('entity-update', { detail: { id, fields: { ...(data.fields || {}), lat: String(lat), lng: String(lon) } } }));
+        window.open(`${GODSEYE_BASE}/?lat=${lat}&lon=${lon}&zoom=16&label=${label}&type=${type}`, '_blank');
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('Geocoding failed', e);
+  }
+  window.open(`${GODSEYE_BASE}/?label=${label}&type=${type}`, '_blank');
 }
 
 function buildOpenUrl(entityType: string, label: string): string | null {
@@ -286,11 +314,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             </button>
           )}
 
-          {(() => { const gye = buildGodsEyeUrl(data); return gye ? (
-            <a href={gye} target="_blank" rel="noopener noreferrer" title="Projeter dans God's Eye" onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
-              <Satellite size={12} />
-            </a>
-          ) : null; })()}
+          {(() => {
+            const gye = buildGodsEyeUrl(data);
+            const canProject = isLocation || gye !== null;
+            return canProject ? (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await geocodeAndOpenGodsEye(data, id);
+                }}
+                title="Projeter dans God's Eye"
+                className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors"
+              >
+                <Satellite size={12} />
+              </button>
+            ) : null;
+          })()}
 
           {pivotOsintUrl && (
             <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={t('node.osint')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 transition-colors">

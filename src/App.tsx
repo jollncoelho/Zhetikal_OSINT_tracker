@@ -94,8 +94,8 @@ function AppInner() {
 
   useEffect(() => {
     const handleUpdate = (e: Event) => {
-      const { id, label, notes, socialPlatform, color } = (e as CustomEvent).detail;
-      updateNodeData(id, { label, notes, ...(socialPlatform !== undefined && { socialPlatform }), ...(color !== undefined && { color }) });
+      const { id, label, notes, socialPlatform, color, fields } = (e as CustomEvent).detail;
+      updateNodeData(id, { label, notes, ...(socialPlatform !== undefined && { socialPlatform }), ...(color !== undefined && { color }), ...(fields !== undefined && { fields }) });
     };
     const handleDeleteNode = (e: Event) => {
       const { id } = (e as CustomEvent).detail;
@@ -232,6 +232,15 @@ function AppInner() {
                   {nodeCount}e / {edgeCount}l / {pinCount}p
                 </span>
               )}
+              <a
+                href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="God's Eye — Terminal de projection tactique"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
+              >
+                <Satellite size={12} /> God's Eye
+              </a>
             </div>
           </div>
 
@@ -276,15 +285,6 @@ function AppInner() {
               <Ghost size={12} /> {t('header.tools')}
             </button>
             <LanguageSwitcher />
-            <a
-              href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="God's Eye — Terminal de projection tactique"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
-            >
-              <Satellite size={12} /> God's Eye
-            </a>
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
               target="_blank"
