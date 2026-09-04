@@ -237,7 +237,7 @@ function AppInner() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="God's Eye — Terminal de projection tactique"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[16px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
               >
                 <Satellite size={12} /> God's Eye
               </a>
