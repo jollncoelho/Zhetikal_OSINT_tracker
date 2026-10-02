@@ -373,15 +373,6 @@ function AppInner() {
   <MapTab />
 ) : (
   <DefaultView />
-)}
-          <div className="flex-1 flex min-h-0">
-            <MapTab
-              pins={activeCase?.locations || []}
-              nodes={nodes}
-              onUpdatePins={(pins) => {
-                if (!activeCaseId) return;
-                updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
-              }}
               onGeocodeLocation={handleGeocodeLocation}
               onUpdatePin={updatePin}
             />
