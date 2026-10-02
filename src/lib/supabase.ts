@@ -1,7 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Valores de fallback para garantir compatibilidade local total sem crashar
-const supabaseUrl = 'https://placeholder.supabase.co';
-const supabaseAnonKey = 'placeholder-key';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = {
+  from: () => ({
+    select: () => Promise.resolve({ data: [], error: null }),
+    insert: () => Promise.resolve({ data: null, error: null }),
+    upsert: () => Promise.resolve({ data: null, error: null }),
+    delete: () => Promise.resolve({ data: null, error: null }),
+  }),
+  functions: {
+    invoke: () => Promise.resolve({ data: null, error: null })
+  }
+};
