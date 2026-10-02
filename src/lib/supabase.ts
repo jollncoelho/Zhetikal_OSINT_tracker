@@ -1,11 +1,6 @@
-export const supabase = {
-  functions: {
-    invoke: async () => ({ data: null, error: new Error("Local mode active") })
-  },
-  from: () => ({
-    select: async () => ({ data: [], error: null }),
-    insert: async () => ({ data: null, error: null }),
-    upsert: async () => ({ data: null, error: null }),
-    delete: async () => ({ data: null, error: null }),
-  })
-};
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

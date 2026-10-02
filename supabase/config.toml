@@ -1,0 +1,2 @@
+[functions.capture-evidence]
+verify_jwt = false

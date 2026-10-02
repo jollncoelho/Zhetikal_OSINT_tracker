@@ -8,7 +8,7 @@ import {
 import { supabase } from '../lib/supabase';
 import type { CaptureResponse, EvidenceArtifact, EvidenceArtifactType, InvestigationCase } from '../types/investigation';
 
-const CAPTURE_FUNCTION_URL = 'https://placeholder.supabase.co/functions/v1/capture-evidence';
+const CAPTURE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capture-evidence`;
 const typeLabels: Record<EvidenceArtifactType, string> = {
   screenshot: 'Screenshot',
   downloaded_page: 'Page téléchargée',
