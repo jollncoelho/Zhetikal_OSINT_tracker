@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 
-type View = 'graph' | 'map';
+type View = 'graph' | 'map' | 'investigation';
 
 interface NavigationContextValue {
   view: View;

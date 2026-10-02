@@ -2,7 +2,7 @@ import { HermesAnalyzer } from './components/HermesAnalyzer';
 import { useCallback, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star, X, Satellite } from 'lucide-react';
+import { Ghost, Activity, Home, Network, Map, Star, X, Satellite, Briefcase } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -10,6 +10,7 @@ import DisclaimerModal from './components/DisclaimerModal';
 import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
 import IdentifierModal from './components/IdentifierModal';
+import InvestigationModule from './components/InvestigationModule';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -285,6 +286,16 @@ function AppInner() {
               <Ghost size={12} /> {t('header.tools')}
             </button>
             <LanguageSwitcher />
+            <button
+              onClick={() => setView('investigation')}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                view === 'investigation'
+                  ? 'border border-cyber-cyan/40 bg-cyber-cyan/15 text-cyber-cyan'
+                  : 'border border-cyber-border bg-cyber-panel text-cyber-text-dim hover:border-cyber-cyan/40 hover:text-cyber-cyan'
+              }`}
+            >
+              <Briefcase size={12} /> Cases
+            </button>
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
               target="_blank"
@@ -336,7 +347,9 @@ function AppInner() {
           </div>
         )}
 
-        {view === 'graph' ? (
+        {view === 'investigation' ? (
+          <InvestigationModule onClose={() => setView('graph')} />
+        ) : view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
               <InfoTab
