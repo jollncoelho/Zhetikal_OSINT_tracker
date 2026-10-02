@@ -382,25 +382,26 @@ function AppInner() {
             onGeocodeLocation={handleGeocodeLocation}
             onUpdatePin={updatePin}
           />
-        ) : (
-          <div className="flex-1 flex flex-col min-h-0">
-            <ReactFlowProvider>
-              <InfoTab 
-                nodes={nodes}
-                edges={edges}
-                selectedEdgeId={selectedEdgeId}
-                selectedNodeId={selectedNodeId}
-                notePanelOpen={notePanelOpen}
-                activeCase={activeCase}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onEdgeClick={handleEdgeClick}
-                onNodeClick={handleNodeClick}
-                onPaneClick={handlePaneClick}
-                onSetNotePanelOpen={setNotePanelOpen}
-                onRegisterExportPng={handleRegisterExportPng}
-                onRegisterExportPdf={handleRegisterExportPdf}
-              />
-            </ReactFlowProvider>
-          </div>
+       ) : (
+  <div className="flex-1 flex flex-col min-h-0">
+    <ReactFlowProvider>
+      <InfoTab 
+        nodes={nodes}
+        edges={edges}
+        selectedEdgeId={selectedEdgeId}
+        selectedNodeId={selectedNodeId}
+        notePanelOpen={notePanelOpen}
+        activeCase={activeCase}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onEdgeClick={handleEdgeClick}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
+        onSetNotePanelOpen={setNotePanelOpen}
+        onRegisterExportPng={handleRegisterExportPng}
+        onRegisterExportPdf={handleRegisterExportPdf}
+      />
+    </ReactFlowProvider>
+  </div>
+)}
