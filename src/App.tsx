@@ -259,10 +259,18 @@ function AppInner() {
             <button
               onClick={() => setView('map')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
-                view === 'map'
-                  ? 'bg-cyber-cyan/15 text-cyber-cyan border border-cyber-cyan/30'
-                  : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
-              }`}
+             {view === 'map' ? (
+  <MapTab 
+    pins={activeCase?.locations || []}
+    nodes={nodes}
+    onUpdatePins={(pins) => {
+      if (!activeCaseId) return;
+      updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
+    }}
+    onGeocodeLocation={handleGeocodeLocation}
+    onUpdatePin={updatePin}
+  />
+) : ...
             >
               <Map size={11} /> {t('header.map')}
             </button>
