@@ -47,7 +47,6 @@ function AppInner() {
     deletePin,
   } = useStore();
 
-  // Calcul de activeCase
   const activeCase = activeCaseId ? cases.find((c) => c.id === activeCaseId) ?? null : null;
 
   const onConnect = useCallback((params: any) => {
@@ -81,7 +80,6 @@ function AppInner() {
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
     : null;
 
-  // ✅ FONCTION POUR SAUVEGARDER LES COORDONNÉES GÉOCODÉES
   const handleGeocodeLocation = useCallback((nodeId: string, lat: number, lng: number) => {
     const currentNode = nodes.find(n => n.id === nodeId);
     updateNodeData(nodeId, {
@@ -259,18 +257,10 @@ function AppInner() {
             <button
               onClick={() => setView('map')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
-             {view === 'map' ? (
-  <MapTab 
-    pins={activeCase?.locations || []}
-    nodes={nodes}
-    onUpdatePins={(pins) => {
-      if (!activeCaseId) return;
-      updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
-    }}
-    onGeocodeLocation={handleGeocodeLocation}
-    onUpdatePin={updatePin}
-  />
-) : ...
+                view === 'map'
+                  ? 'bg-cyber-cyan/15 text-cyber-cyan border border-cyber-cyan/30'
+                  : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
+              }`}
             >
               <Map size={11} /> {t('header.map')}
             </button>
@@ -360,7 +350,7 @@ function AppInner() {
         ) : view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
-              <InfoTab
+              <InfoTab 
                 nodes={nodes}
                 edges={edges}
                 selectedEdgeId={selectedEdgeId}
@@ -383,9 +373,9 @@ function AppInner() {
               />
             </ReactFlowProvider>
           </div>
-        ) : (
+        ) : view === 'map' ? (
           <div className="flex-1 flex min-h-0">
-            <MapTab
+            <MapTab 
               pins={activeCase?.locations || []}
               nodes={nodes}
               onUpdatePins={(pins) => {
@@ -395,6 +385,32 @@ function AppInner() {
               onGeocodeLocation={handleGeocodeLocation}
               onUpdatePin={updatePin}
             />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ReactFlowProvider>
+              <InfoTab 
+                nodes={nodes}
+                edges={edges}
+                selectedEdgeId={selectedEdgeId}
+                selectedNodeId={selectedNodeId}
+                notePanelOpen={notePanelOpen}
+                activeCase={activeCase}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick as any}
+                onPaneClick={handlePaneClick}
+                onSetNotePanelOpen={setNotePanelOpen}
+                onSetSelectedNodeId={setSelectedNodeId}
+                updateNodeData={updateNodeData}
+                updateCaseNotes={updateCaseNotes}
+                updateCaseTitle={updateCaseTitle}
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
+              />
+            </ReactFlowProvider>
           </div>
         )}
 
