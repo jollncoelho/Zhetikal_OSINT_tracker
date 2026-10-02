@@ -352,7 +352,21 @@ function AppInner() {
 ) : view === 'graph' ? (
   <div className="flex-1 flex flex-col min-h-0">
     <ReactFlowProvider>
-      <InfoTab />
+      <InfoTab 
+        nodes={nodes}
+        edges={edges}
+        selectedEdgeId={selectedEdgeId}
+        selectedNodeId={selectedNodeId}
+        notePanelOpen={notePanelOpen}
+        activeCase={activeCase}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onEdgeClick={handleEdgeClick}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
+        onSetNotePanelOpen={setNotePanelOpen}
+      />
     </ReactFlowProvider>
   </div>
 ) : view === 'map' ? (
@@ -360,29 +374,6 @@ function AppInner() {
 ) : (
   <DefaultView />
 )}
-                nodes={nodes}
-                edges={edges}
-                selectedEdgeId={selectedEdgeId}
-                selectedNodeId={selectedNodeId}
-                notePanelOpen={notePanelOpen}
-                activeCase={activeCase}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onEdgeClick={handleEdgeClick}
-                onNodeClick={handleNodeClick as any}
-                onPaneClick={handlePaneClick}
-                onSetNotePanelOpen={setNotePanelOpen}
-                onSetSelectedNodeId={setSelectedNodeId}
-                updateNodeData={updateNodeData}
-                updateCaseNotes={updateCaseNotes}
-                updateCaseTitle={updateCaseTitle}
-                onRegisterExportPng={handleRegisterExportPng}
-                onRegisterExportPdf={handleRegisterExportPdf}
-              />
-            </ReactFlowProvider>
-          </div>
-        ) : (
           <div className="flex-1 flex min-h-0">
             <MapTab
               pins={activeCase?.locations || []}
