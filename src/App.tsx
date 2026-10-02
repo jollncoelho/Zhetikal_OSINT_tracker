@@ -370,12 +370,11 @@ function AppInner() {
     </ReactFlowProvider>
   </div>
 ) : view === 'map' ? (
+) : view === 'map' ? (
   <MapTab />
 ) : (
   <DefaultView />
-              onGeocodeLocation={handleGeocodeLocation}
-              onUpdatePin={updatePin}
-            />
+)}/>
           </div>
         )}
 
