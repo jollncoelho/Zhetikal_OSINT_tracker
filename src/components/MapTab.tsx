@@ -224,7 +224,6 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             maxZoom={19}
          />
-          />
           <FlyToTarget target={flyTarget} zoom={flyZoom} />
 
           {/* Pins from geocoded entities */}
