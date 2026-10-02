@@ -348,7 +348,7 @@ function AppInner() {
         )}
 
      {view === 'investigation' ? (
-  <div className="flex-1 p-6 text-white">Module d'investigation désactivé temporairement</div>
+  <div className="flex-1 flex flex-col min-h-0 bg-cyber-dark">
 ) : view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
