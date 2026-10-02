@@ -347,11 +347,20 @@ function AppInner() {
           </div>
         )}
 
-        {view === 'investigation' ? (         
-          <div className="flex-1 flex flex-col min-h-0">
-       ) : view === 'graph' ? (
-            <ReactFlowProvider>
-              <InfoTab
+        {view === 'cases' ? (
+  <CasesView /> // ou le composant correspondant aux dossiers/cases
+) : view === 'graph' ? (
+  <div className="flex-1 flex flex-col min-h-0">
+    <ReactFlowProvider>
+      <InfoTab ... />
+      {/* ... reste du graphe ... */}
+    </ReactFlowProvider>
+  </div>
+) : view === 'map' ? (
+  <MapTab />
+) : (
+  <DefaultView />
+)}
                 nodes={nodes}
                 edges={edges}
                 selectedEdgeId={selectedEdgeId}
