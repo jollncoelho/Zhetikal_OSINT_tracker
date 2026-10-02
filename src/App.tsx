@@ -369,7 +369,6 @@ function AppInner() {
                 onRegisterExportPng={handleRegisterExportPng}
                 onRegisterExportPdf={handleRegisterExportPdf}
               />
-              />
             </ReactFlowProvider>
           </div>
         ) : view === 'map' ? (
