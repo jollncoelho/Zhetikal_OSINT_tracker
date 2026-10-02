@@ -352,7 +352,7 @@ function AppInner() {
 ) : view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
-              <InfoTab 
+             <InfoTab 
                 nodes={nodes}
                 edges={edges}
                 selectedEdgeId={selectedEdgeId}
@@ -366,6 +366,9 @@ function AppInner() {
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 onSetNotePanelOpen={setNotePanelOpen}
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
+              />
               />
             </ReactFlowProvider>
           </div>
