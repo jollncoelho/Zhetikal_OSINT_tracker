@@ -359,8 +359,7 @@ function AppInner() {
 ) : view === 'map' ? (
   <MapTab />
 ) : (
-  <DefaultView />
-)}
+  <DefaultView />)}
                 nodes={nodes}
                 edges={edges}
                 selectedEdgeId={selectedEdgeId}
