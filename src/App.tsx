@@ -347,34 +347,49 @@ function AppInner() {
           </div>
         )}
 
-{view === 'cases' ? (
-  <div className="p-6 text-white">Gestion des dossiers</div>
-) : view === 'graph' ? (
-  <div className="flex-1 flex flex-col min-h-0">
-    <ReactFlowProvider>
-      <InfoTab 
-        nodes={nodes}
-        edges={edges}
-        selectedEdgeId={selectedEdgeId}
-        selectedNodeId={selectedNodeId}
-        notePanelOpen={notePanelOpen}
-        activeCase={activeCase}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onEdgeClick={handleEdgeClick}
-        onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
-        onSetNotePanelOpen={setNotePanelOpen}
-      />
-    </ReactFlowProvider>
-  </div>
-) : view === 'map' ? (
-) : view === 'map' ? (
-  <MapTab />
-) : (
-  <DefaultView />
-)}/>
+        {view === 'investigation' ? (
+          <InvestigationModule />
+        ) : view === 'graph' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ReactFlowProvider>
+              <InfoTab 
+                nodes={nodes}
+                edges={edges}
+                selectedEdgeId={selectedEdgeId}
+                selectedNodeId={selectedNodeId}
+                notePanelOpen={notePanelOpen}
+                activeCase={activeCase}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick}
+                onPaneClick={handlePaneClick}
+                onSetNotePanelOpen={setNotePanelOpen}
+              />
+            </ReactFlowProvider>
+          </div>
+        ) : view === 'map' ? (
+          <MapTab />
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0">
+            <ReactFlowProvider>
+              <InfoTab 
+                nodes={nodes}
+                edges={edges}
+                selectedEdgeId={selectedEdgeId}
+                selectedNodeId={selectedNodeId}
+                notePanelOpen={notePanelOpen}
+                activeCase={activeCase}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onEdgeClick={handleEdgeClick}
+                onNodeClick={handleNodeClick}
+                onPaneClick={handlePaneClick}
+                onSetNotePanelOpen={setNotePanelOpen}
+              />
+            </ReactFlowProvider>
           </div>
         )}
 
