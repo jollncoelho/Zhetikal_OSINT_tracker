@@ -348,11 +348,11 @@ function AppInner() {
         )}
 
      {view === 'investigation' ? (
-       <div className="flex-1 flex flex-col min-h-0 bg-cyber-dark">
-) : view === 'graph' ? (
+          <InvestigationModule />
+        ) : view === 'graph' ? (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
-             <InfoTab 
+              <InfoTab 
                 nodes={nodes}
                 edges={edges}
                 selectedEdgeId={selectedEdgeId}
@@ -372,7 +372,16 @@ function AppInner() {
             </ReactFlowProvider>
           </div>
         ) : view === 'map' ? (
-          <MapTab />
+          <MapTab 
+            pins={activeCase?.locations || []}
+            nodes={nodes}
+            onUpdatePins={(pins) => {
+              if (!activeCaseId) return;
+              updateCase(activeCaseId, activeCase?.name || '', activeCase?.description || '', { locations: pins });
+            }}
+            onGeocodeLocation={handleGeocodeLocation}
+            onUpdatePin={updatePin}
+          />
         ) : (
           <div className="flex-1 flex flex-col min-h-0">
             <ReactFlowProvider>
@@ -390,85 +399,9 @@ function AppInner() {
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 onSetNotePanelOpen={setNotePanelOpen}
+                onRegisterExportPng={handleRegisterExportPng}
+                onRegisterExportPdf={handleRegisterExportPdf}
               />
             </ReactFlowProvider>
           </div>
         )}
-
-        <div className="h-7 flex items-center justify-between px-4 border-t border-cyber-border bg-cyber-dark/80 text-[10px] font-mono text-cyber-text-dim flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
-              OPSEC: {t('footer.opsec')}
-            </span>
-            <span className="text-cyber-border">|</span>
-            <span className="text-cyber-text-dim/60">{t('footer.ethical')}</span>
-            <span className="text-cyber-border">|</span>
-            <span>{t('footer.brand')}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {lastSaved && (
-              <span className="flex items-center gap-1 text-cyber-green/70">
-                <span className="w-1 h-1 rounded-full bg-cyber-green" />
-                {t('footer.saved')} {new Date(lastSaved).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            )}
-            <span>
-              {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col">
-          <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
-        </div>
-      </div>
-
-      {photoViewer && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setPhotoViewer(null)}
-        >
-          <button
-            onClick={() => setPhotoViewer(null)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-lg flex items-center justify-center text-cyber-text-dim hover:text-cyber-text hover:bg-cyber-panel transition-colors z-10"
-          >
-            <X size={20} />
-          </button>
-          <img
-            src={photoViewer.url}
-            alt={photoViewer.label}
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-          {photoViewer.label && (
-            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-cyber-text-dim font-mono">
-              {photoViewer.label}
-            </p>
-          )}
-        </div>
-      )}
-
-      {fieldsNode && (
-        <IdentifierModal
-          nodeId={fieldsNode.id}
-          data={fieldsNode.data}
-          onUpdate={updateNodeData}
-          onClose={() => setFieldsNodeId(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-export default function App() {
-  return (
-    <LanguageProvider>
-      <NavigationProvider>
-        <AppInner />
-      </NavigationProvider>
-    </LanguageProvider>
-  );
-}
