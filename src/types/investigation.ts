@@ -23,6 +23,7 @@ export interface EvidenceArtifact {
   sha512: string;
   captured_at: string;
   browser_metadata: Record<string, string | number>;
+  meta?: Record<string, string>;
   screenshot_preview: string;
   screenshot_previews?: string[];
   extracted_links: string[];
@@ -30,12 +31,3 @@ export interface EvidenceArtifact {
   created_at: string;
 }
 
-export interface CaptureResponse {
-  html: string;
-  finalUrl: string;
-  title: string;
-  status: number;
-  contentType: string;
-  links: string[];
-  screenshotDataUrl?: string;
-}
