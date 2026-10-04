@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import {
   Archive, ArrowLeft, Calendar, Camera, CheckCircle2, ChevronRight, Clipboard,
   Download, ExternalLink, FileCode2, FileText, Filter, Fingerprint,
   Globe2, Hash, Loader, Pencil, Plus, Printer, Search, ShieldCheck, Timer,
   Trash2, UserRound, X,
 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { CaptureResponse, EvidenceArtifact, EvidenceArtifactType, InvestigationCase } from '../types/investigation';
 
@@ -77,14 +78,34 @@ function printCleanReport(investigationCase: InvestigationCase, artifacts: Evide
   reportWindow.document.close();
 }
 
-function escapeSvg(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[character] || character));
-}
-
-function createPreviewDataUrl(capture: CaptureResponse, capturedAt: string): string {
-  const host = new URL(capture.finalUrl).hostname;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720"><rect width="1200" height="720" fill="#0d1321"/><rect x="28" y="28" width="1144" height="54" rx="8" fill="#111827" stroke="#1e3a5f"/><circle cx="56" cy="55" r="9" fill="#10b981"/><text x="82" y="62" fill="#e2e8f0" font-family="monospace" font-size="20">${escapeSvg(host)}</text><text x="46" y="150" fill="#00f0ff" font-family="monospace" font-size="28">FULL-PAGE EVIDENCE PREVIEW</text><text x="46" y="208" fill="#e2e8f0" font-family="sans-serif" font-size="30">${escapeSvg(capture.title || host)}</text><text x="46" y="258" fill="#94a3b8" font-family="monospace" font-size="18">Captured ${escapeSvg(formatDate(capturedAt))}</text><rect x="46" y="318" width="1108" height="2" fill="#1e3a5f"/><text x="46" y="380" fill="#94a3b8" font-family="monospace" font-size="18">HTTP ${capture.status}  •  ${escapeSvg(capture.contentType || 'unknown content type')}</text><text x="46" y="435" fill="#94a3b8" font-family="monospace" font-size="18">${capture.links.length} links extracted  •  ${capture.html.length.toLocaleString('fr-FR')} bytes</text><rect x="46" y="500" width="310" height="48" rx="7" fill="#00f0ff" fill-opacity=".12" stroke="#00f0ff" stroke-opacity=".45"/><text x="70" y="531" fill="#00f0ff" font-family="monospace" font-size="17">CHAIN OF CUSTODY READY</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+async function createPreviewDataUrl(capture: CaptureResponse): Promise<string> {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('title', 'Evidence capture renderer');
+  const markup = sanitizePreviewHtml(capture.html);
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:1;pointer-events:none;background:#fff;';
+  document.body.appendChild(frame);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('Capture timed out')), 12000);
+      frame.onload = () => { window.clearTimeout(timeout); resolve(); };
+      frame.onerror = () => { window.clearTimeout(timeout); reject(new Error('Capture renderer failed')); };
+      frame.srcdoc = markup;
+    });
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+    const documentElement = frame.contentDocument?.documentElement;
+    if (!documentElement) throw new Error('Capture document unavailable');
+    const pageHeight = Math.min(Math.max(documentElement.scrollHeight, 900), 6000);
+    return await toPng(documentElement, {
+      cacheBust: true,
+      width: 1200,
+      height: pageHeight,
+      canvasWidth: 1200,
+      canvasHeight: pageHeight,
+      style: { width: '1200px', minHeight: `${pageHeight}px`, backgroundColor: '#ffffff' },
+    });
+  } finally {
+    frame.remove();
+  }
 }
 
 function sanitizePreviewHtml(html: string): string {
@@ -244,7 +265,7 @@ export default function InvestigationModule({ onClose }: Props) {
       if (!response.ok || !payload.html || !payload.finalUrl) throw new Error(payload.error || 'Capture failed');
       const capturedAt = new Date().toISOString();
       const hash = await sha512(payload.html);
-      const generatedPreview = createPreviewDataUrl(payload, capturedAt);
+      const generatedPreview = await createPreviewDataUrl(payload);
       const preview = imageFile && imageFile.size > 0 ? await readFileAsDataUrl(imageFile) : generatedPreview;
       const sharedEvidence = {
         case_id: selectedCase.id,
@@ -353,7 +374,7 @@ function ArtifactDetail({ artifact, onUpdateNotes, onUpdatePreview }: { artifact
   const [tab, setTab] = useState<'preview' | 'html' | 'metadata'>('preview');
   const [notes, setNotes] = useState(artifact.notes);
   const safeHtml = useMemo(() => sanitizePreviewHtml(artifact.raw_html), [artifact.raw_html]);
-  const handleAttachImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !file.type.startsWith('image/')) return;
@@ -384,7 +405,7 @@ function ArtifactDetail({ artifact, onUpdateNotes, onUpdatePreview }: { artifact
       console.error(cause);
     }
   };
-  return <div><div className="mb-3 flex flex-wrap items-center gap-2"><div className="flex rounded-md border border-cyber-border p-0.5">{(['preview', 'html', 'metadata'] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${tab === item ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}>{item}</button>)}</div><button onClick={() => void downloadPreview()} disabled={!artifact.screenshot_preview} className="flex items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan disabled:opacity-40"><Camera size={13} /> {t('investigation.quickCapture')}</button><label className="flex cursor-pointer items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan"><Pencil size={13} /> {t('investigation.attachImage')}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => void handleAttachImage(event)} className="hidden" /></label><a href={artifact.final_url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan"><ExternalLink size={12} /> {t('investigation.openTarget')}</a></div><div className="mb-4 grid gap-2 rounded-lg border border-cyber-border bg-cyber-dark/80 p-3 text-sm sm:grid-cols-3"><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">HTTP status</span><strong className="mt-1 block font-mono text-cyber-green">{artifact.http_status || '—'}</strong></div><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">Content type</span><strong className="mt-1 block break-words font-mono text-cyber-text">{artifact.content_type || '—'}</strong></div><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">Target</span><strong className="mt-1 block break-all font-mono text-cyber-text">{artifact.final_url || artifact.target_url}</strong></div></div>{tab === 'preview' && <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(420px,.88fr)]"><div className="overflow-hidden rounded-lg border border-cyber-border bg-white"><iframe title="Captured page preview" sandbox="" srcDoc={safeHtml} className="h-[460px] w-full" /></div><div className="space-y-3"><img src={artifact.screenshot_preview} alt={t('investigation.previewAlt')} className="w-full rounded-lg border border-cyber-border" /><div className="rounded-lg border border-cyber-border bg-cyber-dark p-4 text-sm text-cyber-text"><p className="mb-2 text-xs font-semibold text-cyber-green">SHA-512 VERIFIED RECORD</p><p className="break-all font-mono text-xs leading-5">{artifact.sha512}</p></div></div></div>}{tab === 'html' && <div className="overflow-hidden rounded-lg border border-cyber-border bg-[#080c14]"><div className="border-b border-cyber-border bg-cyber-dark px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyber-cyan">HTML source · {artifact.raw_html.length.toLocaleString('fr-FR')} characters</div><pre className="max-h-[460px] overflow-auto whitespace-pre-wrap break-words p-5 font-mono text-[13px] leading-6 text-slate-100">{artifact.raw_html || t('investigation.noHtml')}</pre></div>}{tab === 'metadata' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(artifact.browser_metadata).map(([key, value]) => <div key={key} className="rounded-lg border border-cyber-border bg-[#080c14] p-4"><div className="text-xs font-semibold uppercase tracking-wider text-cyber-cyan">{key}</div><div className="mt-2 break-words font-mono text-[13px] leading-6 text-slate-100">{String(value)}</div></div>)}</div>}<div className="mt-4 grid gap-3 border-t border-cyber-border pt-3 md:grid-cols-[1fr_auto] md:items-end"><label className="text-xs font-semibold text-cyber-text-dim"><span className="mb-1.5 block">{t('investigation.contextNotes')}</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={() => onUpdateNotes(artifact.id, notes)} rows={3} placeholder={t('investigation.contextNotesPlaceholder')} className="input-cyber resize-y text-sm leading-6" /></label><button onClick={() => onUpdateNotes(artifact.id, notes)} className="flex items-center justify-center gap-1.5 rounded-lg border border-cyber-cyan/30 bg-cyber-cyan/10 px-3 py-2 text-xs font-semibold text-cyber-cyan"><Clipboard size={13} /> {t('investigation.saveNote')}</button></div><div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-cyber-text-dim"><span className="flex items-center gap-1"><Timer size={12} /> {formatDate(artifact.captured_at)}</span><span className="flex items-center gap-1"><Globe2 size={12} /> {artifact.extracted_links.length} {t('investigation.linksExtracted')}</span><span className="flex items-center gap-1"><Clipboard size={12} /> {artifact.raw_html.length.toLocaleString('fr-FR')} {t('investigation.characters')}</span></div></div>;
+  return <div><div className="mb-3 flex flex-wrap items-center gap-2"><div className="flex rounded-md border border-cyber-border p-0.5">{(['preview', 'html', 'metadata'] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${tab === item ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}>{item}</button>)}</div><button onClick={() => void downloadPreview()} disabled={!artifact.screenshot_preview} className="flex items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan disabled:opacity-40"><Camera size={13} /> {t('investigation.quickCapture')}</button><label className="flex cursor-pointer items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan"><Pencil size={13} /> {t('investigation.attachImage')}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => void handleAttachImage(event)} className="hidden" /></label><a href={artifact.final_url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 text-xs text-cyber-text-dim hover:text-cyber-cyan"><ExternalLink size={12} /> {t('investigation.openTarget')}</a></div><div className="mb-4 grid gap-2 rounded-lg border border-cyber-border bg-cyber-dark/80 p-3 text-sm sm:grid-cols-3"><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">HTTP status</span><strong className="mt-1 block font-mono text-cyber-green">{artifact.http_status || '—'}</strong></div><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">Content type</span><strong className="mt-1 block break-words font-mono text-cyber-text">{artifact.content_type || '—'}</strong></div><div><span className="block text-[10px] uppercase tracking-wider text-cyber-text-dim">Target</span><strong className="mt-1 block break-all font-mono text-cyber-text">{artifact.final_url || artifact.target_url}</strong></div></div>{tab === 'preview' && <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(420px,.88fr)]"><div className="overflow-hidden rounded-lg border border-cyber-border bg-white"><iframe title="Captured page preview" sandbox="" srcDoc={safeHtml} className="h-[460px] w-full" /></div><div className="space-y-3"><div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-lg border border-cyber-border bg-[#080c14] p-3"><div className="flex max-h-[640px] w-full items-center justify-center overflow-auto rounded-md bg-white/5">{artifact.screenshot_preview ? <img src={safeImageSource(artifact.screenshot_preview)} alt={t('investigation.previewAlt')} className="block max-h-[620px] w-auto max-w-full object-contain object-center" /> : <div className="p-8 text-center text-sm text-cyber-text-dim">{t('investigation.noPreview')}</div>}</div>{artifact.screenshot_preview && <button type="button" onClick={() => onUpdatePreview(artifact.id, '')} className="absolute right-5 top-5 flex items-center gap-1 rounded-md border border-red-400/40 bg-cyber-black/90 px-2 py-1.5 text-xs font-semibold text-red-300 shadow-lg transition hover:bg-red-500/20" title={t('investigation.removeImage')}><Trash2 size={13} /> {t('investigation.removeImage')}</button>}</div><div className="rounded-lg border border-cyber-border bg-cyber-dark p-4 text-sm text-cyber-text"><p className="mb-2 text-xs font-semibold text-cyber-green">SHA-512 VERIFIED RECORD</p><p className="break-all font-mono text-xs leading-5">{artifact.sha512}</p></div></div></div>}{tab === 'html' && <div className="overflow-hidden rounded-lg border border-cyber-border bg-[#080c14]"><div className="border-b border-cyber-border bg-cyber-dark px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyber-cyan">HTML source · {artifact.raw_html.length.toLocaleString('fr-FR')} characters</div><pre className="max-h-[460px] overflow-auto whitespace-pre-wrap break-words p-5 font-mono text-[13px] leading-6 text-slate-100">{artifact.raw_html || t('investigation.noHtml')}</pre></div>}{tab === 'metadata' && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(artifact.browser_metadata).map(([key, value]) => <div key={key} className="rounded-lg border border-cyber-border bg-[#080c14] p-4"><div className="text-xs font-semibold uppercase tracking-wider text-cyber-cyan">{key}</div><div className="mt-2 break-words font-mono text-[13px] leading-6 text-slate-100">{String(value)}</div></div>)}</div>}<div className="mt-4 grid gap-3 border-t border-cyber-border pt-3 md:grid-cols-[1fr_auto] md:items-end"><label className="text-xs font-semibold text-cyber-text-dim"><span className="mb-1.5 block">{t('investigation.contextNotes')}</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={() => onUpdateNotes(artifact.id, notes)} rows={3} placeholder={t('investigation.contextNotesPlaceholder')} className="input-cyber resize-y text-sm leading-6" /></label><button onClick={() => onUpdateNotes(artifact.id, notes)} className="flex items-center justify-center gap-1.5 rounded-lg border border-cyber-cyan/30 bg-cyber-cyan/10 px-3 py-2 text-xs font-semibold text-cyber-cyan"><Clipboard size={13} /> {t('investigation.saveNote')}</button></div><div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-cyber-text-dim"><span className="flex items-center gap-1"><Timer size={12} /> {formatDate(artifact.captured_at)}</span><span className="flex items-center gap-1"><Globe2 size={12} /> {artifact.extracted_links.length} {t('investigation.linksExtracted')}</span><span className="flex items-center gap-1"><Clipboard size={12} /> {artifact.raw_html.length.toLocaleString('fr-FR')} {t('investigation.characters')}</span></div></div>;
 }
 
 function InvestigationReport({ investigationCase, artifacts, onBack }: { investigationCase: InvestigationCase; artifacts: EvidenceArtifact[]; onBack: () => void }) {
