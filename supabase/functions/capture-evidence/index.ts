@@ -4,6 +4,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+const MAX_RESPONSE_BYTES = 15_000_000;
+const MAX_SCREENSHOT_BYTES = 10_000_000;
+
 function isSafeUrl(value: string): boolean {
   let url: URL;
   try {
@@ -16,6 +19,7 @@ function isSafeUrl(value: string): boolean {
   if (host === 'localhost' || host.endsWith('.localhost') || host === 'metadata.google.internal') return false;
   if (host === '0.0.0.0' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return false;
   if (/^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return false;
+  if (/^(fc|fd|fe8|fe9|fea|feb)/i.test(host.replace(/:/g, ''))) return false;
   return true;
 }
 
@@ -70,16 +74,65 @@ async function fetchTarget(targetUrl: string): Promise<{ response: Response; fin
       return { response, finalUrl: currentUrl };
     } catch (error) {
       clearTimeout(timeout);
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error('Capture timed out after 30 seconds');
-      }
-      if (error instanceof TypeError) {
-        throw new Error('Network error: unable to reach the target (DNS failure, SSL error, or connection refused)');
-      }
+      if (error instanceof DOMException && error.name === 'AbortError') throw new Error('Capture timed out after 30 seconds');
+      if (error instanceof TypeError) throw new Error('Network error: unable to reach the target');
       throw error;
     }
   }
   throw new Error('Too many redirects');
+}
+
+function dataUrlFromBytes(bytes: Uint8Array, contentType: string): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+  return `data:${contentType};base64,${btoa(binary)}`;
+}
+
+async function fetchImageDataUrl(imageUrl: string): Promise<string> {
+  const response = await fetch(imageUrl, { redirect: 'follow' });
+  if (!response.ok) throw new Error('Screenshot provider returned an error');
+  const contentType = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+  if (!contentType.startsWith('image/')) throw new Error('Screenshot provider returned a non-image response');
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_SCREENSHOT_BYTES) throw new Error('Screenshot is too large');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > MAX_SCREENSHOT_BYTES) throw new Error('Screenshot is unavailable');
+  return dataUrlFromBytes(bytes, contentType);
+}
+
+async function captureWithMicrolink(targetUrl: string): Promise<string> {
+  const endpoint = `https://api.microlink.io?url=${encodeURIComponent(targetUrl)}&screenshot=true&embed=screenshot.url`;
+  const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error('Microlink screenshot failed');
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== 'object') throw new Error('Microlink response was invalid');
+  const data = (payload as { data?: unknown }).data;
+  if (!data || typeof data !== 'object') throw new Error('Microlink screenshot was unavailable');
+  const screenshot = (data as { screenshot?: unknown }).screenshot;
+  const imageUrl = typeof screenshot === 'string'
+    ? screenshot
+    : screenshot && typeof screenshot === 'object' && typeof (screenshot as { url?: unknown }).url === 'string'
+      ? (screenshot as { url: string }).url
+      : '';
+  if (!imageUrl) throw new Error('Microlink screenshot URL was unavailable');
+  return fetchImageDataUrl(imageUrl);
+}
+
+async function captureWithThum(targetUrl: string): Promise<string> {
+  const endpoint = `https://image.thum.io/get/width/1200/crop/800/${targetUrl}`;
+  return fetchImageDataUrl(endpoint);
+}
+
+async function captureScreenshot(targetUrl: string): Promise<string> {
+  try {
+    return await captureWithMicrolink(targetUrl);
+  } catch (microlinkError) {
+    console.warn('Microlink screenshot failed, trying thum.io', microlinkError);
+    return captureWithThum(targetUrl);
+  }
 }
 
 Deno.serve(async (request: Request) => {
@@ -97,11 +150,18 @@ Deno.serve(async (request: Request) => {
 
     const { response, finalUrl } = await fetchTarget(targetUrl);
     const contentLength = Number(response.headers.get('content-length') || 0);
-    if (contentLength > 15_000_000) throw new Error('Response is too large (over 15 MB)');
+    if (contentLength > MAX_RESPONSE_BYTES) throw new Error('Response is too large (over 15 MB)');
     const html = await response.text();
-    if (html.length > 15_000_000) throw new Error('Response is too large (over 15 MB)');
+    if (html.length > MAX_RESPONSE_BYTES) throw new Error('Response is too large (over 15 MB)');
 
     const contentType = response.headers.get('content-type') || '';
+    let screenshotDataUrl = '';
+    try {
+      screenshotDataUrl = await captureScreenshot(finalUrl);
+    } catch (screenshotError) {
+      console.warn('All screenshot providers failed; returning HTML and metadata fallback', screenshotError);
+    }
+
     const payload = {
       html,
       finalUrl,
@@ -110,6 +170,7 @@ Deno.serve(async (request: Request) => {
       contentType,
       links: extractLinks(html, finalUrl),
       meta: extractMetaTags(html),
+      screenshotDataUrl,
     };
     return new Response(JSON.stringify(payload), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {

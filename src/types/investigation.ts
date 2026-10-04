@@ -37,4 +37,5 @@ export interface CaptureResponse {
   status: number;
   contentType: string;
   links: string[];
+  screenshotDataUrl?: string;
 }
