@@ -495,10 +495,10 @@ export const HermesAnalyzer: React.FC = () => {
         <button
           type="button"
           onClick={() => setBarCollapsed(false)}
-          title={t('analyzer.restore')}
+          title={t('analyzer.launch')}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(11,15,25,0.95)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 10, color: '#a5b4fc', cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
         >
-          <Maximize2 size={14} /> {t('analyzer.restore')}
+          <Maximize2 size={14} /> {t('analyzer.launch')}
         </button>
       ) : (
       <div
