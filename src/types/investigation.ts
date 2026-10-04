@@ -24,6 +24,7 @@ export interface EvidenceArtifact {
   captured_at: string;
   browser_metadata: Record<string, string | number>;
   screenshot_preview: string;
+  screenshot_previews?: string[];
   extracted_links: string[];
   notes: string;
   created_at: string;

@@ -23,6 +23,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [ollamaStatus, setOllamaStatus] = useState<ServiceStatus>('unknown');
   const [hermesStatus, setHermesStatus] = useState<ServiceStatus>('unknown');
   const [minimized, setMinimized] = useState(false);
+  const [barCollapsed, setBarCollapsed] = useState(false);
 
   // API key state
   const [savedKey, setSavedKey] = useState<string>(() => localStorage.getItem(LS_KEY) ?? '');
@@ -490,6 +491,16 @@ export const HermesAnalyzer: React.FC = () => {
       )}
 
       {/* Control bar */}
+      {barCollapsed ? (
+        <button
+          type="button"
+          onClick={() => setBarCollapsed(false)}
+          title={t('analyzer.restore')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: 'rgba(11,15,25,0.95)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 10, color: '#a5b4fc', cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+        >
+          <Maximize2 size={14} /> {t('analyzer.restore')}
+        </button>
+      ) : (
       <div
         style={{
           display: 'flex',
@@ -694,11 +705,10 @@ export const HermesAnalyzer: React.FC = () => {
           </button>
         )}
 
-        {/* Minimize / Restore */}
-        {(discovery || error) && (
-          <button
-            onClick={() => setMinimized((v) => !v)}
-            title={minimized ? t('analyzer.restore') : t('analyzer.minimize')}
+        {/* Collapse / restore bottom bar */}
+        <button
+            onClick={() => setBarCollapsed(true)}
+            title={t('analyzer.minimize')}
             style={{
               width: 28, height: 28,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -708,14 +718,13 @@ export const HermesAnalyzer: React.FC = () => {
             onMouseEnter={(e) => (e.currentTarget.style.color = '#a5b4fc')}
             onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
           >
-            {minimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+            <Minimize2 size={14} />
           </button>
-        )}
 
         {/* Close */}
         {(discovery || error) && (
           <button
-            onClick={() => { setDiscovery(null); setError(null); setMinimized(false); }}
+            onClick={() => { setDiscovery(null); setError(null); setMinimized(false); setBarCollapsed(false); }}
             title={t('analyzer.clear')}
             style={{
               width: 28, height: 28,
@@ -730,6 +739,7 @@ export const HermesAnalyzer: React.FC = () => {
           </button>
         )}
       </div>
+      )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
