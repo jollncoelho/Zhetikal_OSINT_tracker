@@ -411,7 +411,6 @@ interface InfoTabProps {
 export default function InfoTab({
   nodes,
   edges,
-  selectedEdgeId,
   selectedNodeId,
   notePanelOpen,
   activeCase,

@@ -30,7 +30,6 @@ const makeIcon = (color: string) =>
     shadowSize: [41, 41],
   });
 
-const searchIcon = makeIcon('red');
 const pinIcon = makeIcon('blue');
 
 // ── Inner helper: fly-to without remounting the MapContainer ────────────────

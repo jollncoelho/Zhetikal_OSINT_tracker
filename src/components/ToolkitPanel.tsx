@@ -95,13 +95,9 @@ interface ToolkitPanelProps {
 export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
-  const [toolCount, setToolCount] = useState<number>(1226);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Tools are statically imported via toolsData; no async fetch needed.
-    // Just confirm count after mount.
-    setToolCount(1226);
     setLoading(false);
   }, []);
 
@@ -113,8 +109,6 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
     const matchCategory = category === 'All' || t.category === category;
     return matchSearch && matchCategory;
   });
-
-  const showPanel = isOpen && !loading;
 
   return (
     <div

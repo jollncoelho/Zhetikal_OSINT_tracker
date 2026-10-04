@@ -44,7 +44,6 @@ function AppInner() {
     closeCase,
     updateCase,
     updatePin,
-    deletePin,
   } = useStore();
 
   const activeCase = activeCaseId ? cases.find((c) => c.id === activeCaseId) ?? null : null;
@@ -235,6 +234,16 @@ function AppInner() {
           </div>
 
           <div className="flex items-center gap-2 mx-auto">
+            <button
+              onClick={() => setView('investigation')}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                view === 'investigation'
+                  ? 'border border-cyber-cyan/40 bg-cyber-cyan/15 text-cyber-cyan'
+                  : 'border border-cyber-border bg-cyber-panel text-cyber-text-dim hover:border-cyber-cyan/40 hover:text-cyber-cyan'
+              }`}
+            >
+              <Briefcase size={12} /> {t('header.cases')}
+            </button>
             <a
               href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
               target="_blank"
@@ -284,16 +293,6 @@ function AppInner() {
               <Ghost size={12} /> {t('header.tools')}
             </button>
             <LanguageSwitcher />
-            <button
-              onClick={() => setView('investigation')}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                view === 'investigation'
-                  ? 'border border-cyber-cyan/40 bg-cyber-cyan/15 text-cyber-cyan'
-                  : 'border border-cyber-border bg-cyber-panel text-cyber-text-dim hover:border-cyber-cyan/40 hover:text-cyber-cyan'
-              }`}
-            >
-              <Briefcase size={12} /> Cases
-            </button>
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
               target="_blank"
@@ -440,7 +439,7 @@ function AppInner() {
 
         <div className="flex flex-col">
           <ToolkitPanel isOpen={toolkitOpen} onClose={() => setToolkitOpen(false)} />
-          <HermesAnalyzer addEntity={addEntity} nodes={nodes as EntityNodeType[]} edges={edges} activeCase={activeCase} />
+          <HermesAnalyzer />
         </div>
       </div>
 

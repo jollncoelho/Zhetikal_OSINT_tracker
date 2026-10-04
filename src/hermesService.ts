@@ -151,7 +151,7 @@ Si aucune nouvelle entité, écris : (aucune nouvelle entité)
 Réponds UNIQUEMENT avec ces deux sections dans l'ordre. Aucun JSON. Aucun markdown superflu. Aucune phrase hors-sections.`;
 }
 
-function parseOllamaTextToDiscovery(text: string, graphData: { nodes: any[]; edges: any[] }): HermesDiscovery {
+function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
   const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTITÉS\s*===|$)/i);
   const entitesMatch = text.match(/===\s*NOUVELLES ENTIT[ÉE]S?\s*===\s*\n([\s\S]*?)$/i);
 
@@ -237,7 +237,7 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
 
   const data = await response.json();
   const text: string = data?.response ?? '';
-  return parseOllamaTextToDiscovery(text, graphData);
+  return parseOllamaTextToDiscovery(text);
 }
 
 const PORTAL_URL = 'https://inference-api.nousresearch.com/v1/chat/completions';
@@ -278,7 +278,7 @@ async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, anal
   const data = await response.json();
   const text: string = data?.choices?.[0]?.message?.content ?? '';
   if (!text) throw new Error('Portal API returned an empty response.');
-  return parseOllamaTextToDiscovery(text, graphData);
+  return parseOllamaTextToDiscovery(text);
 }
 
 export async function runAnalysis(

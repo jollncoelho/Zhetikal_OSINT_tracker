@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
-import type { CaseData, EntityData, EntityNode, Edge, MapPin, PinLink } from '../types';
+import type { CaseData, EntityData, EntityNode, MapPin, PinLink } from '../types';
+import type { Edge } from '@xyflow/react';
 
 interface AppState {
   cases: CaseData[];
@@ -105,6 +106,8 @@ export const useStore = create<AppState>()(
             id,
             name,
             description,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             nodes: [],
             edges: [],
             locations: [],
@@ -378,7 +381,7 @@ export const useStore = create<AppState>()(
             if (!state.activeCaseId) return state;
             const updatedCases = state.cases.map((c) =>
               c.id === state.activeCaseId
-                ? { ...c, locations: [...c.locations, { ...pin, id }] }
+                ? { ...c, locations: [...(c.locations || []), { ...pin, id }] }
                 : c
             );
             return { cases: updatedCases };
@@ -392,7 +395,7 @@ export const useStore = create<AppState>()(
               c.id === state.activeCaseId
                 ? {
                     ...c,
-                    locations: c.locations.map((p) =>
+                    locations: (c.locations || []).map((p) =>
                       p.id === id ? { ...p, ...updates } : p
                     ),
                   }
@@ -405,7 +408,7 @@ export const useStore = create<AppState>()(
           set((state) => ({
             cases: state.cases.map((c) =>
               c.id === state.activeCaseId
-                ? { ...c, locations: c.locations.filter((p) => p.id !== id) }
+                ? { ...c, locations: (c.locations || []).filter((p) => p.id !== id) }
                 : c
             ),
           }));
@@ -417,7 +420,7 @@ export const useStore = create<AppState>()(
             if (!state.activeCaseId) return state;
             const updatedCases = state.cases.map((c) =>
               c.id === state.activeCaseId
-                ? { ...c, pinLinks: [...c.pinLinks, { ...link, id }] }
+                ? { ...c, pinLinks: [...(c.pinLinks || []), { ...link, id }] }
                 : c
             );
             return { cases: updatedCases };
@@ -429,7 +432,7 @@ export const useStore = create<AppState>()(
           set((state) => ({
             cases: state.cases.map((c) =>
               c.id === state.activeCaseId
-                ? { ...c, pinLinks: c.pinLinks.filter((l) => l.id !== id) }
+                ? { ...c, pinLinks: (c.pinLinks || []).filter((l) => l.id !== id) }
                 : c
             ),
           }));
