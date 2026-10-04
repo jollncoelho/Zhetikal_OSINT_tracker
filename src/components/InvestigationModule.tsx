@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import React from 'react';
 import {
-  Archive, ArrowLeft, Calendar, Camera, CheckCircle2, ChevronRight, Clipboard,
+  Archive, ArrowLeft, Calendar, CheckCircle2, ChevronRight, Clipboard,
   Download, ExternalLink, FileCode2, FileText, Filter, Fingerprint,
-  Globe2, Hash, Loader, Monitor, Pencil, Plus, Printer, Search, ShieldCheck, Timer,
+  Globe2, Hash, Loader, Pencil, Plus, Printer, Search, ShieldCheck, Timer,
   Trash2, UserRound, X,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -73,38 +73,6 @@ async function requestPageCapture(targetUrl: string): Promise<MetadataResponse> 
   const candidate = await response.json() as Partial<MetadataResponse>;
   if (typeof candidate.finalUrl !== 'string' || typeof candidate.title !== 'string' || typeof candidate.status !== 'number' || typeof candidate.contentType !== 'string' || typeof candidate.html !== 'string' || !Array.isArray(candidate.links) || !candidate.meta || typeof candidate.meta !== 'object' || typeof candidate.screenshotDataUrl !== 'string') throw new Error('Invalid page capture response');
   return candidate as MetadataResponse;
-}
-
-async function captureScreen(): Promise<string> {
-  if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Screen capture is not supported in this browser');
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 1 } as MediaTrackConstraints, audio: false });
-  try {
-    const track = stream.getVideoTracks()[0];
-    const trackSettings = track.getSettings();
-    const width = typeof trackSettings.width === 'number' && trackSettings.width > 0 ? trackSettings.width : 1920;
-    const height = typeof trackSettings.height === 'number' && trackSettings.height > 0 ? trackSettings.height : 1080;
-    const video = document.createElement('video');
-    video.srcObject = stream;
-    video.muted = true;
-    video.width = width;
-    video.height = height;
-    await video.play();
-    await new Promise((resolve) => {
-      if (video.readyState >= 2) resolve(undefined);
-      else video.addEventListener('loadeddata', () => resolve(undefined), { once: true });
-    });
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || width;
-    canvas.height = video.videoHeight || height;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Canvas context unavailable');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/png');
-    return dataUrl;
-  } finally {
-    stream.getTracks().forEach((track) => track.stop());
-  }
 }
 
 function isProtectedTarget(value: string): boolean {
@@ -201,8 +169,6 @@ export default function InvestigationModule({ onClose }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [showCapture, setShowCapture] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [captureScreenshot, setCaptureScreenshot] = useState('');
-  const [screenCapturing, setScreenCapturing] = useState(false);
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [cardDensity, setCardDensity] = useState<'compact' | 'comfortable'>('comfortable');
@@ -232,6 +198,14 @@ export default function InvestigationModule({ onClose }: Props) {
     void load();
   }, []);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (selectedCase) void loadArtifacts(selectedCase.id);
+    };
+    window.addEventListener('investigation-refresh-artifacts', handleRefresh);
+    return () => window.removeEventListener('investigation-refresh-artifacts', handleRefresh);
+  }, [selectedCase]);
+
   const filteredArtifacts = useMemo(() => artifacts.filter((artifact) => {
     const haystack = [artifact.target_url, artifact.final_url, artifact.title, artifact.notes, artifact.sha512].join(' ').toLowerCase();
     const matchesSearch = !search.trim() || haystack.includes(search.toLowerCase().trim());
@@ -242,6 +216,7 @@ export default function InvestigationModule({ onClose }: Props) {
   const handleSelectCase = async (investigationCase: InvestigationCase) => {
     setSelectedCase(investigationCase);
     setError('');
+    window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: investigationCase.id } }));
     await loadArtifacts(investigationCase.id);
   };
 
@@ -263,6 +238,7 @@ export default function InvestigationModule({ onClose }: Props) {
     setSelectedCase(created);
     setArtifacts([]);
     setShowCreate(false);
+    window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: created.id } }));
   };
 
   const handleUpdateCase = async (event: FormEvent<HTMLFormElement>) => {
@@ -285,35 +261,6 @@ export default function InvestigationModule({ onClose }: Props) {
     setShowEdit(false);
   };
 
-  const handleScreenCapture = async (): Promise<void> => {
-    setScreenCapturing(true);
-    setError('');
-    try {
-      const dataUrl = await captureScreen();
-      if (!dataUrl.startsWith('data:image/')) throw new Error('Invalid screenshot data');
-      setCaptureScreenshot(dataUrl);
-    } catch (cause) {
-      setError(t('investigation.captureError'));
-      console.error(cause);
-    } finally {
-      setScreenCapturing(false);
-    }
-  };
-
-  const handlePasteScreenshot = async (event: React.ClipboardEvent<HTMLDivElement>): Promise<void> => {
-    const item = [...event.clipboardData.items].find((entry) => entry.type.startsWith('image/'));
-    if (!item) return;
-    const file = item.getAsFile();
-    if (!file) return;
-    event.preventDefault();
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      if (dataUrl.startsWith('data:image/')) setCaptureScreenshot(dataUrl);
-    } catch (cause) {
-      console.error(cause);
-    }
-  };
-
   const handleCapture = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedCase) return;
@@ -321,32 +268,26 @@ export default function InvestigationModule({ onClose }: Props) {
     const targetUrl = String(form.get('target_url') || '').trim();
     const notes = String(form.get('notes') || '').trim();
     const imageFile = form.get('screenshot') instanceof File ? form.get('screenshot') as File : null;
-    if (!targetUrl && !captureScreenshot) return;
+    if (!targetUrl) return;
     setLoading(true);
     setError('');
     try {
-      let parsedUrl: URL | null = null;
-      if (targetUrl) {
-        try {
-          parsedUrl = new URL(targetUrl);
-          if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
-        } catch {
-          throw new Error('Invalid URL');
-        }
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        throw new Error('Invalid URL');
       }
-      const urlValue = targetUrl || 'screen-capture';
-      let metadata: MetadataResponse = { finalUrl: urlValue, title: parsedUrl?.hostname || 'Screen capture', status: 0, contentType: '', html: '', meta: {}, links: [], screenshotDataUrl: '' };
-      if (targetUrl) {
-        try {
-          metadata = await requestPageCapture(targetUrl);
-        } catch (cause) {
-          console.warn('URL capture unavailable; saving target details only', cause);
-        }
+      let metadata: MetadataResponse = { finalUrl: targetUrl, title: parsedUrl.hostname, status: 0, contentType: '', html: '', meta: {}, links: [], screenshotDataUrl: '' };
+      try {
+        metadata = await requestPageCapture(targetUrl);
+      } catch (cause) {
+        console.warn('URL capture unavailable; saving target details only', cause);
       }
       const capturedAt = new Date().toISOString();
-      const manualPreview = imageFile && imageFile.size > 0 ? await readFileAsDataUrl(imageFile) : '';
-      const preview = manualPreview || captureScreenshot || safeImageSource(metadata.screenshotDataUrl);
-      const record = { id: crypto.randomUUID(), case_id: selectedCase.id, artifact_type: (targetUrl ? 'downloaded_page' : 'screenshot') as EvidenceArtifactType, target_url: urlValue, final_url: metadata.finalUrl, title: metadata.title || parsedUrl?.hostname || 'Screen capture', http_status: metadata.status || null, content_type: metadata.contentType, raw_html: metadata.html, sha512: await sha512(`${urlValue}|${metadata.finalUrl}|${capturedAt}|${preview.slice(0, 64)}`), captured_at: capturedAt, browser_metadata: { source: targetUrl ? 'url-metadata' : 'screen-capture' }, meta: metadata.meta, screenshot_preview: preview, screenshot_previews: preview ? [preview] : [], extracted_links: metadata.links, notes, created_at: capturedAt };
+      const preview = imageFile && imageFile.size > 0 ? await readFileAsDataUrl(imageFile) : safeImageSource(metadata.screenshotDataUrl);
+      const record = { id: crypto.randomUUID(), case_id: selectedCase.id, artifact_type: 'downloaded_page' as const, target_url: targetUrl, final_url: metadata.finalUrl, title: metadata.title || parsedUrl.hostname, http_status: metadata.status || null, content_type: metadata.contentType, raw_html: metadata.html, sha512: await sha512(`${targetUrl}|${metadata.finalUrl}|${capturedAt}`), captured_at: capturedAt, browser_metadata: { source: 'url-metadata' }, meta: metadata.meta, screenshot_preview: preview, screenshot_previews: preview ? [preview] : [], extracted_links: metadata.links, notes, created_at: capturedAt };
       const { error: parentError } = await supabase.from('investigation_cases').upsert({ id: selectedCase.id, case_name: selectedCase.case_name, investigating_officer: selectedCase.investigating_officer, agency: selectedCase.agency, notes: selectedCase.notes, created_at: selectedCase.created_at, updated_at: selectedCase.updated_at }, { onConflict: 'id' });
       if (parentError) throw parentError;
       const { data, error: insertError } = await supabase.from('evidence_artifacts').insert(record).select().maybeSingle();
@@ -356,7 +297,6 @@ export default function InvestigationModule({ onClose }: Props) {
       writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
       setArtifacts((current) => [savedArtifact, ...current]);
       setShowCapture(false);
-      setCaptureScreenshot('');
     } catch (cause) {
       setError(t('investigation.captureError'));
       console.error(cause);
@@ -392,6 +332,7 @@ export default function InvestigationModule({ onClose }: Props) {
     if (selectedCase?.id === investigationCase.id) {
       setSelectedCase(null);
       setArtifacts([]);
+      window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: null } }));
     }
   };
 
@@ -442,14 +383,14 @@ export default function InvestigationModule({ onClose }: Props) {
               {loading ? <LoadingState label={t('investigation.loading')} /> : cases.length === 0 ? <EmptyCases onCreate={() => setShowCreate(true)} /> : <div className={`grid gap-4 md:grid-cols-2 ${cardDensity === 'compact' ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>{cases.map((investigationCase) => <CaseCard key={investigationCase.id} investigationCase={investigationCase} compact={cardDensity === 'compact'} onClick={() => void handleSelectCase(investigationCase)} onEdit={() => { setSelectedCase(investigationCase); setShowEdit(true); }} onDelete={() => void handleDeleteCase(investigationCase)} />)}</div>}
             </div>
           ) : (
-            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => setSelectedCase(null)} onEdit={() => setShowEdit(true)} onCapture={() => setShowCapture(true)} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} onGenerateArtifactCapture={(artifact) => void handleGenerateArtifactCapture(artifact)} />
+            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => { setSelectedCase(null); window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: null } })); }} onEdit={() => setShowEdit(true)} onCapture={() => setShowCapture(true)} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} onGenerateArtifactCapture={(artifact) => void handleGenerateArtifactCapture(artifact)} />
           )}
         </div>
       </div>
 
       {showCreate && <Modal title={t('investigation.createTitle')} onClose={() => setShowCreate(false)}><CaseForm submitLabel={t('investigation.create')} onSubmit={handleCreateCase} /></Modal>}
       {showEdit && selectedCase && <Modal title={t('investigation.editTitle')} onClose={() => setShowEdit(false)}><CaseForm investigationCase={selectedCase} submitLabel={t('investigation.save')} onSubmit={handleUpdateCase} /></Modal>}
-      {showCapture && <Modal title={t('investigation.captureTitle')} onClose={() => !loading && !screenCapturing && setShowCapture(false)}><form onSubmit={handleCapture} className="space-y-4"><div onPaste={(event) => void handlePasteScreenshot(event)}><Field label={t('investigation.targetUrl')} name="target_url" type="url" placeholder="https://example.org/page" /><p className="mt-1.5 text-[11px] text-cyber-text-dim">{t('investigation.urlOptional')}</p><Field label={t('investigation.captureNoteLabel')} name="notes" placeholder={t('investigation.captureNotePlaceholder')} textarea /><div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3"><div className="mb-2 flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-semibold text-cyber-cyan"><Monitor size={13} /> {t('investigation.screenshotSource')}</span>{captureScreenshot && <button type="button" onClick={() => setCaptureScreenshot('')} className="flex items-center gap-1 text-[11px] text-red-300 hover:text-red-200"><X size={11} /> {t('investigation.removeScreenshot')}</button>}</div>{captureScreenshot ? <div className="relative overflow-hidden rounded-md border border-cyber-border bg-white/5"><img src={captureScreenshot} alt="Screenshot preview" className="max-h-48 w-full object-contain" /></div> : <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-cyber-border/60 bg-cyber-dark/40 p-4 text-center"><Monitor size={24} className="text-cyber-border" /><p className="text-xs text-cyber-text-dim">{t('investigation.noScreenshot')}</p></div>}<div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => void handleScreenCapture()} disabled={screenCapturing || loading} className="flex items-center gap-1.5 rounded-lg bg-cyber-cyan px-3 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">{screenCapturing ? <Loader size={13} className="animate-spin" /> : <Camera size={13} />} {t('investigation.captureScreen')}</button><label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyber-border px-3 py-2 text-xs font-semibold text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-text"><FileText size={13} /> {t('investigation.uploadFile')}<input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" /></label></div><p className="mt-2 text-[11px] text-cyber-text-dim">{t('investigation.pasteHint')}</p></div><div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3 text-xs leading-5 text-cyber-text-dim"><div className="flex items-center gap-2 text-cyber-cyan"><Globe2 size={13} /> {t('investigation.serverCapture')}</div><p className="mt-1">{t('investigation.serverCaptureDescription')}</p></div><div className="flex justify-end gap-2 pt-2"><button type="button" disabled={loading || screenCapturing} onClick={() => setShowCapture(false)} className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim">{t('investigation.cancel')}</button><button type="submit" disabled={loading || screenCapturing} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">{loading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />} {t('investigation.capture')}</button></div></div></form></Modal>}
+      {showCapture && <Modal title={t('investigation.captureTitle')} onClose={() => !loading && setShowCapture(false)}><form onSubmit={handleCapture} className="space-y-4"><Field label={t('investigation.targetUrl')} name="target_url" type="url" placeholder="https://example.org/page" required /><Field label={t('investigation.captureNoteLabel')} name="notes" placeholder={t('investigation.captureNotePlaceholder')} textarea /><label className="block text-sm font-medium text-cyber-text-dim"><span className="mb-1.5 block">{t('investigation.customScreenshot')}</span><input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full rounded-lg border border-cyber-border bg-cyber-black/60 p-2 text-xs text-cyber-text file:mr-3 file:rounded-md file:border-0 file:bg-cyber-cyan/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyber-cyan" /></label><div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3 text-xs leading-5 text-cyber-text-dim"><div className="flex items-center gap-2 text-cyber-cyan"><Globe2 size={13} /> {t('investigation.serverCapture')}</div><p className="mt-1">{t('investigation.serverCaptureDescription')}</p></div><div className="flex justify-end gap-2 pt-2"><button type="button" disabled={loading} onClick={() => setShowCapture(false)} className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim">{t('investigation.cancel')}</button><button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">{loading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />} {t('investigation.capture')}</button></div></form></Modal>}
     </section>
   );
 }

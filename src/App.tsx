@@ -11,6 +11,7 @@ import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
 import IdentifierModal from './components/IdentifierModal';
 import InvestigationModule from './components/InvestigationModule';
+import SnippingTool from './components/SnippingTool';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -74,6 +75,7 @@ function AppInner() {
   
   const [fieldsNodeId, setFieldsNodeId] = useState<string | null>(null);
   const [photoViewer, setPhotoViewer] = useState<{ url: string; label: string } | null>(null);
+  const [activeInvestigationCaseId, setActiveInvestigationCaseId] = useState<string | null>(null);
 
   const fieldsNode = fieldsNodeId
     ? (nodes.find((n) => n.id === fieldsNodeId) as EntityNodeType | undefined) ?? null
@@ -132,6 +134,23 @@ function AppInner() {
       window.removeEventListener('entity-view-photo', handleViewPhoto);
     };
   }, [updateNodeData, deleteNode, deleteEdge]);
+
+  useEffect(() => {
+    const handleCaseSelected = (e: Event) => {
+      const { caseId } = (e as CustomEvent).detail || {};
+      setActiveInvestigationCaseId(typeof caseId === 'string' ? caseId : null);
+    };
+    window.addEventListener('investigation-case-selected', handleCaseSelected);
+    return () => window.removeEventListener('investigation-case-selected', handleCaseSelected);
+  }, []);
+
+  useEffect(() => {
+    const handleArtifactAdded = () => {
+      window.dispatchEvent(new CustomEvent('investigation-refresh-artifacts'));
+    };
+    window.addEventListener('investigation-artifact-added', handleArtifactAdded);
+    return () => window.removeEventListener('investigation-artifact-added', handleArtifactAdded);
+  }, []);
 
   useEffect(() => {
     const handleGoToMap = (e: Event) => {
@@ -292,6 +311,7 @@ function AppInner() {
             >
               <Ghost size={12} /> {t('header.tools')}
             </button>
+            <SnippingTool activeCaseId={activeInvestigationCaseId} />
             <LanguageSwitcher />
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
