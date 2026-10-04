@@ -36,15 +36,48 @@ function extractLinks(html: string, baseUrl: string): string[] {
   return [...links].slice(0, 500);
 }
 
+function extractMetaTags(html: string): Record<string, string> {
+  const meta: Record<string, string> = {};
+  for (const match of html.matchAll(/<meta[^>]+(?:name|property)=["']([^"']+)["'][^>]+content=["']([^"']*)["']/gi)) {
+    const key = match[1].toLowerCase();
+    if (!meta[key]) meta[key] = match[2].trim();
+  }
+  return meta;
+}
+
 async function fetchTarget(targetUrl: string): Promise<{ response: Response; finalUrl: string }> {
   let currentUrl = targetUrl;
   for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
     if (!isSafeUrl(currentUrl)) throw new Error('Target URL is not allowed');
-    const response = await fetch(currentUrl, { redirect: 'manual', headers: { 'User-Agent': 'Ghostint Evidence Collector/1.0' } });
-    if (![301, 302, 303, 307, 308].includes(response.status)) return { response, finalUrl: currentUrl };
-    const location = response.headers.get('location');
-    if (!location) return { response, finalUrl: currentUrl };
-    currentUrl = new URL(location, currentUrl).href;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(currentUrl, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Ghostint Evidence Collector/1.0)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+      clearTimeout(timeout);
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get('location');
+        if (!location) return { response, finalUrl: currentUrl };
+        currentUrl = new URL(location, currentUrl).href;
+        continue;
+      }
+      return { response, finalUrl: currentUrl };
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Capture timed out after 30 seconds');
+      }
+      if (error instanceof TypeError) {
+        throw new Error('Network error: unable to reach the target (DNS failure, SSL error, or connection refused)');
+      }
+      throw error;
+    }
   }
   throw new Error('Too many redirects');
 }
@@ -64,9 +97,9 @@ Deno.serve(async (request: Request) => {
 
     const { response, finalUrl } = await fetchTarget(targetUrl);
     const contentLength = Number(response.headers.get('content-length') || 0);
-    if (contentLength > 15_000_000) throw new Error('Response is too large');
+    if (contentLength > 15_000_000) throw new Error('Response is too large (over 15 MB)');
     const html = await response.text();
-    if (html.length > 15_000_000) throw new Error('Response is too large');
+    if (html.length > 15_000_000) throw new Error('Response is too large (over 15 MB)');
 
     const contentType = response.headers.get('content-type') || '';
     const payload = {
@@ -76,9 +109,11 @@ Deno.serve(async (request: Request) => {
       status: response.status,
       contentType,
       links: extractLinks(html, finalUrl),
+      meta: extractMetaTags(html),
     };
     return new Response(JSON.stringify(payload), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch {
-    return new Response(JSON.stringify({ error: 'The target could not be captured.' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The target could not be captured.';
+    return new Response(JSON.stringify({ error: message }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
