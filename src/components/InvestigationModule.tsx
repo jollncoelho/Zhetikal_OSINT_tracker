@@ -7,8 +7,10 @@ import {
   Trash2, UserRound, X,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
-import type { EvidenceArtifact, EvidenceArtifactType, InvestigationCase } from '../types/investigation';
+import { supabase } from '../lib/supabase';
+import type { EvidenceArtifact, EvidenceArtifactType, InvestigationCase, MetadataResponse } from '../types/investigation';
 
+const CAPTURE_METADATA_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capture-metadata`;
 const LOCAL_CASES_KEY = 'zhetikal-investigation-cases-v1';
 const LOCAL_ARTIFACTS_KEY = 'zhetikal-investigation-artifacts-v1';
 const protectedHosts = ['youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'google.com', 'linkedin.com', 'instagram.com'];
@@ -58,6 +60,11 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 function safeImageSource(value: string): string {
   return value.startsWith('data:image/') ? value : '';
+}
+
+async function sha512(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function isProtectedTarget(value: string): boolean {
@@ -152,6 +159,7 @@ export default function InvestigationModule({ onClose }: Props) {
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showCapture, setShowCapture] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -235,6 +243,54 @@ export default function InvestigationModule({ onClose }: Props) {
     setShowEdit(false);
   };
 
+  const handleCapture = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedCase) return;
+    const form = new FormData(event.currentTarget);
+    const targetUrl = String(form.get('target_url') || '').trim();
+    const notes = String(form.get('notes') || '').trim();
+    const imageFile = form.get('screenshot') instanceof File ? form.get('screenshot') as File : null;
+    if (!targetUrl) return;
+    setLoading(true);
+    setError('');
+    try {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        throw new Error('Invalid URL');
+      }
+      let metadata: MetadataResponse = { finalUrl: targetUrl, title: parsedUrl.hostname, status: 0, contentType: '', meta: {}, links: [] };
+      try {
+        const response = await fetch(CAPTURE_METADATA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }, body: JSON.stringify({ url: targetUrl }) });
+        if (response.ok) {
+          const candidate = await response.json() as Partial<MetadataResponse>;
+          if (typeof candidate.finalUrl === 'string' && typeof candidate.title === 'string' && typeof candidate.status === 'number' && typeof candidate.contentType === 'string' && Array.isArray(candidate.links) && candidate.meta && typeof candidate.meta === 'object') metadata = candidate as MetadataResponse;
+        }
+      } catch (cause) {
+        console.warn('URL metadata unavailable; saving target details only', cause);
+      }
+      const capturedAt = new Date().toISOString();
+      const preview = imageFile && imageFile.size > 0 ? await readFileAsDataUrl(imageFile) : '';
+      const record = { id: crypto.randomUUID(), case_id: selectedCase.id, artifact_type: 'downloaded_page' as const, target_url: targetUrl, final_url: metadata.finalUrl, title: metadata.title || parsedUrl.hostname, http_status: metadata.status || null, content_type: metadata.contentType, raw_html: '', sha512: await sha512(`${targetUrl}|${metadata.finalUrl}|${capturedAt}`), captured_at: capturedAt, browser_metadata: { source: 'url-metadata' }, meta: metadata.meta, screenshot_preview: preview, screenshot_previews: preview ? [preview] : [], extracted_links: metadata.links, notes, created_at: capturedAt };
+      const { error: parentError } = await supabase.from('investigation_cases').upsert({ id: selectedCase.id, case_name: selectedCase.case_name, investigating_officer: selectedCase.investigating_officer, agency: selectedCase.agency, notes: selectedCase.notes, created_at: selectedCase.created_at, updated_at: selectedCase.updated_at }, { onConflict: 'id' });
+      if (parentError) throw parentError;
+      const { data, error: insertError } = await supabase.from('evidence_artifacts').insert(record).select().maybeSingle();
+      if (insertError || !data) throw insertError ?? new Error('Evidence could not be saved');
+      const savedArtifact = data as EvidenceArtifact;
+      const nextArtifacts = [savedArtifact, ...readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY)];
+      writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
+      setArtifacts((current) => [savedArtifact, ...current]);
+      setShowCapture(false);
+    } catch (cause) {
+      setError(t('investigation.captureError'));
+      console.error(cause);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeleteCase = async (investigationCase: InvestigationCase) => {
     if (!window.confirm(`${t('investigation.deleteConfirm')}\n\n${investigationCase.case_name}`)) return;
     const nextCases = readLocalList<InvestigationCase>(LOCAL_CASES_KEY).filter((item) => item.id !== investigationCase.id);
@@ -295,13 +351,14 @@ export default function InvestigationModule({ onClose }: Props) {
               {loading ? <LoadingState label={t('investigation.loading')} /> : cases.length === 0 ? <EmptyCases onCreate={() => setShowCreate(true)} /> : <div className={`grid gap-4 md:grid-cols-2 ${cardDensity === 'compact' ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>{cases.map((investigationCase) => <CaseCard key={investigationCase.id} investigationCase={investigationCase} compact={cardDensity === 'compact'} onClick={() => void handleSelectCase(investigationCase)} onEdit={() => { setSelectedCase(investigationCase); setShowEdit(true); }} onDelete={() => void handleDeleteCase(investigationCase)} />)}</div>}
             </div>
           ) : (
-            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => setSelectedCase(null)} onEdit={() => setShowEdit(true)} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} />
+            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => setSelectedCase(null)} onEdit={() => setShowEdit(true)} onCapture={() => setShowCapture(true)} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} />
           )}
         </div>
       </div>
 
       {showCreate && <Modal title={t('investigation.createTitle')} onClose={() => setShowCreate(false)}><CaseForm submitLabel={t('investigation.create')} onSubmit={handleCreateCase} /></Modal>}
       {showEdit && selectedCase && <Modal title={t('investigation.editTitle')} onClose={() => setShowEdit(false)}><CaseForm investigationCase={selectedCase} submitLabel={t('investigation.save')} onSubmit={handleUpdateCase} /></Modal>}
+      {showCapture && <Modal title={t('investigation.captureTitle')} onClose={() => !loading && setShowCapture(false)}><form onSubmit={handleCapture} className="space-y-4"><Field label={t('investigation.targetUrl')} name="target_url" type="url" placeholder="https://example.org/page" required /><Field label={t('investigation.captureNoteLabel')} name="notes" placeholder={t('investigation.captureNotePlaceholder')} textarea /><label className="block text-sm font-medium text-cyber-text-dim"><span className="mb-1.5 block">{t('investigation.customScreenshot')}</span><input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full rounded-lg border border-cyber-border bg-cyber-black/60 p-2 text-xs text-cyber-text file:mr-3 file:rounded-md file:border-0 file:bg-cyber-cyan/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyber-cyan" /></label><div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3 text-xs leading-5 text-cyber-text-dim"><div className="flex items-center gap-2 text-cyber-cyan"><Globe2 size={13} /> {t('investigation.serverCapture')}</div><p className="mt-1">{t('investigation.serverCaptureDescription')}</p></div><div className="flex justify-end gap-2 pt-2"><button type="button" disabled={loading} onClick={() => setShowCapture(false)} className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim">{t('investigation.cancel')}</button><button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">{loading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />} {t('investigation.capture')}</button></div></form></Modal>}
     </section>
   );
 }
@@ -310,9 +367,9 @@ function CaseCard({ investigationCase, compact, onClick, onEdit, onDelete }: { i
   return <div className={`group relative rounded-xl border border-cyber-border bg-cyber-panel/60 text-left transition hover:-translate-y-0.5 hover:border-cyber-cyan/50 hover:bg-cyber-panel ${compact ? 'p-4' : 'p-5'}`}><button onClick={onClick} className="block w-full text-left"><div className={`flex items-start justify-between ${compact ? 'mb-4' : 'mb-6'}`}><div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyber-cyan/25 bg-cyber-cyan/10 text-cyber-cyan"><Archive size={18} /></div><ChevronRight size={16} className="text-cyber-text-dim transition group-hover:translate-x-1 group-hover:text-cyber-cyan" /></div><h3 className="truncate text-sm font-semibold text-cyber-text">{investigationCase.case_name}</h3><div className="mt-3 space-y-2 text-xs text-cyber-text-dim"><div className="flex items-center gap-2"><UserRound size={12} /> {investigationCase.investigating_officer || 'Officer not assigned'}</div><div className="flex items-center gap-2"><Calendar size={12} /> Updated {formatDate(investigationCase.updated_at)}</div></div></button><div className="mt-4 flex justify-end gap-1 border-t border-cyber-border pt-3"><button onClick={onEdit} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-cyber-cyan/10 hover:text-cyber-cyan" title="Edit case"><Pencil size={13} /></button><button onClick={onDelete} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-red-500/10 hover:text-red-400" title="Delete case"><Trash2 size={13} /></button></div></div>;
 }
 
-function CaseWorkspace({ investigationCase, artifacts, loading, search, dateFilter, onSearch, onDateFilter, onBack, onEdit, onReport, onDeleteCase, onDeleteArtifact, onUpdateArtifactNotes, onUpdateArtifactPreview }: { investigationCase: InvestigationCase; artifacts: EvidenceArtifact[]; loading: boolean; search: string; dateFilter: string; onSearch: (value: string) => void; onDateFilter: (value: string) => void; onBack: () => void; onEdit: () => void; onReport: () => void; onDeleteCase: () => void; onDeleteArtifact: (id: string) => void; onUpdateArtifactNotes: (id: string, notes: string) => void; onUpdateArtifactPreview: (id: string, previews: string[]) => void }) {
+function CaseWorkspace({ investigationCase, artifacts, loading, search, dateFilter, onSearch, onDateFilter, onBack, onEdit, onCapture, onReport, onDeleteCase, onDeleteArtifact, onUpdateArtifactNotes, onUpdateArtifactPreview }: { investigationCase: InvestigationCase; artifacts: EvidenceArtifact[]; loading: boolean; search: string; dateFilter: string; onSearch: (value: string) => void; onDateFilter: (value: string) => void; onBack: () => void; onEdit: () => void; onCapture: () => void; onReport: () => void; onDeleteCase: () => void; onDeleteArtifact: (id: string) => void; onUpdateArtifactNotes: (id: string, notes: string) => void; onUpdateArtifactPreview: (id: string, previews: string[]) => void }) {
   const { t } = useLanguage();
-  return <div className="mt-7"><button onClick={onBack} className="mb-4 flex items-center gap-2 text-xs text-cyber-text-dim hover:text-cyber-cyan"><ArrowLeft size={14} /> {t('investigation.allCases')}</button><div className="rounded-xl border border-cyber-border bg-cyber-panel/60 p-5"><div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] text-cyber-green"><CheckCircle2 size={13} /> {t('investigation.activeCase')}</div><h2 className="text-xl font-semibold">{investigationCase.case_name}</h2><p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-cyber-text-dim">{investigationCase.notes || t('investigation.noNotes')}</p></div><div className="flex flex-wrap gap-2"><button onClick={onEdit} className="flex items-center gap-2 rounded-lg border border-cyber-border px-3 py-2 text-xs text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-text"><Pencil size={14} /> {t('investigation.edit')}</button><button onClick={onReport} className="flex items-center gap-2 rounded-lg border border-cyber-border px-3 py-2 text-xs text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-text"><Printer size={14} /> {t('investigation.report')}</button><button onClick={onDeleteCase} className="flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10"><Trash2 size={14} /> {t('investigation.delete')}</button></div></div><div className="mt-5 grid gap-3 border-t border-cyber-border pt-5 sm:grid-cols-3"><Meta label={t('investigation.officer')} value={investigationCase.investigating_officer || '—'} icon={<UserRound size={13} />} /><Meta label={t('investigation.agency')} value={investigationCase.agency || '—'} icon={<ShieldCheck size={13} />} /><Meta label={t('investigation.artifacts')} value={String(artifacts.length)} icon={<Fingerprint size={13} />} /></div></div><div className="mt-5 flex flex-col gap-3 md:flex-row"><div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyber-text-dim" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder={t('investigation.filterPlaceholder')} className="input-cyber h-10 pl-9 text-sm" /></div><div className="relative"><Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyber-text-dim" /><input aria-label={t('investigation.dateFilter')} type="date" value={dateFilter} onChange={(event) => onDateFilter(event.target.value)} className="input-cyber h-10 pl-9 text-sm" /></div></div><div className="mt-4 overflow-hidden rounded-xl border border-cyber-border bg-cyber-panel/50">{loading ? <LoadingState label={t('investigation.loading')} /> : artifacts.length === 0 ? <div className="p-12 text-center"><FileText size={28} className="mx-auto mb-3 text-cyber-border" /><p className="text-sm text-cyber-text-dim">{t('investigation.noEvidence')}</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left"><thead className="border-b border-cyber-border bg-cyber-dark/60 text-xs uppercase tracking-wider text-cyber-text-dim"><tr><th className="px-4 py-3">{t('investigation.artifact')}</th><th className="px-4 py-3">{t('investigation.target')}</th><th className="px-4 py-3">{t('investigation.integrity')}</th><th className="px-4 py-3">{t('investigation.captured')}</th><th className="px-4 py-3"></th></tr></thead><tbody className="divide-y divide-cyber-border/70">{artifacts.map((artifact) => <ArtifactRow key={artifact.id} artifact={artifact} onDelete={() => onDeleteArtifact(artifact.id)} onUpdateNotes={onUpdateArtifactNotes} onUpdatePreview={onUpdateArtifactPreview} />)}</tbody></table></div>}</div></div>;
+  return <div className="mt-7"><button onClick={onBack} className="mb-4 flex items-center gap-2 text-xs text-cyber-text-dim hover:text-cyber-cyan"><ArrowLeft size={14} /> {t('investigation.allCases')}</button><div className="rounded-xl border border-cyber-border bg-cyber-panel/60 p-5"><div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] text-cyber-green"><CheckCircle2 size={13} /> {t('investigation.activeCase')}</div><h2 className="text-xl font-semibold">{investigationCase.case_name}</h2><p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-cyber-text-dim">{investigationCase.notes || t('investigation.noNotes')}</p></div><div className="flex flex-wrap gap-2"><button onClick={onEdit} className="flex items-center gap-2 rounded-lg border border-cyber-border px-3 py-2 text-xs text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-text"><Pencil size={14} /> {t('investigation.edit')}</button><button onClick={onReport} className="flex items-center gap-2 rounded-lg border border-cyber-border px-3 py-2 text-xs text-cyber-text-dim hover:border-cyber-cyan/50 hover:text-cyber-text"><Printer size={14} /> {t('investigation.report')}</button><button onClick={onDeleteCase} className="flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10"><Trash2 size={14} /> {t('investigation.delete')}</button><button onClick={onCapture} className="flex items-center gap-2 rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/10 px-3 py-2 text-xs font-semibold text-cyber-cyan hover:bg-cyber-cyan/20"><Plus size={14} /> Ajouter une URL</button><button onClick={onCapture} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-3 py-2 text-xs font-semibold text-cyber-black hover:bg-cyan-300"><Archive size={14} /> {t('investigation.capture')}</button></div></div><div className="mt-5 grid gap-3 border-t border-cyber-border pt-5 sm:grid-cols-3"><Meta label={t('investigation.officer')} value={investigationCase.investigating_officer || '—'} icon={<UserRound size={13} />} /><Meta label={t('investigation.agency')} value={investigationCase.agency || '—'} icon={<ShieldCheck size={13} />} /><Meta label={t('investigation.artifacts')} value={String(artifacts.length)} icon={<Fingerprint size={13} />} /></div></div><div className="mt-5 flex flex-col gap-3 md:flex-row"><div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyber-text-dim" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder={t('investigation.filterPlaceholder')} className="input-cyber h-10 pl-9 text-sm" /></div><div className="relative"><Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyber-text-dim" /><input aria-label={t('investigation.dateFilter')} type="date" value={dateFilter} onChange={(event) => onDateFilter(event.target.value)} className="input-cyber h-10 pl-9 text-sm" /></div></div><div className="mt-4 overflow-hidden rounded-xl border border-cyber-border bg-cyber-panel/50">{loading ? <LoadingState label={t('investigation.loading')} /> : artifacts.length === 0 ? <div className="p-12 text-center"><FileText size={28} className="mx-auto mb-3 text-cyber-border" /><p className="text-sm text-cyber-text-dim">{t('investigation.noEvidence')}</p><button onClick={onCapture} className="mt-4 text-xs text-cyber-cyan hover:underline">{t('investigation.captureFirst')}</button></div> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left"><thead className="border-b border-cyber-border bg-cyber-dark/60 text-xs uppercase tracking-wider text-cyber-text-dim"><tr><th className="px-4 py-3">{t('investigation.artifact')}</th><th className="px-4 py-3">{t('investigation.target')}</th><th className="px-4 py-3">{t('investigation.integrity')}</th><th className="px-4 py-3">{t('investigation.captured')}</th><th className="px-4 py-3"></th></tr></thead><tbody className="divide-y divide-cyber-border/70">{artifacts.map((artifact) => <ArtifactRow key={artifact.id} artifact={artifact} onDelete={() => onDeleteArtifact(artifact.id)} onUpdateNotes={onUpdateArtifactNotes} onUpdatePreview={onUpdateArtifactPreview} />)}</tbody></table></div>}</div></div>;
 }
 
 function ArtifactRow({ artifact, onDelete, onUpdateNotes, onUpdatePreview }: { artifact: EvidenceArtifact; onDelete: () => void; onUpdateNotes: (id: string, notes: string) => void; onUpdatePreview: (id: string, previews: string[]) => void }) {

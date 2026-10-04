@@ -1,0 +1,2 @@
+[functions.capture-metadata]
+verify_jwt = false

@@ -10,6 +10,15 @@ export interface InvestigationCase {
   updated_at: string;
 }
 
+export interface MetadataResponse {
+  finalUrl: string;
+  title: string;
+  status: number;
+  contentType: string;
+  meta: Record<string, string>;
+  links: string[];
+}
+
 export interface EvidenceArtifact {
   id: string;
   case_id: string;
