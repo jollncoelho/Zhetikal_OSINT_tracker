@@ -5,6 +5,7 @@ const corsHeaders = {
 };
 
 const MAX_HTML_BYTES = 5_000_000;
+const MAX_SCREENSHOT_BYTES = 4_000_000;
 
 function isSafeUrl(value: string): boolean {
   let url: URL;
@@ -57,7 +58,7 @@ async function fetchPage(targetUrl: string): Promise<{ response: Response; final
       const response = await fetch(currentUrl, {
         redirect: 'manual',
         signal: controller.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Ghostint Metadata Collector/1.0)', Accept: 'text/html,application/xhtml+xml,*/*;q=0.8' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Ghostint Evidence Collector/1.0)', Accept: 'text/html,application/xhtml+xml,*/*;q=0.8' },
       });
       clearTimeout(timeout);
       if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -76,6 +77,22 @@ async function fetchPage(targetUrl: string): Promise<{ response: Response; final
   throw new Error('Too many redirects');
 }
 
+function bytesToDataUrl(bytes: Uint8Array, contentType: string): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + chunkSize, bytes.length)));
+  return `data:${contentType || 'image/png'};base64,${btoa(binary)}`;
+}
+
+async function fetchScreenshot(targetUrl: string): Promise<string> {
+  const screenshotUrl = `https://image.thum.io/get/fullpage/${encodeURIComponent(targetUrl)}`;
+  const response = await fetch(screenshotUrl, { signal: AbortSignal.timeout(30000) });
+  if (!response.ok) throw new Error('Screenshot service unavailable');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > MAX_SCREENSHOT_BYTES) throw new Error('Screenshot is unavailable');
+  return bytesToDataUrl(bytes, response.headers.get('content-type') || 'image/png');
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
   try {
@@ -87,20 +104,27 @@ Deno.serve(async (request: Request) => {
     const { response, finalUrl } = await fetchPage(targetUrl);
     const contentLength = Number(response.headers.get('content-length') || 0);
     if (contentLength > MAX_HTML_BYTES) throw new Error('Page metadata is too large');
-    const html = await response.text();
-    const truncatedHtml = html.slice(0, MAX_HTML_BYTES);
+    const html = (await response.text()).slice(0, MAX_HTML_BYTES);
     const contentType = response.headers.get('content-type') || '';
+    let screenshotDataUrl = '';
+    try {
+      screenshotDataUrl = await fetchScreenshot(finalUrl);
+    } catch (error) {
+      console.warn('external screenshot fallback failed', error);
+    }
     const payload = {
       finalUrl,
-      title: extractTitle(truncatedHtml),
+      title: extractTitle(html),
       status: response.status,
       contentType,
-      meta: extractMetaTags(truncatedHtml),
-      links: extractLinks(truncatedHtml, finalUrl),
+      html,
+      meta: extractMetaTags(html),
+      links: extractLinks(html, finalUrl),
+      screenshotDataUrl,
     };
     return new Response(JSON.stringify(payload), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('metadata capture failed', error);
-    return new Response(JSON.stringify({ error: 'The URL metadata could not be retrieved.' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'The page could not be captured.' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

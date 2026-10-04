@@ -15,8 +15,10 @@ export interface MetadataResponse {
   title: string;
   status: number;
   contentType: string;
+  html: string;
   meta: Record<string, string>;
   links: string[];
+  screenshotDataUrl: string;
 }
 
 export interface EvidenceArtifact {
