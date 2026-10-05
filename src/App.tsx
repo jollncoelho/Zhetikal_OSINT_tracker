@@ -311,8 +311,10 @@ function AppInner() {
             >
               <Ghost size={12} /> {t('header.tools')}
             </button>
-            <SnippingTool activeCaseId={activeInvestigationCaseId} />
             <LanguageSwitcher />
+            <div className="ml-2">
+              <SnippingTool activeCaseId={activeInvestigationCaseId} />
+            </div>
             <a
               href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
               target="_blank"

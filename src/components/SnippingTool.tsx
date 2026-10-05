@@ -325,7 +325,7 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
             />
             {rect && rect.w > 0 && rect.h > 0 && (
               <div
-                className="absolute border-2 border-cyber-cyan bg-cyber-cyan/10"
+                className="absolute border-2 border-cyber-cyan bg-cyber-cyan/10 pointer-events-none"
                 style={{
                   left: rect.x,
                   top: rect.y,
