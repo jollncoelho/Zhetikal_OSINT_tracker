@@ -14,4 +14,4 @@ export interface HermesDiscovery {
   relations: HermesRelation[];
   summary: string;
 }
-export type AnalysisMode = 'local' | 'hermes';
+export type AnalysisMode = 'local' | 'freellm';

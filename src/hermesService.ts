@@ -240,44 +240,229 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
   return parseOllamaTextToDiscovery(text);
 }
 
-const PORTAL_URL = 'https://inference-api.nousresearch.com/v1/chat/completions';
-const PORTAL_MODEL = 'stepfun/step-3.7-flash:free';
+// ── FreeLLMAPI backend (OpenAI-compatible gateway) ───────────────────────────
+// FreeLLMAPI (https://freellmapi.co) is a self-hosted, OpenAI-compatible router
+// that aggregates the free tiers of many providers behind a single API key.
+// Any OpenAI client works: just point the base URL at your router and use your key.
 
-function getPortalApiKey(): string {
-  const key = typeof localStorage !== 'undefined' ? localStorage.getItem('portal_api_key') : null;
-  if (!key?.trim()) {
-    throw new Error('Clé API Portal manquante. Configure-la dans le panneau Avancé (Hermes) avant de lancer l\'analyse.');
-  }
-  return key.trim();
+export const DEFAULT_FREELLM_BASE_URL = 'http://localhost:3001/v1';
+export const DEFAULT_FREELLM_MODEL = 'deepseek-ai/DeepSeek-V4.1-Flash';
+
+const LS_FREELLM_KEY = 'freellm_api_key';
+const LS_FREELLM_BASE_URL = 'freellm_base_url';
+const LS_FREELLM_MODEL = 'freellm_model';
+const LS_FREELLM_AUTO = 'freellm_auto_model';
+
+function lsGet(key: string): string {
+  if (typeof localStorage === 'undefined') return '';
+  return localStorage.getItem(key)?.trim() ?? '';
 }
 
-async function runPortalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
-  const apiKey = getPortalApiKey();
+function lsSet(key: string, value: string): void {
+  if (typeof localStorage === 'undefined') return;
+  const trimmed = value.trim();
+  if (trimmed) localStorage.setItem(key, trimmed);
+  else localStorage.removeItem(key);
+}
+
+export function getFreeLlmKey(): string {
+  return lsGet(LS_FREELLM_KEY);
+}
+
+export function setFreeLlmKey(key: string): void {
+  lsSet(LS_FREELLM_KEY, key);
+}
+
+export function getFreeLlmBaseUrl(): string {
+  return lsGet(LS_FREELLM_BASE_URL) || DEFAULT_FREELLM_BASE_URL;
+}
+
+export function setFreeLlmBaseUrl(url: string): void {
+  lsSet(LS_FREELLM_BASE_URL, url);
+}
+
+export function getFreeLlmModel(): string {
+  return lsGet(LS_FREELLM_MODEL) || DEFAULT_FREELLM_MODEL;
+}
+
+export function setFreeLlmModel(model: string): void {
+  lsSet(LS_FREELLM_MODEL, model);
+}
+
+/**
+ * "Auto" mode: the router itself picks the model and hops to the next one when a
+ * free quota runs out (its Fallback Chain + routing strategy). This is the
+ * default because it needs no model knowledge from the user and survives quota
+ * exhaustion. The FreeLLMAPI desktop app implements it by simply omitting the
+ * `model` field from the request body.
+ */
+export function getFreeLlmAuto(): boolean {
+  if (typeof localStorage === 'undefined') return true;
+  return localStorage.getItem(LS_FREELLM_AUTO) !== 'false';
+}
+
+export function setFreeLlmAuto(auto: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(LS_FREELLM_AUTO, auto ? 'true' : 'false');
+}
+
+/**
+ * Whether the request should let the router choose the model.
+ * True when the Auto toggle is on, or when the model field literally says
+ * "auto"/"automatique" (so typing it by hand works as expected).
+ */
+export function isFreeLlmAutoEffective(): boolean {
+  if (getFreeLlmAuto()) return true;
+  return /^(auto|automatique|automatic)$/i.test(getFreeLlmModel().trim());
+}
+
+/**
+ * Build the chat-completions payload. In auto mode we deliberately omit `model`
+ * so the router routes across the whole catalog and fails over automatically.
+ */
+function buildFreeLlmPayload(messages: Array<{ role: string; content: string }>, extra?: Record<string, unknown>): Record<string, unknown> {
+  const payload: Record<string, unknown> = { messages, stream: false, ...extra };
+  if (!isFreeLlmAutoEffective()) {
+    payload.model = getFreeLlmModel().trim() || DEFAULT_FREELLM_MODEL;
+  }
+  return payload;
+}
+
+// Build the OpenAI-compatible chat-completions URL from the configured base URL.
+function getFreeLlmChatUrl(): string {
+  const base = getFreeLlmBaseUrl().replace(/\/+$/, '');
+  return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+}
+
+/**
+ * FreeLLMAPI is a self-hosted router. A very common mistake is to point the base
+ * URL at the marketing site (https://freellmapi.co) instead of at a running
+ * router. That returns an HTML page, which used to surface as the cryptic
+ * "Unexpected token '<' ... is not valid JSON" error. We detect it and explain.
+ */
+function htmlInsteadOfJsonError(url: string, status: number): Error {
+  const missingV1 = !/\/v1(\/|$)/.test(url);
+  const lines = [
+    `L'URL « ${url} » a renvoyé une page HTML au lieu d'une réponse JSON (HTTP ${status}).`,
+    '',
+    missingV1
+      ? `Cause la plus probable : il manque « /v1 » dans l'URL de base. Le routeur sert son API sous /v1, et tout le reste renvoie la page de son interface web.`
+      : `Ce n'est pas un endpoint d'API OpenAI-compatible.`,
+    '',
+    'Deux configurations possibles :',
+    '',
+    '• Application de bureau FreeLLMAPI',
+    '  1. Ouvre l\'application FreeLLMAPI.',
+    '  2. Va dans la section « Keys » (ou « Connect your app »).',
+    '  3. Clique sur « Copy base URL » et colle cette adresse en URL de base',
+    '     (elle ressemble à http://127.0.0.1:31415/v1).',
+    '  4. Clique sur « Copy API key » pour la « Unified key » et colle-la dans Clé API.',
+    '',
+    '• Routeur auto-hébergé (Node.js / Docker)',
+    '  L\'adresse est http://localhost:3001/v1',
+    '',
+    'Rappel : freellmapi.co est le site vitrine — l\'API n\'est PAS hébergée chez eux.',
+  ];
+  return new Error(lines.join('\n'));
+}
+
+/** Read a response as JSON, turning HTML/plain-text bodies into a clear error. */
+async function parseJsonResponse(response: Response, url: string, label: string): Promise<any> {
+  const raw = await response.text();
+  const contentType = response.headers.get('content-type') ?? '';
+  const trimmed = raw.trim();
+  const looksLikeHtml = /^<(?:!doctype|html|head|body)\b/i.test(trimmed) || /^<\?xml/i.test(trimmed);
+
+  if (looksLikeHtml || (trimmed.startsWith('<') && !trimmed.startsWith('{'))) {
+    throw htmlInsteadOfJsonError(url, response.status);
+  }
+  if (!trimmed) {
+    throw new Error(`${label} a renvoyé une réponse vide (HTTP ${response.status}).`);
+  }
+  if (!contentType.includes('json') && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    throw new Error(
+      `${label} a renvoyé un contenu inattendu (HTTP ${response.status}, type « ${contentType || 'inconnu'} ») : ${trimmed.slice(0, 200)}`
+    );
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    throw new Error(`${label} a renvoyé un JSON illisible (HTTP ${response.status}) : ${trimmed.slice(0, 200)}`);
+  }
+}
+
+function getFreeLlmApiKey(): string {
+  const key = getFreeLlmKey();
+  if (!key) {
+    throw new Error('Clé API FreeLLMAPI manquante. Configure-la dans le panneau Avancé (FreeLLMAPI) avant de lancer l\'analyse.');
+  }
+  return key;
+}
+
+async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
+  const apiKey = getFreeLlmApiKey();
+  const url = getFreeLlmChatUrl();
   const messages = [
     { role: 'user', content: buildGraphPrompt(graphData, analystName) },
   ];
+  const payload = buildFreeLlmPayload(messages);
 
   let response: Response;
   try {
-    response = await fetch(PORTAL_URL, {
+    response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model: PORTAL_MODEL, messages, stream: false }),
+      body: JSON.stringify(payload),
     });
   } catch (err) {
-    throw new Error('Portal API is unreachable. Check your internet connection.');
+    throw new Error(
+      `FreeLLMAPI est injoignable (${url}).\n\n` +
+        `Vérifie que ton routeur FreeLLMAPI est bien démarré et que l'URL de base est correcte ` +
+        `(par défaut : http://localhost:3001/v1).`
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`Portal API returned HTTP ${response.status}: ${await response.text()}`);
+    const body = await response.text().catch(() => '');
+    const detail = body.trim().slice(0, 300);
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        `FreeLLMAPI a refusé la clé API (HTTP ${response.status}).\n\n` +
+          `Si tu utilises l'application de bureau FreeLLMAPI : ouvre la section « Keys » ` +
+          `(ou « Connect your app ») et copie la « Unified key » avec le bouton « Copy API key ». ` +
+          `C'est cette clé qui va dans le champ Clé API — pas une clé de fournisseur.\n` +
+          `Vérifie également que l'URL de base correspond à celle donnée par « Copy base URL ».` +
+          `${detail ? `\n\nDétail : ${detail}` : ''}`
+      );
+    }
+    if (response.status === 404) {
+      throw new Error(
+        `FreeLLMAPI a renvoyé 404 pour « ${url} ».\n` +
+          `L'URL de base ne pointe probablement pas vers un routeur FreeLLMAPI actif. ` +
+          `App de bureau : reprends l'adresse via « Copy base URL ». Auto-hébergé : http://localhost:3001/v1.` +
+          `${detail ? `\n\nDétail : ${detail}` : ''}`
+      );
+    }
+    if (response.status === 400 && isFreeLlmAutoEffective()) {
+      throw new Error(
+        `FreeLLMAPI a refusé la requête en mode Auto (HTTP 400).\n\n` +
+          `En mode Auto, le routeur choisit lui-même le modèle : il faut donc lui avoir donné ` +
+          `une « Fallback Chain » à parcourir.\n` +
+          `Ouvre l'application FreeLLMAPI, ajoute au moins une clé de fournisseur, puis active ` +
+          `des modèles dans la « Fallback Chain ».\n` +
+          `Autre option : décoche « Auto » et choisis un modèle précis.` +
+          `${detail ? `\n\nDétail : ${detail}` : ''}`
+      );
+    }
+    throw new Error(`FreeLLMAPI a renvoyé HTTP ${response.status}${detail ? ` : ${detail}` : ''}`);
   }
 
-  const data = await response.json();
+  const data = await parseJsonResponse(response, url, 'FreeLLMAPI');
   const text: string = data?.choices?.[0]?.message?.content ?? '';
-  if (!text) throw new Error('Portal API returned an empty response.');
+  if (!text) throw new Error('FreeLLMAPI a renvoyé une réponse vide.');
   return parseOllamaTextToDiscovery(text);
 }
 
@@ -287,7 +472,7 @@ export async function runAnalysis(
   analystName?: string
 ): Promise<HermesDiscovery> {
   if (mode === 'local') return runLocalAnalysis(graphData, analystName);
-  return runPortalAnalysis(graphData, analystName);
+  return runFreeLlmAnalysis(graphData, analystName);
 }
 
 // ── Health checks ────────────────────────────────────────────────────────────
@@ -301,16 +486,56 @@ export async function checkOllama(): Promise<boolean> {
   }
 }
 
-export async function checkHermes(): Promise<boolean> {
-  const key = typeof localStorage !== 'undefined' ? localStorage.getItem('portal_api_key') : null;
-  if (!key?.trim()) return false;
+/**
+ * Ask the router for its list of available models (OpenAI-compatible GET /v1/models).
+ * This is the authoritative answer to "which models can I actually use?" — the
+ * router only advertises what the connected providers currently serve.
+ */
+export async function fetchFreeLlmModels(): Promise<string[]> {
+  const key = getFreeLlmApiKey();
+  const url = `${getFreeLlmBaseUrl().replace(/\/+$/, '')}/models`;
+
+  let response: Response;
   try {
-    const res = await fetch(PORTAL_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.trim()}` },
-      body: JSON.stringify({ model: PORTAL_MODEL, messages: [{ role: 'user', content: 'ping' }], stream: false, max_tokens: 1 }),
+    response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
     });
-    return res.ok || res.status === 400;
+  } catch {
+    throw new Error(`Impossible de joindre le routeur FreeLLMAPI (${url}).`);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    const detail = body.trim().slice(0, 200);
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`Clé API refusée (HTTP ${response.status}).${detail ? ` ${detail}` : ''}`);
+    }
+    throw new Error(`Le routeur a renvoyé HTTP ${response.status}${detail ? ` : ${detail}` : ''}`);
+  }
+
+  const data = await parseJsonResponse(response, url, 'FreeLLMAPI');
+  const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+  const ids = list
+    .map((m) => (typeof m === 'string' ? m : m?.id))
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  return Array.from(new Set(ids)).sort((a, b) => a.localeCompare(b));
+}
+
+export async function checkFreeLlm(): Promise<boolean> {
+  const key = getFreeLlmKey();
+  if (!key) return false;
+  try {
+    const res = await fetch(getFreeLlmChatUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify(buildFreeLlmPayload([{ role: 'user', content: 'ping' }], { max_tokens: 1 })),
+    });
+    // A reachable router may reject the shape of the probe (400) — that still means "up".
+    if (res.status === 400) return true;
+    if (!res.ok) return false;
+    // Guard against a web page being served at this URL (would be HTML, not JSON).
+    return (res.headers.get('content-type') ?? '').includes('json');
   } catch {
     return false;
   }

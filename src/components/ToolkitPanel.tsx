@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, ExternalLink, Loader } from 'lucide-react';
 import toolsData from '../tools.json';
+import { useTheme } from '../theme/ThemeContext';
 
 interface Tool {
   name: string;
@@ -17,74 +18,86 @@ const CATEGORIES = ['All', ...Array.from(new Set(TOOLS.map((t) => t.category)))]
   (cat) => cat !== ''
 );
 
+/* Accents de catégorie. La plupart pointent sur un token de thème ; les deux
+   teintes de marque restantes (violet générique, bleu Facebook) sont des
+   couleurs de **légende** : on les assombrit en thème clair via `entityTone`
+   au lieu de les figer en hexadécimal. */
+const BRAND_VIOLET = '#8b5cf6';
+const BRAND_FACEBOOK = '#1877f2';
+
 const CATEGORY_COLORS: Record<string, string> = {
-  Recon: '#0ea5e9',
-  Network: '#00c8d4',
-  Breach: '#ef4444',
-  Email: '#f59e0b',
-  Malware: '#ef4444',
-  Web: '#10b981',
-  Phone: '#8b5cf6',
-  File: '#94a3b8',
-  Image: '#f59e0b',
-  Username: '#8b5cf6',
-  Emails: '#f59e0b',
-  Téléphones: '#8b5cf6',
-  'Domaines & DNS': '#00c8d4',
-  'Breaches & Leaks': '#ef4444',
-  Métadonnées: '#94a3b8',
-  'Moteurs de recherche': '#10b981',
-  'Images inversées': '#f59e0b',
-  'Réseaux sociaux': '#1877f2',
-  'Archives web': '#10b981',
-  Entreprises: '#0ea5e9',
-  'Code & Repositories': '#8b5cf6',
-  'Transport & Véhicules': '#0ea5e9',
-  'Monitoring & Threat Intel': '#ef4444',
-  'Documents & Data': '#94a3b8',
-  'Visualisation & DataViz': '#10b981',
-  'Telegram OSINT': '#8b5cf6',
-  'Navigateur & OPSEC': '#94a3b8',
-  'Outils IA': '#8b5cf6',
-  Ressources: '#94a3b8',
-  'People Search & Profils': '#f59e0b',
-  'Web, Traffic & SEO': '#10b981',
-  'Fact-check & Vérification': '#10b981',
-  'Module Colombie': '#0ea5e9',
-  Géolocalisation: '#10b981',
-  'IAGéolocalisation': '#10b981',
-  search_engines: '#10b981',
-  'social-media-intelligence': '#1877f2',
-  geolocation: '#10b981',
-  'domain--network-analysis': '#00c8d4',
-  people_search: '#f59e0b',
-  threat_intelligence: '#ef4444',
-  image_video_analysis: '#f59e0b',
-  dark_web: '#ef4444',
-  email_investigation: '#f59e0b',
-  metadata_analysis: '#94a3b8',
-  metadata: '#94a3b8',
-  phone_research: '#8b5cf6',
-  code_repository: '#8b5cf6',
-  domain_network: '#00c8d4',
-  file_document: '#94a3b8',
-  finance_intelligence: '#f59e0b',
-  news_media: '#10b981',
-  social_media: '#1877f2',
-  visualization_analysis: '#10b981',
-  archive_history: '#10b981',
-  data_statistics: '#f59e0b',
-  image_video: '#f59e0b',
-  maritime_aviation: '#0ea5e9',
-  username_tracking: '#8b5cf6',
-  company_research: '#0ea5e9',
-  email: '#f59e0b',
-  privacy_security: '#94a3b8',
-  privacy_security_tools: '#94a3b8',
+  Recon: 'var(--cyber-blue)',
+  Network: 'var(--cyber-cyan-dim)',
+  Breach: 'var(--cyber-red)',
+  Email: 'var(--cyber-orange)',
+  Malware: 'var(--cyber-red)',
+  Web: 'var(--cyber-green)',
+  Phone: BRAND_VIOLET,
+  File: 'var(--cyber-text-dim)',
+  Image: 'var(--cyber-orange)',
+  Username: BRAND_VIOLET,
+  Emails: 'var(--cyber-orange)',
+  Téléphones: BRAND_VIOLET,
+  'Domaines & DNS': 'var(--cyber-cyan-dim)',
+  'Breaches & Leaks': 'var(--cyber-red)',
+  Métadonnées: 'var(--cyber-text-dim)',
+  'Moteurs de recherche': 'var(--cyber-green)',
+  'Images inversées': 'var(--cyber-orange)',
+  'Réseaux sociaux': BRAND_FACEBOOK,
+  'Archives web': 'var(--cyber-green)',
+  Entreprises: 'var(--cyber-blue)',
+  'Code & Repositories': BRAND_VIOLET,
+  'Transport & Véhicules': 'var(--cyber-blue)',
+  'Monitoring & Threat Intel': 'var(--cyber-red)',
+  'Documents & Data': 'var(--cyber-text-dim)',
+  'Visualisation & DataViz': 'var(--cyber-green)',
+  'Telegram OSINT': BRAND_VIOLET,
+  'Navigateur & OPSEC': 'var(--cyber-text-dim)',
+  'Outils IA': BRAND_VIOLET,
+  Ressources: 'var(--cyber-text-dim)',
+  'People Search & Profils': 'var(--cyber-orange)',
+  'Web, Traffic & SEO': 'var(--cyber-green)',
+  'Fact-check & Vérification': 'var(--cyber-green)',
+  'Module Colombie': 'var(--cyber-blue)',
+  Géolocalisation: 'var(--cyber-green)',
+  'IAGéolocalisation': 'var(--cyber-green)',
+  search_engines: 'var(--cyber-green)',
+  'social-media-intelligence': BRAND_FACEBOOK,
+  geolocation: 'var(--cyber-green)',
+  'domain--network-analysis': 'var(--cyber-cyan-dim)',
+  people_search: 'var(--cyber-orange)',
+  threat_intelligence: 'var(--cyber-red)',
+  image_video_analysis: 'var(--cyber-orange)',
+  dark_web: 'var(--cyber-red)',
+  email_investigation: 'var(--cyber-orange)',
+  metadata_analysis: 'var(--cyber-text-dim)',
+  metadata: 'var(--cyber-text-dim)',
+  phone_research: BRAND_VIOLET,
+  code_repository: BRAND_VIOLET,
+  domain_network: 'var(--cyber-cyan-dim)',
+  file_document: 'var(--cyber-text-dim)',
+  finance_intelligence: 'var(--cyber-orange)',
+  news_media: 'var(--cyber-green)',
+  social_media: BRAND_FACEBOOK,
+  visualization_analysis: 'var(--cyber-green)',
+  archive_history: 'var(--cyber-green)',
+  data_statistics: 'var(--cyber-orange)',
+  image_video: 'var(--cyber-orange)',
+  maritime_aviation: 'var(--cyber-blue)',
+  username_tracking: BRAND_VIOLET,
+  company_research: 'var(--cyber-blue)',
+  email: 'var(--cyber-orange)',
+  privacy_security: 'var(--cyber-text-dim)',
+  privacy_security_tools: 'var(--cyber-text-dim)',
 };
 
-function getCategoryColor(cat: string): string {
-  return CATEGORY_COLORS[cat] || '#94a3b8';
+/**
+ * Les tokens `var(--cyber-*)` s'adaptent déjà au thème ; seules les couleurs de
+ * marque (hexadécimales) doivent passer par `entityTone`.
+ */
+function getCategoryColor(cat: string, tone: (hex: string) => string): string {
+  const color = CATEGORY_COLORS[cat] || 'var(--cyber-text-dim)';
+  return color.startsWith('#') ? tone(color) : color;
 }
 
 interface ToolkitPanelProps {
@@ -96,6 +109,7 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [loading, setLoading] = useState(true);
+  const { entityTone } = useTheme();
 
   useEffect(() => {
     setLoading(false);
@@ -172,7 +186,9 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
         {filtered.length === 0 ? (
           <p className="text-center text-xs text-cyber-text-dim py-8">Aucun outil trouvé</p>
         ) : (
-          filtered.map((tool) => (
+          filtered.map((tool) => {
+            const accent = getCategoryColor(tool.category, entityTone);
+            return (
             <div
               key={tool.name + tool.url}
               className="group rounded-xl bg-cyber-panel border border-cyber-border p-3 hover:border-cyber-cyan/30 transition-colors"
@@ -186,9 +202,9 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
                     <span
                       className="text-[9px] font-mono px-1.5 py-0.5 rounded border whitespace-nowrap"
                       style={{
-                        color: getCategoryColor(tool.category),
-                        borderColor: `${getCategoryColor(tool.category)}44`,
-                        background: `${getCategoryColor(tool.category)}11`,
+                        color: accent,
+                        borderColor: `${accent}44`,
+                        background: `${accent}11`,
                       }}
                     >
                       {tool.category}
@@ -215,7 +231,8 @@ export default function ToolkitPanel({ isOpen, onClose }: ToolkitPanelProps) {
                 </a>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

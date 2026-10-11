@@ -19,6 +19,22 @@ export interface MetadataResponse {
   meta: Record<string, string>;
   links: string[];
   screenshotDataUrl: string;
+  /** Every visible text line extracted from the page, in reading order. */
+  text?: string[];
+  /** The extracted text joined with newlines (convenience copy). */
+  textContent?: string;
+  /** Image / media asset URLs discovered on the page. */
+  assets?: string[];
+  /** Response size in bytes. */
+  bytes?: number;
+  /** Server-side capture duration in milliseconds. */
+  elapsedMs?: number;
+  /** True when the document exceeded the capture buffer limit. */
+  truncated?: boolean;
+  /** Redirect chain observed while fetching. */
+  redirects?: string[];
+  /** ISO timestamp of the server-side capture. */
+  capturedAt?: string;
 }
 
 export interface EvidenceArtifact {
@@ -38,6 +54,10 @@ export interface EvidenceArtifact {
   screenshot_preview: string;
   screenshot_previews?: string[];
   extracted_links: string[];
+  /** Every visible text line extracted from the captured page. */
+  extracted_text?: string[];
+  /** Image / media assets discovered on the captured page. */
+  extracted_assets?: string[];
   notes: string;
   created_at: string;
 }

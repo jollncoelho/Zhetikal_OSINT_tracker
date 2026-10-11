@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Check, Loader, X, Crop, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
-import { supabase } from '../lib/supabase';
 import type { EvidenceArtifact } from '../types/investigation';
-
-const LOCAL_ARTIFACTS_KEY = 'zhetikal-investigation-artifacts-v1';
-const LOCAL_CASES_KEY = 'zhetikal-investigation-cases-v1';
+import { LOCAL_CASES_KEY, persistArtifact, readLocalList, sha512 } from '../lib/capture';
 
 interface InvestigationCase {
   id: string;
@@ -15,30 +13,6 @@ interface InvestigationCase {
   notes: string;
   created_at: string;
   updated_at: string;
-}
-
-async function sha512(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function readLocalList<T>(key: string): T[] {
-  try {
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-    const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed as T[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalList<T>(key: string, value: T[]): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore quota errors */
-  }
 }
 
 async function captureScreenStream(): Promise<string> {
@@ -181,44 +155,39 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
       const hash = await sha512(hashInput);
       const cases = readLocalList<InvestigationCase>(LOCAL_CASES_KEY);
       const activeCase = cases.find((c) => c.id === activeCaseId);
-      if (activeCase) {
-        const { error: parentError } = await supabase.from('investigation_cases').upsert({
-          id: activeCase.id,
-          case_name: activeCase.case_name,
-          investigating_officer: activeCase.investigating_officer,
-          agency: activeCase.agency,
-          notes: activeCase.notes,
-          created_at: activeCase.created_at,
-          updated_at: activeCase.updated_at,
-        }, { onConflict: 'id' });
-        if (parentError) throw parentError;
-      }
       const record = {
         id: crypto.randomUUID(),
         case_id: activeCaseId,
         artifact_type: 'screenshot' as const,
         target_url: 'screen-capture',
         final_url: 'screen-capture',
-        title: `Screen capture ${new Date().toLocaleString('fr-FR')}`,
+        title: activeCase
+          ? `Capture d'écran — ${activeCase.case_name}`
+          : `Screen capture ${new Date().toLocaleString('fr-FR')}`,
         http_status: null,
         content_type: 'image/png',
         raw_html: '',
         sha512: hash,
         captured_at: capturedAt,
-        browser_metadata: { source: 'snipping-tool', crop: `${cropW}x${cropH}` } as Record<string, string | number>,
+        browser_metadata: {
+          source: 'snipping-tool',
+          crop: `${cropW}x${cropH}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        } as Record<string, string | number>,
         meta: {},
         screenshot_preview: croppedDataUrl,
         screenshot_previews: [croppedDataUrl],
         extracted_links: [] as string[],
+        extracted_text: [] as string[],
+        extracted_assets: [] as string[],
         notes: '',
         created_at: capturedAt,
-      };
-      const { data, error: insertError } = await supabase.from('evidence_artifacts').insert(record).select().maybeSingle();
-      if (insertError || !data) throw insertError ?? new Error('Evidence could not be saved');
-      const savedArtifact = data as EvidenceArtifact;
-      const nextArtifacts = [savedArtifact, ...readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY)];
-      writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
-      window.dispatchEvent(new CustomEvent('investigation-artifact-added', { detail: { caseId: activeCaseId, artifact: savedArtifact } }));
+      } as EvidenceArtifact;
+      // Local-first: nothing leaves this machine.
+      persistArtifact(record);
+      window.dispatchEvent(new CustomEvent('investigation-artifact-added', { detail: { caseId: activeCaseId, artifact: record } }));
       setPhase('done');
       setTimeout(() => reset(), 1800);
     } catch (cause) {
@@ -267,7 +236,7 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
   if (phase === 'error') {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[11px] font-semibold max-w-[200px] truncate" title={errorMsg}>
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-cyber-red text-[11px] font-semibold max-w-[200px] truncate" title={errorMsg}>
           <AlertCircle size={12} /> {errorMsg}
         </span>
         <button onClick={reset} className="rounded-lg border border-cyber-border px-2 py-1 text-[11px] text-cyber-text-dim hover:text-cyber-text">
@@ -277,7 +246,10 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
     );
   }
 
-  return (
+  // L'outil est monté dans l'en-tête, qui utilise `backdrop-blur`. Un filtre
+  // crée un bloc conteneur pour les descendants `position: fixed` : sans
+  // portail, l'overlay resterait collé à l'en-tête au lieu de couvrir l'écran.
+  return createPortal(
     <>
       {phase === 'saving' && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -342,6 +314,7 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body,
   );
 }

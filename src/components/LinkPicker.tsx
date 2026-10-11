@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Link2, Search } from 'lucide-react';
 import type { EntityNode, PinLink } from '../types';
+import { useTheme } from '../theme/ThemeContext';
 
 interface Props {
   nodes: EntityNode[];
@@ -14,6 +15,7 @@ interface Props {
 export default function LinkPicker({ nodes, existingLinks, onAdd, onRemove, onClose }: Props) {
   const [search, setSearch] = useState('');
   const [context, setContext] = useState('');
+  const { entityTone } = useTheme();
 
   const linkedIds = new Set(existingLinks.map((l) => l.identifierId));
   const filtered = nodes.filter(
@@ -71,17 +73,18 @@ export default function LinkPicker({ nodes, existingLinks, onAdd, onRemove, onCl
           {filtered.map((node) => {
             const isLinked = linkedIds.has(node.id);
             const link = existingLinks.find((l) => l.identifierId === node.id);
+            const tone = entityTone(node.data.color);
             return (
               <div
                 key={node.id}
                 className="flex items-center justify-between px-3 py-2 rounded-lg border transition-all"
                 style={{
-                  borderColor: isLinked ? `${node.data.color}50` : '#1e3a5f',
-                  background: isLinked ? `${node.data.color}10` : 'transparent',
+                  borderColor: isLinked ? `${tone}50` : 'var(--cyber-border)',
+                  background: isLinked ? `${tone}10` : 'transparent',
                 }}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: node.data.color }} />
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: tone }} />
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-cyber-text truncate">{node.data.label}</p>
                     <p className="text-[10px] text-cyber-text-dim">{node.data.entityType}</p>
@@ -90,7 +93,7 @@ export default function LinkPicker({ nodes, existingLinks, onAdd, onRemove, onCl
                 {isLinked ? (
                   <button
                     onClick={() => link && onRemove(link.id)}
-                    className="text-[10px] text-red-400/70 hover:text-red-400 flex items-center gap-1 flex-shrink-0"
+                    className="text-[10px] text-cyber-red/70 hover:text-cyber-red flex items-center gap-1 flex-shrink-0"
                   >
                     <X size={9} /> Délier
                   </button>

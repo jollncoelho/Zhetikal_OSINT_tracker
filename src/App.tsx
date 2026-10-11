@@ -1,8 +1,11 @@
 import { HermesAnalyzer } from './components/HermesAnalyzer';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Ghost, Activity, Home, Network, Map, Star, X, Satellite, Briefcase } from 'lucide-react';
+import {
+  Activity, Briefcase, FileJson, FileText, Ghost, Home, Image as ImageIcon,
+  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Star, X,
+} from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
@@ -12,12 +15,23 @@ import MapTab from './components/MapTab';
 import IdentifierModal from './components/IdentifierModal';
 import InvestigationModule from './components/InvestigationModule';
 import SnippingTool from './components/SnippingTool';
+import CommandPalette, { type PaletteCommand } from './components/CommandPalette';
+import HeaderMenu, { type HeaderMenuItem } from './components/HeaderMenu';
+import { ToastProvider, useToast } from './components/Toast';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import LanguageSwitcher from './components/LanguageSwitcher';
+import ThemeSwitcher from './components/ThemeSwitcher';
+import { ThemeProvider, useTheme } from './theme/ThemeContext';
 import { useStore } from './store/useStore';
+import { translateEntityLabel, LANGUAGES, type Language } from './i18n/translations';
+import { ENTITY_LABELS } from './types';
 import type { EntityData, EntityNode as EntityNodeType, EntityType } from './types';
 import type { Edge } from '@xyflow/react';
+
+/** Outil externe de projection satellite — mis en avant directement dans l'en-tête. */
+const GODSEYE_URL =
+  import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
 
 function AppInner() {
   const {
@@ -36,6 +50,7 @@ function AppInner() {
     onConnect: storeOnConnect,
     deleteNode,
     deleteEdge,
+    updateEdgeData,
     clearCanvas,
     saveProgress,
     exportCase,
@@ -56,7 +71,11 @@ function AppInner() {
   }, [storeOnConnect]);
 
   const { view, setView } = useNavigation();
-  const { t } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
+  const { themeId, themes, setTheme } = useTheme();
+  const toast = useToast();
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
@@ -175,9 +194,154 @@ function AppInner() {
   }, [cases.length, createCase]);
 
   const handleAddEntity = useCallback(
-    (type: EntityType, label: string, extra?: Partial<EntityData>) => addEntity(type, label, extra),
-    [addEntity]
+    (type: EntityType, label: string, extra?: Partial<EntityData>) => {
+      addEntity(type, label, extra);
+      toast.success(t('toast.entityAdded'), translateEntityLabel(lang, type));
+    },
+    [addEntity, toast, t, lang]
   );
+
+  /** Sauvegarde + confirmation visuelle (remplace l'ancien silence de l'action). */
+  const handleSaveProgress = useCallback(() => {
+    if (!activeCaseId) {
+      toast.warning(t('toast.noActiveCase'));
+      return;
+    }
+    saveProgress();
+    toast.success(t('toast.saved'), activeCase?.name);
+  }, [activeCaseId, activeCase, saveProgress, toast, t]);
+
+  const handleExportJson = useCallback(() => {
+    if (!activeCaseId) {
+      toast.warning(t('toast.noActiveCase'));
+      return;
+    }
+    exportCase();
+    toast.success(t('toast.exportedJson'), activeCase?.name);
+  }, [activeCaseId, activeCase, exportCase, toast, t]);
+
+  const handleImportJson = useCallback(
+    (json: string) => {
+      if (importCase(json)) toast.success(t('toast.imported'));
+      else toast.error(t('toast.importFailed'));
+    },
+    [importCase, toast, t]
+  );
+
+  const handleClearCanvas = useCallback(() => {
+    clearCanvas();
+    toast.info(t('toast.cleared'), activeCase?.name);
+  }, [clearCanvas, toast, t, activeCase]);
+
+  const handleCreateCase = useCallback(
+    (name: string, description: string) => {
+      const id = createCase(name, description);
+      toast.success(t('toast.caseCreated'), name);
+      return id;
+    },
+    [createCase, toast, t]
+  );
+
+  const handleDeleteCase = useCallback(
+    (id: string) => {
+      const target = cases.find((c) => c.id === id);
+      deleteCase(id);
+      toast.info(t('toast.caseDeleted'), target?.name);
+    },
+    [cases, deleteCase, toast, t]
+  );
+
+  /**
+   * Commandes de la palette (Ctrl+K). Volontairement sans action destructive :
+   * « Effacer le Canevas » reste dans la barre latérale, où il est confirmé.
+   */
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const navGroup = t('palette.groupNavigation');
+    const caseGroup = t('palette.groupCase');
+    const entityGroup = t('palette.groupEntities');
+    const lookGroup = t('palette.groupAppearance');
+    const dataGroup = t('palette.groupData');
+    const toolGroup = t('palette.groupTools');
+    const current = t('palette.current');
+
+    const commands: PaletteCommand[] = [
+      { id: 'view-information', label: t('header.graph'), group: navGroup, icon: Network, keywords: 'graphe graph entites noeuds', run: () => setView('graph') },
+      { id: 'view-map', label: t('header.map'), group: navGroup, icon: Map, keywords: 'carte adresses geolocalisation', run: () => setView('map') },
+      { id: 'view-investigation', label: t('header.cases'), group: navGroup, icon: Briefcase, keywords: 'dossiers enquetes preuves', run: () => setView('investigation') },
+      { id: 'open-tools', label: t('header.tools'), group: navGroup, icon: Ghost, keywords: 'outils toolkit ghostint', run: () => setToolkitOpen(true) },
+      { id: 'toggle-stats', label: t('stats.title'), group: navGroup, icon: Activity, keywords: 'statistiques compteurs', run: () => setStatsOpen((value) => !value) },
+      { id: 'new-case', label: t('sidebar.newCase'), group: caseGroup, icon: Plus, keywords: 'creer nouveau dossier', run: () => handleCreateCase(`${t('sidebar.newCase')} ${cases.length + 1}`, '') },
+    ];
+
+    cases.forEach((item) => {
+      commands.push({
+        id: `case-${item.id}`,
+        label: item.name || t('header.cases'),
+        hint: item.id === activeCaseId ? current : undefined,
+        group: caseGroup,
+        icon: Briefcase,
+        keywords: 'dossier case',
+        run: () => switchCase(item.id),
+      });
+    });
+
+    (Object.keys(ENTITY_LABELS) as EntityType[]).forEach((type) => {
+      const label = translateEntityLabel(lang, type);
+      commands.push({
+        id: `entity-${type}`,
+        label: `${t('palette.addEntity')} · ${label}`,
+        group: entityGroup,
+        icon: Plus,
+        keywords: `entite ajouter ${type}`,
+        run: () => { setView('graph'); handleAddEntity(type, label); },
+      });
+    });
+
+    themes.forEach((theme) => {
+      commands.push({
+        id: `theme-${theme.id}`,
+        label: t(theme.labelKey),
+        hint: theme.id === themeId ? current : undefined,
+        group: lookGroup,
+        icon: Palette,
+        keywords: 'theme apparence couleur',
+        run: () => setTheme(theme.id),
+      });
+    });
+
+    LANGUAGES.forEach((item) => {
+      commands.push({
+        id: `language-${item.id}`,
+        label: item.label,
+        hint: item.id === lang ? current : undefined,
+        group: lookGroup,
+        icon: Languages,
+        keywords: 'langue language idioma',
+        run: () => setLang(item.id as Language),
+      });
+    });
+
+    commands.push(
+      { id: 'save', label: t('sidebar.saveProgress'), group: dataGroup, icon: Save, keywords: 'sauvegarder enregistrer', run: handleSaveProgress },
+      { id: 'export-json', label: t('sidebar.exportJson'), group: dataGroup, icon: FileJson, keywords: 'export json donnees', run: handleExportJson },
+      { id: 'export-pdf', label: t('sidebar.exportPdf'), group: dataGroup, icon: FileText, keywords: 'export pdf rapport', run: () => { void exportPdfFn(); } },
+      { id: 'export-png', label: t('sidebar.exportPng'), group: dataGroup, icon: ImageIcon, keywords: 'export png image capture', run: () => { void exportPngFn(); } },
+      {
+        id: 'godseye',
+        label: "God's Eye",
+        group: toolGroup,
+        icon: Satellite,
+        keywords: 'godseye satellite projection tactique',
+        run: () => window.open(GODSEYE_URL, '_blank', 'noopener,noreferrer'),
+      },
+    );
+
+    return commands;
+  }, [
+    t, lang, cases, activeCaseId, themeId, themes,
+    setView, setTheme, setLang, handleCreateCase, switchCase, handleAddEntity,
+    handleSaveProgress, handleExportJson, exportPdfFn, exportPngFn,
+  ]);
 
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
@@ -190,7 +354,20 @@ function AppInner() {
   const handlePaneClick = useCallback(() => { setSelectedEdgeId(null); }, []);
 
   useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEdgeId) {
         deleteEdge(selectedEdgeId);
         setSelectedEdgeId(null);
@@ -210,6 +387,34 @@ function AppInner() {
     setDisclaimerAccepted(true);
   };
 
+  /**
+   * Actions secondaires regroupées dans le menu « Plus » de l'en-tête.
+   * God's Eye n'y figure plus : c'est un outil phare, il a son propre bouton
+   * visible directement dans l'en-tête.
+   */
+  const moreMenuItems: HeaderMenuItem[] = [
+    {
+      id: 'stats',
+      label: t('header.stats'),
+      icon: Activity,
+      active: statsOpen,
+      onClick: () => setStatsOpen((value) => !value),
+    },
+    {
+      id: 'star',
+      label: 'Star',
+      icon: Star,
+      href: 'https://github.com/jollncoelho/Zhetikal_OSINT_tracker',
+      separatorBefore: true,
+    },
+    {
+      id: 'home',
+      label: 'prohacking77.me',
+      icon: Home,
+      href: 'https://prohacking77.me',
+    },
+  ];
+
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-cyber-black">
       {!disclaimerAccepted && <DisclaimerModal onAccept={handleAcceptDisclaimer} />}
@@ -217,18 +422,18 @@ function AppInner() {
       <Sidebar
         cases={cases}
         activeCaseId={activeCaseId}
-        onCreateCase={createCase}
+        onCreateCase={handleCreateCase}
         onSwitchCase={switchCase}
         onCloseCase={() => { closeCase(); setNotePanelOpen(false); setSelectedNodeId(null); }}
-        onDeleteCase={deleteCase}
+        onDeleteCase={handleDeleteCase}
         onUpdateCase={updateCase}
         onAddEntity={handleAddEntity}
-        onSaveProgress={saveProgress}
-        onExport={exportCase}
+        onSaveProgress={handleSaveProgress}
+        onExport={handleExportJson}
         onExportPdf={exportPdfFn}
         onExportPng={exportPngFn}
-        onImport={importCase}
-        onClearCanvas={clearCanvas}
+        onImport={handleImportJson}
+        onClearCanvas={handleClearCanvas}
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">
@@ -252,88 +457,76 @@ function AppInner() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mx-auto">
-            <button
-              onClick={() => setView('investigation')}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                view === 'investigation'
-                  ? 'border border-cyber-cyan/40 bg-cyber-cyan/15 text-cyber-cyan'
-                  : 'border border-cyber-border bg-cyber-panel text-cyber-text-dim hover:border-cyber-cyan/40 hover:text-cyber-cyan'
-              }`}
-            >
-              <Briefcase size={12} /> {t('header.cases')}
-            </button>
-            <a
-              href={import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me'}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="God's Eye — Terminal de projection tactique"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors whitespace-nowrap"
-            >
-              <Satellite size={11} /> God's Eye
-            </a>
+          {/* Centre — navigation principale, groupée en un seul bloc */}
+          <div className="mx-auto flex items-center gap-0.5 rounded-xl border border-cyber-border bg-cyber-panel/60 p-1">
             <button
               onClick={() => setView('graph')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
                 view === 'graph'
-                  ? 'bg-cyber-cyan/15 text-cyber-cyan border border-cyber-cyan/30'
-                  : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
+                  ? 'bg-cyber-cyan/15 text-cyber-cyan'
+                  : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              <Network size={11} /> {t('header.information')}
+              <Network size={11} /> {t('header.graph')}
             </button>
             <button
               onClick={() => setView('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
                 view === 'map'
-                  ? 'bg-cyber-cyan/15 text-cyber-cyan border border-cyber-cyan/30'
-                  : 'text-cyber-text-dim hover:text-cyber-text border border-transparent'
+                  ? 'bg-cyber-cyan/15 text-cyber-cyan'
+                  : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
               <Map size={11} /> {t('header.map')}
             </button>
-          </div>
-
-          <div className="flex items-center gap-2">
             <button
-              onClick={() => setStatsOpen(!statsOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                statsOpen
-                  ? 'bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/30'
-                  : 'text-cyber-text-dim hover:bg-cyber-panel border border-transparent'
+              onClick={() => setView('investigation')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
+                view === 'investigation'
+                  ? 'bg-cyber-cyan/15 text-cyber-cyan'
+                  : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              <Activity size={12} /> {t('header.stats')}
+              <Briefcase size={11} /> {t('header.cases')}
+            </button>
+          </div>
+
+          {/* Droite — recherche, outils, réglages, menu */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              title={`${t('palette.open')} (Ctrl+K)`}
+              className="flex items-center gap-2 rounded-lg border border-cyber-border bg-cyber-panel px-2.5 py-1.5 text-[11px] font-medium text-cyber-text-dim transition-all hover:border-cyber-cyan/40 hover:text-cyber-cyan"
+            >
+              <Search size={12} />
+              <span className="hidden xl:inline">{t('palette.open')}</span>
+              <kbd className="hidden rounded border border-cyber-border bg-cyber-dark px-1.5 py-0.5 font-mono text-[10px] lg:inline">
+                Ctrl K
+              </kbd>
             </button>
             <button
               onClick={() => setToolkitOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-cyber-cyan/30 bg-cyber-cyan/10 px-3 py-1.5 text-[11px] font-semibold text-cyber-cyan transition-colors hover:bg-cyber-cyan/20"
             >
-              <Ghost size={12} /> {t('header.tools')}
+              <Ghost size={12} />
+              <span className="hidden lg:inline">{t('header.tools')}</span>
             </button>
+            {/* God's Eye — outil phare : bouton dédié, volontairement visible
+                (il n'est plus rangé dans le menu « Plus »). */}
+            <a
+              href={GODSEYE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('header.godsEyeHint')}
+              className="flex items-center gap-1.5 rounded-lg border border-cyber-cyan/40 bg-cyber-panel px-3 py-1.5 text-[11px] font-semibold text-cyber-cyan transition-all hover:border-cyber-cyan/70 hover:bg-cyber-cyan/15"
+            >
+              <Satellite size={12} />
+              <span className="hidden lg:inline">God's Eye</span>
+            </a>
             <LanguageSwitcher />
-            <div className="ml-2">
-              <SnippingTool activeCaseId={activeInvestigationCaseId} />
-            </div>
-            <a
-              href="https://github.com/jollncoelho/Zhetikal_OSINT_tracker"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Soutenez le projet sur GitHub ! ⭐"
-              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-cyber-border bg-cyber-panel text-cyber-text-dim text-[11px] font-medium hover:border-yellow-500/50 hover:bg-yellow-500/5 hover:text-yellow-400 transition-all duration-150"
-            >
-              <Star size={12} className="transition-colors duration-150 group-hover:text-yellow-400 group-hover:fill-yellow-400/30" />
-              Star
-            </a>
-            <a
-              href="https://prohacking77.me"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Accueil — prohacking77.me"
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyber-panel border border-cyber-border text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 hover:border-cyber-cyan/40 transition-all duration-150"
-            >
-              <Home size={14} />
-            </a>
+            <ThemeSwitcher />
+            <SnippingTool activeCaseId={activeInvestigationCaseId} />
+            <HeaderMenu label={t('header.more')} icon={MoreHorizontal} items={moreMenuItems} />
           </div>
         </div>
 
@@ -386,7 +579,9 @@ function AppInner() {
                 onPaneClick={handlePaneClick}
                 onSetNotePanelOpen={setNotePanelOpen}
                 onSetSelectedNodeId={setSelectedNodeId}
+                onSetSelectedEdgeId={setSelectedEdgeId}
                 updateNodeData={updateNodeData}
+                updateEdgeData={updateEdgeData}
                 updateCaseNotes={updateCaseNotes}
                 updateCaseTitle={updateCaseTitle}
                 onRegisterExportPng={handleRegisterExportPng}
@@ -425,7 +620,9 @@ function AppInner() {
                 onPaneClick={handlePaneClick}
                 onSetNotePanelOpen={setNotePanelOpen}
                 onSetSelectedNodeId={setSelectedNodeId}
+                onSetSelectedEdgeId={setSelectedEdgeId}
                 updateNodeData={updateNodeData}
+                updateEdgeData={updateEdgeData}
                 updateCaseNotes={updateCaseNotes}
                 updateCaseTitle={updateCaseTitle}
                 onRegisterExportPng={handleRegisterExportPng}
@@ -499,16 +696,26 @@ function AppInner() {
           onClose={() => setFieldsNodeId(null)}
         />
       )}
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={paletteCommands}
+      />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <NavigationProvider>
-        <AppInner />
-      </NavigationProvider>
-    </LanguageProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <ToastProvider>
+          <NavigationProvider>
+            <AppInner />
+          </NavigationProvider>
+        </ToastProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

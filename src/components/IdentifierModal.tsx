@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Satellite } from 'lucide-react';
 import type { EntityData, EntityType } from '../types';
 import { ENTITY_FIELDS, ENTITY_LABELS, ENTITY_COLORS } from '../types';
+import { useTheme } from '../theme/ThemeContext';
 import IconPicker from './IconPicker';
 
 const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
@@ -17,7 +18,10 @@ interface Props {
 export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Props) {
   const [fields, setFields] = useState<Record<string, unknown>>(data.fields ?? {});
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const { entityTone } = useTheme();
   const fieldDefs = ENTITY_FIELDS[data.entityType as EntityType] ?? [];
+  // Couleur d'entité = légende : teinte conservée, assombrie en thème clair.
+  const accent = entityTone(ENTITY_COLORS[data.entityType as EntityType] ?? '#94a3b8');
 
   const handleFieldChange = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -46,10 +50,10 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
         {/* Header */}
         <div
           className="flex items-center justify-between px-5 py-4 border-b border-cyber-border"
-          style={{ borderTopColor: ENTITY_COLORS[data.entityType as EntityType] }}
+          style={{ borderTopColor: accent }}
         >
           <div className="flex items-center gap-2">
-            <SlidersHorizontal size={14} style={{ color: ENTITY_COLORS[data.entityType as EntityType] }} />
+            <SlidersHorizontal size={14} style={{ color: accent }} />
             <div>
               <h2 className="text-sm font-bold text-cyber-text">{data.label}</h2>
               <p className="text-[10px] text-cyber-text-dim font-mono">{ENTITY_LABELS[data.entityType as EntityType]}</p>
@@ -100,9 +104,9 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
             onClick={handleSave}
             className="flex-1 py-2 rounded-lg text-xs font-semibold transition-colors"
             style={{
-              background: `${ENTITY_COLORS[data.entityType as EntityType]}20`,
-              color: ENTITY_COLORS[data.entityType as EntityType],
-              border: `1px solid ${ENTITY_COLORS[data.entityType as EntityType]}40`,
+              background: `${accent}20`,
+              color: accent,
+              border: `1px solid ${accent}40`,
             }}
           >
             Sauvegarder

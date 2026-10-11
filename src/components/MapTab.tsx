@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapTab.css';
 import type { MapPin, EntityNode, EntityData } from '../types';
+import { ENTITY_COLORS } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
 // Fix Leaflet default icon paths
@@ -114,7 +115,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
       if (!existing) {
         onUpdatePins([...pins, {
           id: nodeId, label: address, address: displayName,
-          lat, lng, notes: '', color: '#06b6d4',
+          lat, lng, notes: '', color: ENTITY_COLORS.location,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         }]);
       } else {
@@ -262,7 +263,7 @@ export default function MapTab({ pins, nodes, onUpdatePins, onGeocodeLocation, o
                   disabled={isLoading}
                   className={`map-entity-item ${isLoading ? 'loading' : hasCoords ? 'geocoded' : ''}`}
                 >
-                  <span className="map-entity-dot" style={{ background: hasCoords ? '#10b981' : '#475569' }} />
+                  <span className="map-entity-dot" style={{ background: hasCoords ? 'var(--cyber-green)' : 'var(--cyber-text-dim)' }} />
                   <span className="map-entity-label">{isLoading ? t('map.geocoding') : address || t('map.noAddressShort')}</span>
                   {hasCoords && <span className="map-entity-badge">{t('map.gpsBadge')}</span>}
                 </button>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, memo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -7,109 +7,27 @@ import {
   BackgroundVariant,
   ConnectionMode,
   ConnectionLineType,
-  EdgeLabelRenderer,
-  getBezierPath,
   type NodeTypes,
   type Node,
   type Edge,
-  type EdgeProps,
   type OnNodesChange,
   type OnEdgesChange,
   type Connection,
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import type { CaseData, EntityData, EntityNode } from '../types';
+import type { CaseData, EntityData, EntityNode, RelationData } from '../types';
 import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
-
-const CustomEdgeComponent = memo(function CustomEdgeComponent({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  style = {},
-  markerEnd,
-  selected,
-}: EdgeProps) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
-
-  return (
-    <>
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={20}
-        style={{ cursor: 'pointer' }}
-        className="react-flow__edge-interaction"
-      />
-      <path
-        id={id}
-        className="react-flow__edge-path"
-        d={edgePath}
-        markerEnd={markerEnd}
-        style={{
-          ...style,
-          strokeWidth: 2.5,
-          stroke: selected ? '#ef4444' : '#1e3a5f',
-          strokeDasharray: '5,5',
-          opacity: selected ? 1 : 0.75,
-          transition: 'stroke 0.15s, opacity 0.15s',
-        }}
-      />
-      {selected && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 10,
-              pointerEvents: 'all',
-              zIndex: 1001,
-            }}
-            className="nodrag nopan"
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id } }));
-              }}
-              style={{
-                width: '20px',
-                height: '20px',
-                backgroundColor: '#0a0e17',
-                border: '1px solid #ef4444',
-                color: '#ef4444',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                boxShadow: '0 0 8px rgba(239, 68, 68, 0.5)',
-                padding: 0,
-              }}
-            >
-              ×
-            </button>
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
-  );
-});
+import CustomEdge from './CustomEdge';
+import GraphHud from './GraphHud';
+import EdgeInspector from './EdgeInspector';
+import { GraphFilterProvider } from './GraphFilter';
+import { matchesQuery } from '../lib/graphFilter';
+import { useToast } from './Toast';
+import { useLanguage } from '../i18n/LanguageContext';
+import { useTheme } from '../theme/ThemeContext';
 
 const nodeTypes: NodeTypes = {
   entity: EntityNodeComponent as NodeTypes['entity'],
@@ -117,7 +35,7 @@ const nodeTypes: NodeTypes = {
 };
 
 const edgeTypes = {
-  custom: CustomEdgeComponent,
+  custom: CustomEdge,
 };
 
 function FlowExporter({
@@ -133,16 +51,18 @@ function FlowExporter({
   onRegisterExportPng: (fn: () => Promise<void>) => void;
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }) {
+  const toast = useToast();
+  const { t } = useLanguage();
+
   const captureViewport = useCallback(async (): Promise<string> => {
     const element = document.querySelector('.react-flow') as HTMLElement | null;
     if (!element) {
       throw new Error('Graphique non trouvé');
-    }
-    await new Promise(resolve => setTimeout(resolve, 300));
+    }    await new Promise(resolve => setTimeout(resolve, 300));
     return toPng(element, {
       cacheBust: true,
       pixelRatio: 2,
-      backgroundColor: '#0a0e17',
+      backgroundColor: 'var(--cyber-black)',
       width: element.offsetWidth,
       height: element.offsetHeight,
       style: { transform: 'none', margin: '0' },
@@ -161,7 +81,7 @@ function FlowExporter({
   useEffect(() => {
     const exportPng = async () => {
       if (!activeCase) {
-        alert('Aucun cas actif');
+        toast.warning(t('toast.noActiveCase'));
         return;
       }
       try {
@@ -170,15 +90,16 @@ function FlowExporter({
         link.download = `${activeCase.name.replace(/\s+/g, '_')}_graph.png`;
         link.href = dataUrl;
         link.click();
+        toast.success(t('toast.exportedPng'), activeCase.name);
       } catch (err) {
         console.error("Erreur export PNG:", err);
-        alert('Erreur export PNG: ' + (err as Error).message);
+        toast.error(t('toast.exportFailed'), (err as Error).message);
       }
     };
 
     const exportPdf = async () => {
       if (!activeCase) {
-        alert('Aucun cas actif');
+        toast.warning(t('toast.noActiveCase'));
         return;
       }
       try {
@@ -189,7 +110,7 @@ function FlowExporter({
         const graphImage = await toPng(element, {
           cacheBust: true,
           pixelRatio: 2,
-          backgroundColor: '#0a0e17',
+          backgroundColor: 'var(--cyber-black)',
           width: element.offsetWidth,
           height: element.offsetHeight,
           style: { transform: 'none', margin: '0' },
@@ -373,15 +294,16 @@ function FlowExporter({
         
         // Sauvegarder le PDF
         pdf.save(`${activeCase.name.replace(/\s+/g, '_')}_rapport.pdf`);
+        toast.success(t('toast.exportedPdf'), activeCase.name);
       } catch (err) {
         console.error("Erreur export PDF:", err);
-        alert('Erreur export PDF: ' + (err as Error).message);
+        toast.error(t('toast.exportFailed'), (err as Error).message);
       }
     };
 
     onRegisterExportPng(exportPng);
     onRegisterExportPdf(exportPdf);
-  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf, nodes, edges]);
+  }, [activeCase, captureViewport, onRegisterExportPng, onRegisterExportPdf, nodes, edges, toast, t]);
 
   return null;
 }
@@ -401,7 +323,9 @@ interface InfoTabProps {
   onPaneClick: () => void;
   onSetNotePanelOpen: (open: boolean) => void;
   onSetSelectedNodeId: (id: string | null) => void;
+  onSetSelectedEdgeId: (id: string | null) => void;
   updateNodeData: (nodeId: string, data: Partial<EntityData>) => void;
+  updateEdgeData: (edgeId: string, data: Partial<RelationData>) => void;
   updateCaseNotes: (notes: string) => void;
   updateCaseTitle: (title: string) => void;
   onRegisterExportPng: (fn: () => Promise<void>) => void;
@@ -411,6 +335,7 @@ interface InfoTabProps {
 export default function InfoTab({
   nodes,
   edges,
+  selectedEdgeId,
   selectedNodeId,
   notePanelOpen,
   activeCase,
@@ -422,45 +347,94 @@ export default function InfoTab({
   onPaneClick,
   onSetNotePanelOpen,
   onSetSelectedNodeId,
+  onSetSelectedEdgeId,
   updateNodeData,
+  updateEdgeData,
   updateCaseNotes,
   updateCaseTitle,
   onRegisterExportPng,
   onRegisterExportPdf,
 }: InfoTabProps) {
   const selectedNode = (nodes.find((n) => n.id === selectedNodeId) as EntityNode | undefined) ?? null;
+  const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) ?? null : null;
+  const { t } = useLanguage();
+  const { entityTone } = useTheme();
+
+  const [filter, setFilter] = useState('');
+
+  const matchCount = useMemo(
+    () =>
+      filter.trim()
+        ? nodes.filter((node) => matchesQuery(node.data as EntityData, filter)).length
+        : nodes.length,
+    [nodes, filter],
+  );
 
   return (
     <div className="flex-1 flex overflow-hidden min-h-0">
-      <div className="flex-1 react-flow-canvas-wrapper min-w-0">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onEdgeClick={onEdgeClick}
-          onNodeClick={onNodeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionMode={ConnectionMode.Loose}
-          connectionLineType={ConnectionLineType.Bezier}
-          defaultEdgeOptions={{ type: 'custom' }}
-          proOptions={{ hideAttribution: true }}
-          className="bg-cyber-black"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e3a5f" />
-          <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
-          <MiniMap nodeColor={() => '#1e3a5f'} maskColor="rgba(10, 14, 23, 0.8)" className="!border-cyber-border !rounded-xl" />
-          <FlowExporter
-            activeCase={activeCase}
+      <div className="relative flex-1 react-flow-canvas-wrapper min-w-0">
+        <GraphFilterProvider value={filter}>
+          <ReactFlow
             nodes={nodes}
             edges={edges}
-            onRegisterExportPng={onRegisterExportPng}
-            onRegisterExportPdf={onRegisterExportPdf}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            connectionMode={ConnectionMode.Loose}
+            connectionLineType={ConnectionLineType.Bezier}
+            defaultEdgeOptions={{ type: 'custom' }}
+            proOptions={{ hideAttribution: true }}
+            className="bg-cyber-black"
+          >
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--cyber-border)" />
+            <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
+            <MiniMap
+              nodeColor={(node) => {
+                const color = (node.data as EntityData)?.color;
+                return color ? entityTone(color) : 'var(--cyber-border)';
+              }}
+              maskColor="rgb(var(--cyber-black-rgb) / 0.8)"
+              className="!border-cyber-border !rounded-xl"
+            />
+            <FlowExporter
+              activeCase={activeCase}
+              nodes={nodes}
+              edges={edges}
+              onRegisterExportPng={onRegisterExportPng}
+              onRegisterExportPdf={onRegisterExportPdf}
+            />
+          </ReactFlow>
+        </GraphFilterProvider>
+
+        <GraphHud
+          nodes={nodes}
+          edgeCount={edges.length}
+          filter={filter}
+          onFilterChange={setFilter}
+          showEdgeHint={!selectedEdge}
+        />
+
+        {filter.trim() && matchCount === 0 && (
+          <div className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 rounded-lg border border-cyber-red/40 bg-cyber-dark/90 px-3 py-1.5 text-[11px] text-cyber-red">
+            {t('hud.noMatch')}
+          </div>
+        )}
+
+        {selectedEdge && (
+          <EdgeInspector
+            edge={selectedEdge}
+            onChange={(data) => updateEdgeData(selectedEdge.id, data)}
+            onDelete={() => {
+              window.dispatchEvent(new CustomEvent('edge-delete', { detail: { id: selectedEdge.id } }));
+            }}
+            onClose={() => onSetSelectedEdgeId(null)}
           />
-        </ReactFlow>
+        )}
       </div>
 
       {notePanelOpen && (

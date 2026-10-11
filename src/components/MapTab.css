@@ -14,40 +14,40 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #111827;
-  border-bottom: 1px solid #1e293b;
+  background: var(--cyber-panel);
+  border-bottom: 1px solid var(--cyber-panel);
   flex-shrink: 0;
   z-index: 20;
 }
 
 .map-search-icon {
-  color: #64748b;
+  color: var(--cyber-text-dim);
   display: flex;
   align-items: center;
 }
 
 .map-search-input {
   flex: 1;
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: var(--cyber-dark);
+  border: 1px solid var(--cyber-panel);
   border-radius: 6px;
   padding: 6px 10px;
-  color: #e2e8f0;
+  color: var(--cyber-text);
   font-size: 12px;
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s;
 }
 
-.map-search-input::placeholder { color: #475569; }
-.map-search-input:focus { border-color: #38bdf8; }
+.map-search-input::placeholder { color: var(--cyber-text-dim); }
+.map-search-input:focus { border-color: var(--cyber-blue); }
 
 .map-search-btn {
   padding: 6px 14px;
-  background: #1e3a5f;
-  border: 1px solid #38bdf8;
+  background: var(--cyber-border);
+  border: 1px solid var(--cyber-blue);
   border-radius: 6px;
-  color: #38bdf8;
+  color: var(--cyber-blue);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -63,13 +63,13 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 999;
-  background: #0f172a;
-  border: 1px solid #38bdf8;
+  background: var(--cyber-dark);
+  border: 1px solid var(--cyber-blue);
   border-radius: 6px;
   padding: 7px 16px;
   font-size: 11px;
   font-family: 'Fira Code', monospace;
-  color: #e2e8f0;
+  color: var(--cyber-text);
   box-shadow: 0 4px 20px rgba(0,0,0,0.6);
   max-width: 420px;
   text-align: center;
@@ -89,7 +89,7 @@
 .map-leaflet-container .leaflet-container {
   height: 100%;
   width: 100%;
-  background: #0f172a;
+  background: var(--cyber-dark);
   font-family: inherit;
 }
 
@@ -98,8 +98,8 @@
   flex-shrink: 0;
   height: 120px;
   overflow-y: auto;
-  background: #111827;
-  border-top: 1px solid #1e293b;
+  background: var(--cyber-panel);
+  border-top: 1px solid var(--cyber-panel);
   padding: 8px 12px;
 }
 
@@ -108,13 +108,13 @@
   font-family: 'Fira Code', monospace;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #475569;
+  color: var(--cyber-text-dim);
   margin-bottom: 6px;
 }
 
 .map-entity-empty {
   font-size: 11px;
-  color: #334155;
+  color: var(--cyber-border);
   text-align: center;
   padding: 16px 0;
 }
@@ -135,11 +135,11 @@
   transition: background 0.12s, border-color 0.12s;
   font-size: 11px;
   font-family: inherit;
-  color: #94a3b8;
+  color: var(--cyber-text-dim);
 }
-.map-entity-item:hover { background: #1e293b; border-color: #334155; }
-.map-entity-item.geocoded { color: #34d399; }
-.map-entity-item.loading { color: #fbbf24; }
+.map-entity-item:hover { background: var(--cyber-panel); border-color: var(--cyber-border); }
+.map-entity-item.geocoded { color: var(--cyber-green); }
+.map-entity-item.loading { color: var(--cyber-orange); }
 
 .map-entity-dot {
   width: 7px; height: 7px;
@@ -153,20 +153,20 @@
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgb(var(--cyber-green-rgb) / 0.15);
+  color: var(--cyber-green);
+  border: 1px solid rgb(var(--cyber-green-rgb) / 0.3);
   white-space: nowrap;
 }
 
 /* ── Leaflet popup shell override (frosted glass) ───────────────────────── */
 .leaflet-popup-content-wrapper {
-  background: rgba(11, 17, 33, 0.6) !important;
+  background: rgb(var(--cyber-dark-rgb) / 0.6) !important;
   backdrop-filter: blur(20px) saturate(140%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
-  border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
+  border: 1.5px solid rgb(var(--cyber-blue-rgb) / 0.35) !important;
   border-radius: 14px !important;
-  box-shadow: 0 0 0 1px rgba(56,189,248,0.08), 0 24px 64px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 0 0 1px rgb(var(--cyber-blue-rgb) / 0.08), 0 24px 64px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5) !important;
   color: #ffffff !important;
   padding: 0 !important;
   overflow: hidden;
@@ -180,22 +180,22 @@
 
 .leaflet-popup-tip-container { margin-top: -1px; }
 .leaflet-popup-tip {
-  background: rgba(11, 17, 33, 0.6) !important;
+  background: rgb(var(--cyber-dark-rgb) / 0.6) !important;
   backdrop-filter: blur(20px) saturate(140%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
-  box-shadow: 1px 1px 0 0 rgba(56,189,248,0.4) !important;
+  box-shadow: 1px 1px 0 0 rgb(var(--cyber-blue-rgb) / 0.4) !important;
 }
 
 .leaflet-popup-close-button {
   top: 10px !important;
   right: 12px !important;
-  color: #64748b !important;
+  color: var(--cyber-text-dim) !important;
   font-size: 22px !important;
   padding: 0 !important;
   line-height: 1 !important;
   z-index: 10;
 }
-.leaflet-popup-close-button:hover { color: #38bdf8 !important; }
+.leaflet-popup-close-button:hover { color: var(--cyber-blue) !important; }
 .leaflet-container a.leaflet-popup-close-button { text-decoration: none; }
 
 /* ── Popup inner content ────────────────────────────────────────────────── */
@@ -211,15 +211,15 @@
   align-items: center;
   gap: 10px;
   padding: 16px 20px 14px;
-  border-bottom: 1px solid rgba(56,189,248,0.18);
+  border-bottom: 1px solid rgb(var(--cyber-blue-rgb) / 0.18);
   background: transparent;
 }
 
 .pin-popup-dot {
   width: 14px; height: 14px;
   border-radius: 50%;
-  background: #38bdf8;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+  background: var(--cyber-blue);
+  box-shadow: 0 0 10px rgb(var(--cyber-blue-rgb) / 0.85);
   flex-shrink: 0;
 }
 
@@ -249,17 +249,17 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #64748b;
+  color: var(--cyber-text-dim);
 }
 
 /* Address box: subtle dark tint + white text */
 .pin-popup-address-box {
-  background: rgba(15, 23, 42, 0.45);
+  background: rgb(var(--cyber-dark-rgb) / 0.45);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid rgba(56,189,248,0.12);
+  border: 1px solid rgb(var(--cyber-blue-rgb) / 0.12);
 }
 
 .pin-popup-address {
@@ -277,17 +277,17 @@
   font-size: 14px;
   font-family: 'Fira Code', 'Courier New', monospace;
   font-weight: 600;
-  color: #2dd4bf;
+  color: var(--cyber-cyan-dim);
 }
 .pin-popup-coords span { white-space: nowrap; }
 
 .pin-popup-notes {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(7, 16, 30, 0.5);
+  background: rgb(var(--cyber-black-rgb) / 0.5);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(56,189,248,0.22);
+  border: 1px solid rgb(var(--cyber-blue-rgb) / 0.22);
   border-radius: 8px;
   color: #ffffff;
   font-family: inherit;
@@ -299,15 +299,15 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .pin-popup-notes:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
+  border-color: var(--cyber-blue);
+  box-shadow: 0 0 0 3px rgb(var(--cyber-blue-rgb) / 0.15);
 }
-.pin-popup-notes::placeholder { color: #4b5563; font-size: 14px; }
+.pin-popup-notes::placeholder { color: var(--cyber-text-dim); font-size: 14px; }
 
 .pin-popup-copied {
   text-align: center;
   font-size: 11px;
-  color: #2dd4bf;
+  color: var(--cyber-cyan-dim);
   padding: 0 0 6px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -340,21 +340,21 @@
 }
 
 .pin-popup-btn-copy {
-  border-color: rgba(45,212,191,0.6);
-  color: #2dd4bf;
+  border-color: rgb(var(--cyber-cyan-dim-rgb) / 0.6);
+  color: var(--cyber-cyan-dim);
 }
 .pin-popup-btn-copy:hover {
-  background: rgba(45,212,191,0.14);
-  border-color: #2dd4bf;
-  box-shadow: 0 0 14px rgba(45,212,191,0.25);
+  background: rgb(var(--cyber-cyan-dim-rgb) / 0.14);
+  border-color: var(--cyber-cyan-dim);
+  box-shadow: 0 0 14px rgb(var(--cyber-cyan-dim-rgb) / 0.25);
 }
 
 .pin-popup-btn-gmaps {
-  border-color: rgba(56,189,248,0.6);
-  color: #38bdf8;
+  border-color: rgb(var(--cyber-blue-rgb) / 0.6);
+  color: var(--cyber-blue);
 }
 .pin-popup-btn-gmaps:hover {
-  background: rgba(56,189,248,0.14);
-  border-color: #38bdf8;
-  box-shadow: 0 0 14px rgba(56,189,248,0.25);
+  background: rgb(var(--cyber-blue-rgb) / 0.14);
+  border-color: var(--cyber-blue);
+  box-shadow: 0 0 14px rgb(var(--cyber-blue-rgb) / 0.25);
 }

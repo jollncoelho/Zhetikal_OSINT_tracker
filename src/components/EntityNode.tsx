@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import {
   Globe, Mail, User, Phone, MapPin, Building2,
@@ -8,8 +8,12 @@ import {
   ExternalLink, SlidersHorizontal, Search, Satellite
 } from 'lucide-react';
 import type { EntityData } from '../types';
+import { ENTITY_FIELDS } from '../types';
 import { loadIcons } from './IconPicker';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useTheme } from '../theme/ThemeContext';
+import { useGraphFilter } from './GraphFilter';
+import { matchesQuery } from '../lib/graphFilter';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Globe, Mail, User, Phone, MapPin, Building2,
@@ -121,6 +125,12 @@ interface EntityNodeProps {
 
 export default memo(function EntityNode({ id, data, selected }: EntityNodeProps) {
   const { t } = useLanguage();
+  const { entityTone } = useTheme();
+  const filter = useGraphFilter();
+  // Teinte de l'entité, assombrie si le thème a un fond clair (lisibilité).
+  const tone = entityTone(data.color);
+  // Estompe le nœud quand un filtre est actif et qu'il n'y correspond pas.
+  const dimmed = filter.trim().length > 0 && !matchesQuery(data, filter);
   const [renamingLabel, setRenamingLabel] = useState(false);
   const [label, setLabel] = useState(data.label);
   const [addressInput, setAddressInput] = useState(data.label);
@@ -197,30 +207,53 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const isLocation = data.entityType === 'location';
 
+  /**
+   * 2 à 3 champs clés remontés sur la carte : uniquement ceux réellement
+   * renseignés, dans l'ordre du schéma du type d'entité.
+   */
+  const keyFields = useMemo(() => {
+    const schema = ENTITY_FIELDS[data.entityType] ?? [];
+    const values = (data.fields ?? {}) as Record<string, unknown>;
+    return schema
+      .filter(({ key }) => {
+        const value = values[key];
+        return value !== undefined && value !== null && String(value).trim() !== '';
+      })
+      .slice(0, 3)
+      .map(({ key, label }) => ({ key, label, value: String(values[key]) }));
+  }, [data.entityType, data.fields]);
+
   return (
     <div
       className="group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px]"
       style={{
-        borderColor: selected ? data.color : '#1e3a5f',
-        boxShadow: selected ? `0 0 16px ${data.color}40` : 'none',
+        borderColor: selected ? tone : 'var(--cyber-border)',
+        boxShadow: selected ? `0 0 16px ${tone}40` : 'none',
+        opacity: dimmed ? 0.2 : 1,
       }}
     >
-      <Handle type="source" position={Position.Left} id="left" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Left} id="left-in" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Right} id="right-in" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="top" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Top} id="top-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#10b981', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: '#ef4444', border: '2px solid #0a0e17', cursor: 'crosshair', zIndex: 100 }} />
+      {/* Barre latérale colorée — identifie le type d'entité d'un coup d'œil */}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-[3px] rounded-l-xl"
+        style={{ background: tone }}
+      />
+      <Handle type="source" position={Position.Left} id="left" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Left} id="left-in" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Right} id="right" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Right} id="right-in" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Top} id="top" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Top} id="top-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
 
       {/* Contenu : occupe 100% de l'espace, aucune interférence */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: customIcon ? 'transparent' : `${data.color}22` }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: customIcon ? 'transparent' : `${tone}22` }}>
           {customIcon ? (
             <img src={customIcon.dataUrl} alt="" className="w-full h-full object-contain" />
           ) : (
-            <IconComponent size={14} style={{ color: data.color }} />
+            <IconComponent size={14} style={{ color: tone }} />
           )}
         </div>
 
@@ -236,13 +269,13 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             onDoubleClick={(e) => e.stopPropagation()}
             placeholder={t('node.addressPlaceholder')}
             className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono min-w-0"
-            style={{ color: data.color }}
+            style={{ color: tone }}
           />
         ) : renamingLabel ? (
-          <input ref={labelRef} value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSaveLabel} onClick={(e) => e.stopPropagation()} className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono min-w-0" style={{ color: data.color }} />
+          <input ref={labelRef} value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSaveLabel} onClick={(e) => e.stopPropagation()} className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono min-w-0" style={{ color: tone }} />
         ) : (
           <>
-            <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: data.color }} onDoubleClick={handleLabelDoubleClick} title={t('node.rename')}>
+            <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: tone }} onDoubleClick={handleLabelDoubleClick} title={t('node.rename')}>
               {data.label}
             </span>
             {data.entityType === 'url' && openUrl && (
@@ -260,6 +293,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           </>
         )}
       </div>
+
+      {/* Champs clés — 2 à 3 valeurs remontées sur la carte */}
+      {keyFields.length > 0 && (
+        <div className="space-y-0.5 px-3 pb-2">
+          {keyFields.map((field) => (
+            <div key={field.key} className="flex items-baseline gap-1.5 text-[10px] leading-4">
+              <span className="shrink-0 uppercase tracking-wide text-cyber-text-dim/70">
+                {field.label}
+              </span>
+              <span className="truncate font-mono text-cyber-text/90" title={field.value}>
+                {field.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {data.entityType === 'photo' && data.photoUrl && (
         <div className="px-3 pt-2">
@@ -298,7 +347,7 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
           className="absolute -top-9 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1 py-1 rounded-lg bg-cyber-dark/95 border border-cyber-border shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 pointer-events-auto whitespace-nowrap"
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={handleDelete} title={t('node.delete')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 transition-colors">
+          <button onClick={handleDelete} title={t('node.delete')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-red hover:bg-red-500/15 transition-colors">
             <Trash2 size={12} />
           </button>
           <button onClick={handleExpandNote} title={t('node.openNote')} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">

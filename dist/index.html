@@ -31,10 +31,61 @@
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
-    <script type="module" crossorigin src="/assets/index-DIKuPoMa.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-LFLr31uP.css">
+
+    <!--
+      Applique le thème mémorisé AVANT le premier rendu, en style inline sur <html>.
+
+      Les palettes sont injectées ici par `themeBootstrapPlugin` (vite.config.ts)
+      à partir de `src/theme/themes.ts` : source unique de vérité, rien à
+      maintenir en double.
+
+      Pourquoi des styles inline plutôt qu'une feuille de style ? Une règle
+      `:root` concurrente arrivée plus tard (feuille périmée restée dans le cache
+      du navigateur, ordre d'injection d'HMR…) écrasait les variables
+      hexadécimales tout en laissant les variantes `-rgb`, ce qui produisait un
+      thème hybride moitié sombre / moitié clair. Un style inline sur <html>
+      gagne sur toute règle non `!important` : le thème ne peut plus être corrompu.
+    -->
+    <script id="zhetikal-theme-data" type="application/json">[{"id":"cyan","scheme":"dark","bg":"#0a0e17","tokens":[["--cyber-black","#0a0e17"],["--cyber-black-rgb","10 14 23"],["--cyber-dark","#0d1321"],["--cyber-dark-rgb","13 19 33"],["--cyber-panel","#111827"],["--cyber-panel-rgb","17 24 39"],["--cyber-border","#1e3a5f"],["--cyber-border-rgb","30 58 95"],["--cyber-border-subtle","#22304a"],["--cyber-border-subtle-rgb","34 48 74"],["--cyber-cyan","#00f0ff"],["--cyber-cyan-rgb","0 240 255"],["--cyber-cyan-dim","#00c8d4"],["--cyber-cyan-dim-rgb","0 200 212"],["--cyber-blue","#0ea5e9"],["--cyber-blue-rgb","14 165 233"],["--cyber-blue-dark","#0369a1"],["--cyber-blue-dark-rgb","3 105 161"],["--cyber-green","#10b981"],["--cyber-green-rgb","16 185 129"],["--cyber-red","#ef4444"],["--cyber-red-rgb","239 68 68"],["--cyber-orange","#f59e0b"],["--cyber-orange-rgb","245 158 11"],["--cyber-text","#e2e8f0"],["--cyber-text-rgb","226 232 240"],["--cyber-text-dim","#94a3b8"],["--cyber-text-dim-rgb","148 163 184"]]},{"id":"amber","scheme":"dark","bg":"#0b0a08","tokens":[["--cyber-black","#0b0a08"],["--cyber-black-rgb","11 10 8"],["--cyber-dark","#12100a"],["--cyber-dark-rgb","18 16 10"],["--cyber-panel","#1a160d"],["--cyber-panel-rgb","26 22 13"],["--cyber-border","#3d3220"],["--cyber-border-rgb","61 50 32"],["--cyber-border-subtle","#2b2418"],["--cyber-border-subtle-rgb","43 36 24"],["--cyber-cyan","#ffb020"],["--cyber-cyan-rgb","255 176 32"],["--cyber-cyan-dim","#d9920f"],["--cyber-cyan-dim-rgb","217 146 15"],["--cyber-blue","#e0a020"],["--cyber-blue-rgb","224 160 32"],["--cyber-blue-dark","#8a6410"],["--cyber-blue-dark-rgb","138 100 16"],["--cyber-green","#9bbf3f"],["--cyber-green-rgb","155 191 63"],["--cyber-red","#e0553f"],["--cyber-red-rgb","224 85 63"],["--cyber-orange","#ffc95c"],["--cyber-orange-rgb","255 201 92"],["--cyber-text","#e8e0cf"],["--cyber-text-rgb","232 224 207"],["--cyber-text-dim","#9c9077"],["--cyber-text-dim-rgb","156 144 119"]]},{"id":"magenta","scheme":"dark","bg":"#0c0a14","tokens":[["--cyber-black","#0c0a14"],["--cyber-black-rgb","12 10 20"],["--cyber-dark","#13101c"],["--cyber-dark-rgb","19 16 28"],["--cyber-panel","#1b1628"],["--cyber-panel-rgb","27 22 40"],["--cyber-border","#3f2d63"],["--cyber-border-rgb","63 45 99"],["--cyber-border-subtle","#2c2444"],["--cyber-border-subtle-rgb","44 36 68"],["--cyber-cyan","#d946ef"],["--cyber-cyan-rgb","217 70 239"],["--cyber-cyan-dim","#b02fd0"],["--cyber-cyan-dim-rgb","176 47 208"],["--cyber-blue","#7c5cff"],["--cyber-blue-rgb","124 92 255"],["--cyber-blue-dark","#4b32b0"],["--cyber-blue-dark-rgb","75 50 176"],["--cyber-green","#34d399"],["--cyber-green-rgb","52 211 153"],["--cyber-red","#f43f5e"],["--cyber-red-rgb","244 63 94"],["--cyber-orange","#f59e0b"],["--cyber-orange-rgb","245 158 11"],["--cyber-text","#ece7f5"],["--cyber-text-rgb","236 231 245"],["--cyber-text-dim","#9d95b5"],["--cyber-text-dim-rgb","157 149 181"]]},{"id":"light","scheme":"light","bg":"#f2f0ea","tokens":[["--cyber-black","#f2f0ea"],["--cyber-black-rgb","242 240 234"],["--cyber-dark","#fbfaf7"],["--cyber-dark-rgb","251 250 247"],["--cyber-panel","#ffffff"],["--cyber-panel-rgb","255 255 255"],["--cyber-border","#d8d3c8"],["--cyber-border-rgb","216 211 200"],["--cyber-border-subtle","#e6e2d9"],["--cyber-border-subtle-rgb","230 226 217"],["--cyber-cyan","#185fa5"],["--cyber-cyan-rgb","24 95 165"],["--cyber-cyan-dim","#2a76bd"],["--cyber-cyan-dim-rgb","42 118 189"],["--cyber-blue","#378add"],["--cyber-blue-rgb","55 138 221"],["--cyber-blue-dark","#0c447c"],["--cyber-blue-dark-rgb","12 68 124"],["--cyber-green","#3b6d11"],["--cyber-green-rgb","59 109 17"],["--cyber-red","#a32d2d"],["--cyber-red-rgb","163 45 45"],["--cyber-orange","#ba7517"],["--cyber-orange-rgb","186 117 23"],["--cyber-text","#1f1d1a"],["--cyber-text-rgb","31 29 26"],["--cyber-text-dim","#6b675f"],["--cyber-text-dim-rgb","107 103 95"]]}]</script>
+    <script>
+      (function () {
+        try {
+          var node = document.getElementById('zhetikal-theme-data');
+          var palettes = JSON.parse(node ? node.textContent || '[]' : '[]');
+          if (!palettes.length) return;
+
+          var stored = null;
+          try {
+            stored = localStorage.getItem('zhetikal-theme');
+          } catch (e) {
+            /* stockage indisponible : le thème par défaut s'appliquera */
+          }
+
+          var theme = null;
+          for (var i = 0; i < palettes.length; i++) {
+            if (palettes[i].id === stored) {
+              theme = palettes[i];
+              break;
+            }
+          }
+          if (!theme) theme = palettes[0];
+
+          var root = document.documentElement;
+          for (var j = 0; j < theme.tokens.length; j++) {
+            root.style.setProperty(theme.tokens[j][0], theme.tokens[j][1]);
+          }
+          root.style.colorScheme = theme.scheme;
+          root.style.backgroundColor = theme.bg;
+          root.setAttribute('data-theme', theme.id);
+        } catch (e) {
+          /* en cas d'échec, ThemeProvider appliquera le thème au montage */
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-CjBIwfiH.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B-gTwRe8.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>

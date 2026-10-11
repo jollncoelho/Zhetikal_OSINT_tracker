@@ -4,21 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --cyber-black: #0a0e17;
-  --cyber-dark: #0d1321;
-  --cyber-panel: #111827;
-  --cyber-border: #1e3a5f;
-  --cyber-border-subtle: #2d2d2d;
-  --cyber-cyan: #00f0ff;
-  --cyber-cyan-dim: #00c8d4;
-  --cyber-blue: #0ea5e9;
-  --cyber-blue-dark: #0369a1;
-  --cyber-green: #10b981;
-  --cyber-red: #ef4444;
-  --cyber-orange: #f59e0b;
-  --cyber-text: #e2e8f0;
-  --cyber-text-dim: #94a3b8;
+/* Les variables `--cyber-*` sont appliquées en **style inline sur <html>** :
+   d'abord par le script d'amorçage d'`index.html` (avant le premier rendu),
+   puis par `ThemeProvider`. `src/theme/themes.ts` reste la source unique de
+   vérité — aucun `:root` ne doit être redéclaré ici, sous peine de recréer un
+   thème hybride (variables hex écrasées, variantes `-rgb` intactes).
+
+   La couleur ci-dessous n'est qu'un repli pour la fraction de seconde qui
+   précède l'exécution du script d'amorçage. */
+
+html {
+  background-color: #0a0e17;
 }
 
 * {
@@ -29,8 +25,8 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background: var(--cyber-black);
-  color: var(--cyber-text);
+  background: var(--cyber-black, #0a0e17);
+  color: var(--cyber-text, #e2e8f0);
   overflow: hidden;
 }
 
@@ -102,10 +98,10 @@ button, input, textarea, select {
   fill: none !important;
 }
 
+/* Couleur et épaisseur des arêtes pilotées par la relation + la confiance
+   (voir CustomEdge.tsx) : la sélection n'ajoute qu'un halo. */
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #ef4444 !important;
-  stroke-width: 3 !important;
-  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.7));
+  filter: drop-shadow(0 0 6px rgb(var(--cyber-cyan-rgb) / 0.5));
 }
 
 .react-flow__edge-interaction {
@@ -165,6 +161,57 @@ button, input, textarea, select {
   animation: fade-in 0.3s ease-out;
 }
 
+/* Toasts — entrée depuis la droite, sortie symétrique, barre de progression */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(24px) scale(0.97); }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-toast-out {
+  animation: toast-out 0.18s ease-in forwards;
+}
+
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+.toast-progress {
+  transform-origin: left center;
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* Rail d'icônes de la barre latérale repliée */
+@keyframes rail-tip-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.rail-tip {
+  animation: rail-tip-in 0.14s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-toast-out,
+  .toast-progress,
+  .rail-tip,
+  .animate-fade-in {
+    animation: none !important;
+  }
+}
+
 .node-glow {
   animation: pulse-glow 3s ease-in-out infinite;
 }
@@ -181,7 +228,7 @@ button, input, textarea, select {
 /* Shared form input style for modals / map popups */
 .input-cyber {
   width: 100%;
-  background: rgba(10, 14, 23, 0.6);
+  background: rgb(var(--cyber-black-rgb) / 0.6);
   border: 1px solid var(--cyber-border);
   border-radius: 6px;
   padding: 4px 8px;
@@ -204,6 +251,36 @@ button, input, textarea, select {
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--cyber-border); border-radius: 2px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--cyber-cyan-dim); }
+
+/* Curseur de confiance (EdgeInspector) — piste fine + poignée visible */
+.edge-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  outline: none;
+}
+
+.edge-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--cyber-cyan);
+  border: 2px solid var(--cyber-dark);
+  box-shadow: 0 0 6px rgb(var(--cyber-cyan-rgb) / 0.6);
+  cursor: pointer;
+}
+
+.edge-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--cyber-cyan);
+  border: 2px solid var(--cyber-dark);
+  cursor: pointer;
+}
 
 /* Leaflet popup — override default styles to match theme */
 .leaflet-popup-content-wrapper {

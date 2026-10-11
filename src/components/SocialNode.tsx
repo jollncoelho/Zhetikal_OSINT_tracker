@@ -4,6 +4,7 @@ import { Handle, Position } from '@xyflow/react';
 import { Trash2, X, Check, NotebookPen, ChevronDown, ExternalLink } from 'lucide-react';
 import type { EntityData, SocialPlatform } from '../types';
 import { SOCIAL_PLATFORMS } from '../types';
+import { useTheme } from '../theme/ThemeContext';
 
 const HANDLE_THICKNESS = 14;
 
@@ -62,6 +63,7 @@ function PlatformPickerModal({
   onSelect: (p: SocialPlatform) => void;
   onClose: () => void;
 }) {
+  const { entityTone } = useTheme();
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center"
@@ -70,7 +72,7 @@ function PlatformPickerModal({
     >
       <div
         className="relative rounded-2xl border border-cyber-border bg-cyber-dark p-6 shadow-2xl"
-        style={{ minWidth: 340, boxShadow: '0 0 40px rgba(0,200,212,0.15)' }}
+        style={{ minWidth: 340, boxShadow: '0 0 40px rgb(var(--cyber-cyan-dim-rgb) / 0.15)' }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -91,29 +93,33 @@ function PlatformPickerModal({
         <div className="grid grid-cols-5 gap-3">
           {SOCIAL_PLATFORMS.map((p) => {
             const active = p.id === currentPlatform;
+            // Les couleurs de plateforme sont une légende : on les assombrit en
+            // thème clair, sinon le point et le libellé de X (#e7e9ea) ou de
+            // TikTok (#00f2ea) disparaissent sur un panneau blanc.
+            const tone = entityTone(p.color);
             return (
               <button
                 key={p.id}
                 onClick={() => onSelect(p.id)}
                 className="flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-150 group"
                 style={{
-                  background: active ? `${p.color}18` : 'rgba(17,24,39,0.6)',
-                  borderColor: active ? `${p.color}80` : '#1e3a5f',
-                  boxShadow: active ? `0 0 12px ${p.color}30` : 'none',
+                  background: active ? `${tone}18` : 'rgb(var(--cyber-panel-rgb) / 0.6)',
+                  borderColor: active ? `${tone}80` : 'var(--cyber-border)',
+                  boxShadow: active ? `0 0 12px ${tone}30` : 'none',
                 }}
                 onMouseEnter={(e) => {
                   if (!active) {
                     const el = e.currentTarget;
-                    el.style.background = `${p.color}12`;
-                    el.style.borderColor = `${p.color}60`;
-                    el.style.boxShadow = `0 0 8px ${p.color}25`;
+                    el.style.background = `${tone}12`;
+                    el.style.borderColor = `${tone}60`;
+                    el.style.boxShadow = `0 0 8px ${tone}25`;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!active) {
                     const el = e.currentTarget;
-                    el.style.background = 'rgba(17,24,39,0.6)';
-                    el.style.borderColor = '#1e3a5f';
+                    el.style.background = 'rgb(var(--cyber-panel-rgb) / 0.6)';
+                    el.style.borderColor = 'var(--cyber-border)';
                     el.style.boxShadow = 'none';
                   }
                 }}
@@ -121,22 +127,22 @@ function PlatformPickerModal({
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
                   style={{
-                    background: `${p.color}20`,
-                    color: p.color,
+                    background: `${tone}20`,
+                    color: tone,
                   }}
                 >
                   <PlatformIcon id={p.id} size={22} />
                 </div>
                 <span
                   className="text-[9px] font-mono font-bold tracking-wide"
-                  style={{ color: active ? p.color : '#64748b' }}
+                  style={{ color: active ? tone : 'var(--cyber-text-dim)' }}
                 >
                   {p.label.toUpperCase()}
                 </span>
                 {active && (
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: p.color }}
+                    style={{ background: tone }}
                   />
                 )}
               </button>
@@ -153,8 +159,12 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
   const [renamingLabel, setRenamingLabel] = useState(false);
   const [label, setLabel] = useState(data.label);
   const [modalOpen, setModalOpen] = useState(false);
+  const { entityTone } = useTheme();
 
   const platform = SOCIAL_PLATFORMS.find((p) => p.id === data.socialPlatform) ?? SOCIAL_PLATFORMS[0];
+  // Couleur de plateforme = légende : assombrie en thème clair pour rester
+  // visible sur le panneau blanc.
+  const platformTone = entityTone(platform.color);
   const half = HANDLE_THICKNESS / 2;
 
   const handleBase: React.CSSProperties = {
@@ -208,8 +218,8 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
       <div
         className={`group relative rounded-xl bg-cyber-panel border transition-all duration-200 min-w-[200px] max-w-[280px] ${selected ? 'shadow-lg' : ''}`}
         style={{
-          borderColor: selected ? platform.color : `${platform.color}40`,
-          boxShadow: selected ? `0 0 16px ${platform.color}40` : `0 0 6px ${platform.color}15`,
+          borderColor: selected ? platformTone : `${platformTone}40`,
+          boxShadow: selected ? `0 0 16px ${platformTone}40` : `0 0 6px ${platformTone}15`,
         }}
       >
         {/* Handles */}
@@ -229,7 +239,7 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
             title="Supprimer"
             className="absolute top-2 right-2 w-6 h-6 rounded-md flex items-center justify-center
               bg-cyber-dark/70 border border-cyber-border
-              text-cyber-text-dim hover:text-red-400 hover:bg-red-500/15 hover:border-red-500/40
+              text-cyber-text-dim hover:text-cyber-red hover:bg-red-500/15 hover:border-red-500/40
               transition-all duration-150 z-10"
           >
             <Trash2 size={11} />
@@ -243,12 +253,12 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
             onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
             title="Changer de réseau"
             className="relative w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-150 hover:scale-110 group/icon"
-            style={{ background: `${platform.color}22`, color: platform.color }}
+            style={{ background: `${platformTone}22`, color: platformTone }}
           >
             <PlatformIcon id={platform.id} size={14} />
             <span
               className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center opacity-0 group-hover/icon:opacity-100 transition-opacity"
-              style={{ background: platform.color }}
+              style={{ background: platformTone }}
             >
               <ChevronDown size={8} color="#000" />
             </span>
@@ -263,12 +273,12 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
               onBlur={handleSaveLabel}
               onClick={(e) => e.stopPropagation()}
               className="flex-1 bg-cyber-dark border border-cyber-border rounded px-2 py-0.5 text-xs font-bold outline-none focus:border-cyber-cyan font-mono"
-              style={{ color: platform.color }}
+              style={{ color: platformTone }}
             />
           ) : (
             <span
               className="flex-1 text-xs font-bold truncate font-mono cursor-text"
-              style={{ color: platform.color }}
+              style={{ color: platformTone }}
               onDoubleClick={(e) => { e.stopPropagation(); setRenamingLabel(true); }}
               title="Double-clic pour renommer"
             >
@@ -281,7 +291,7 @@ export default memo(function SocialNode({ id, data, selected }: SocialNodeProps)
         <div className="flex items-center gap-1.5 px-3 pb-2">
           <div
             className="flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-mono font-bold"
-            style={{ color: platform.color, borderColor: `${platform.color}50`, background: `${platform.color}12` }}
+            style={{ color: platformTone, borderColor: `${platformTone}50`, background: `${platformTone}12` }}
           >
             <PlatformIcon id={platform.id} size={9} />
             {platform.label.toUpperCase()}

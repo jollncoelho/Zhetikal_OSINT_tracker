@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
-import type { CaseData, EntityData, EntityNode, MapPin, PinLink } from '../types';
+import type { CaseData, EntityData, EntityNode, MapPin, PinLink, RelationData } from '../types';
+import { DEFAULT_CONFIDENCE, DEFAULT_RELATION, ENTITY_COLORS } from '../types';
 import type { Edge } from '@xyflow/react';
 
 interface AppState {
@@ -25,13 +26,14 @@ interface AppState {
 
   onConnect: (connection: any) => void;
   deleteEdge: (edgeId: string) => void;
+  updateEdgeData: (edgeId: string, data: Partial<RelationData>) => void;
   onNodesChange: (changes: any) => void;
   onEdgesChange: (changes: any) => void;
 
   clearCanvas: () => void;
   saveProgress: () => void;
   exportCase: () => string;
-  importCase: (json: string) => void;
+  importCase: (json: string) => boolean;
   updateCaseNotes: (notes: string) => void;
   updateCaseTitle: (title: string) => void;
 
@@ -41,29 +43,6 @@ interface AppState {
   addPinLink: (link: Omit<PinLink, 'id'>) => string;
   removePinLink: (id: string) => void;
 }
-
-const ENTITY_COLORS: Record<string, string> = {
-  ip: '#ef4444',
-  domain: '#0ea5e9',
-  hostname: '#38bdf8',
-  email: '#f59e0b',
-  username: '#8b5cf6',
-  phone: '#8b5cf6',
-  asn: '#fb7185',
-  location: '#10b981',
-  organization: '#0ea5e9',
-  person: '#f59e0b',
-  file: '#94a3b8',
-  hash: '#a3e635',
-  sslcert: '#22d3ee',
-  url: '#0ea5e9',
-  crypto: '#f59e0b',
-  iban: '#34d399',
-  note: '#94a3b8',
-  social: '#1877f2',
-  ttp: '#f472b6',
-  photo: '#f43f5e',
-};
 
 const ENTITY_ICONS: Record<string, string> = {
   ip: 'Globe',
@@ -179,7 +158,7 @@ export const useStore = create<AppState>()(
               entityType: type,
               label,
               notes: '',
-              color: ENTITY_COLORS[type] || '#10b981',
+              color: (ENTITY_COLORS as Record<string, string>)[type] || '#10b981',
               icon: ENTITY_ICONS[type] || 'Globe',
               ...extra,
             } as EntityData,
@@ -251,7 +230,8 @@ export const useStore = create<AppState>()(
             sourceHandle: connection.sourceHandle,
             targetHandle: connection.targetHandle,
             type: 'custom',
-            animated: true,
+            animated: false,
+            data: { relation: DEFAULT_RELATION, confidence: DEFAULT_CONFIDENCE },
           };
           set((state) => ({ edges: [...state.edges, edge] }));
           const activeCaseId = get().activeCaseId;
@@ -261,6 +241,30 @@ export const useStore = create<AppState>()(
                 c.id === activeCaseId
                   ? { ...c, edges: [...c.edges, edge] }
                   : c
+              ),
+            }));
+          }
+        },
+
+        updateEdgeData: (edgeId, data) => {
+          const patch = (edge: Edge): Edge => {
+            if (edge.id !== edgeId) return edge;
+            const current = (edge.data ?? {}) as Partial<RelationData>;
+            return {
+              ...edge,
+              data: {
+                relation: current.relation ?? DEFAULT_RELATION,
+                confidence: current.confidence ?? DEFAULT_CONFIDENCE,
+                ...data,
+              },
+            };
+          };
+          set((state) => ({ edges: state.edges.map(patch) }));
+          const activeCaseId = get().activeCaseId;
+          if (activeCaseId) {
+            set((state) => ({
+              cases: state.cases.map((c) =>
+                c.id === activeCaseId ? { ...c, edges: c.edges.map(patch) } : c
               ),
             }));
           }
@@ -347,11 +351,16 @@ export const useStore = create<AppState>()(
         importCase: (json) => {
           try {
             const caseData = JSON.parse(json) as CaseData;
+            if (!caseData || typeof caseData !== 'object' || !Array.isArray(caseData.nodes)) {
+              throw new Error('Structure de dossier invalide');
+            }
             set((state) => ({
               cases: [...state.cases, caseData],
             }));
+            return true;
           } catch (e) {
             console.error('Invalid JSON', e);
+            return false;
           }
         },
 

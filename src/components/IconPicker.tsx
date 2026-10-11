@@ -92,7 +92,7 @@ export default function IconPicker({ currentIconId, onSelect, onClose }: Props) 
             <button
               onClick={() => onSelect(null)}
               className="flex flex-col items-center gap-1 p-2 rounded-xl border transition-all"
-              style={{ borderColor: currentIconId === null ? '#00c8d4' : '#1e3a5f', background: currentIconId === null ? '#00c8d410' : 'transparent' }}
+              style={{ borderColor: currentIconId === null ? 'var(--cyber-cyan-dim)' : 'var(--cyber-border)', background: currentIconId === null ? 'var(--cyber-cyan-dim)10' : 'transparent' }}
             >
               <span className="text-lg">🔄</span>
               <span className="text-[9px] text-cyber-text-dim truncate w-full text-center">Défaut</span>
@@ -104,8 +104,8 @@ export default function IconPicker({ currentIconId, onSelect, onClose }: Props) 
                   onClick={() => onSelect(icon.id)}
                   className="w-full flex flex-col items-center gap-1 p-2 rounded-xl border transition-all"
                   style={{
-                    borderColor: currentIconId === icon.id ? '#00c8d4' : '#1e3a5f',
-                    background: currentIconId === icon.id ? '#00c8d410' : 'transparent',
+                    borderColor: currentIconId === icon.id ? 'var(--cyber-cyan-dim)' : 'var(--cyber-border)',
+                    background: currentIconId === icon.id ? 'var(--cyber-cyan-dim)10' : 'transparent',
                   }}
                 >
                   <img src={icon.dataUrl} alt={icon.name} className="w-8 h-8 object-contain rounded" />

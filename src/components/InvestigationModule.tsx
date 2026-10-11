@@ -1,19 +1,31 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import React from 'react';
 import {
-  Archive, ArrowLeft, Calendar, CheckCircle2, ChevronRight, Clipboard,
-  Download, ExternalLink, FileCode2, FileText, Filter, Fingerprint,
-  Globe2, Hash, Loader, Pencil, Plus, Printer, Search, ShieldCheck, Timer,
-  Trash2, UserRound, X,
+  AlertTriangle, Archive, ArrowLeft, Calendar, CheckCircle2, ChevronRight, Clipboard,
+  Download, ExternalLink, FileCode2, FileSearch, FileText, Filter, Fingerprint,
+  Globe2, Hash, Loader, Pencil, Plus, Printer, RotateCw, Search, ShieldCheck,
+  Timer, Trash2, UserRound, X,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
-import { supabase } from '../lib/supabase';
+import {
+  LOCAL_ARTIFACTS_KEY, LOCAL_CASES_KEY, CaptureError, artifactImages, buildArtifact,
+  emptyMetadata, escapeHtml, formatRawContent, isHtmlContent, isProtectedTarget,
+  parseHtmlDocument, persistArtifact, readFileAsDataUrl, readFileAsText, readLocalList,
+  requestPageCapture, safeImageSource, sanitizePreviewHtml, writeLocalList,
+} from '../lib/capture';
+import CaseBrowser from './CaseBrowser';
+import EvidenceReader from './EvidenceReader';
+import EvidenceTimeline from './EvidenceTimeline';
+import { useToast } from './Toast';
+import { useStore } from '../store/useStore';
+import { exportEvidencePack } from '../lib/evidencePdf';
+import {
+  RELIABILITY_LABEL_KEY,
+  RELIABILITY_STYLE,
+  assessReliability,
+} from '../lib/evidenceInsight';
 import type { EvidenceArtifact, EvidenceArtifactType, InvestigationCase, MetadataResponse } from '../types/investigation';
 
-const CAPTURE_METADATA_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capture-metadata`;
-const LOCAL_CASES_KEY = 'zhetikal-investigation-cases-v1';
-const LOCAL_ARTIFACTS_KEY = 'zhetikal-investigation-artifacts-v1';
-const protectedHosts = ['youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'google.com', 'linkedin.com', 'instagram.com'];
 const typeLabelKeys: Record<EvidenceArtifactType, string> = {
   screenshot: 'investigation.typeScreenshot',
   downloaded_page: 'investigation.typeDownloadedPage',
@@ -29,70 +41,6 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
-function readLocalList<T>(key: string): T[] {
-  try {
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-    const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed as T[] : [];
-  } catch (cause) {
-    console.error(cause);
-    return [];
-  }
-}
-
-function writeLocalList<T>(key: string, value: T[]): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (cause) {
-    console.error(cause);
-  }
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-    reader.onerror = () => reject(reader.error ?? new Error('Unable to read image'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function safeImageSource(value: string): string {
-  return value.startsWith('data:image/') ? value : '';
-}
-
-async function sha512(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-async function requestPageCapture(targetUrl: string): Promise<MetadataResponse> {
-  const response = await fetch(CAPTURE_METADATA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }, body: JSON.stringify({ url: targetUrl }) });
-  if (!response.ok) throw new Error('Page capture failed');
-  const candidate = await response.json() as Partial<MetadataResponse>;
-  if (typeof candidate.finalUrl !== 'string' || typeof candidate.title !== 'string' || typeof candidate.status !== 'number' || typeof candidate.contentType !== 'string' || typeof candidate.html !== 'string' || !Array.isArray(candidate.links) || !candidate.meta || typeof candidate.meta !== 'object' || typeof candidate.screenshotDataUrl !== 'string') throw new Error('Invalid page capture response');
-  return candidate as MetadataResponse;
-}
-
-function isProtectedTarget(value: string): boolean {
-  try {
-    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
-    return protectedHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
-  } catch {
-    return false;
-  }
-}
-
-function artifactImages(artifact: EvidenceArtifact): string[] {
-  const images = artifact.screenshot_previews?.filter(Boolean) ?? [];
-  return images.length > 0 ? images : artifact.screenshot_preview ? [artifact.screenshot_preview] : [];
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character] || character));
-}
-
 function printCleanReport(investigationCase: InvestigationCase, artifacts: EvidenceArtifact[], translate: (key: string) => string): void {
   const reportWindow = window.open('', '_blank', 'width=960,height=800');
   if (!reportWindow) {
@@ -104,49 +52,6 @@ function printCleanReport(investigationCase: InvestigationCase, artifacts: Evide
   }).join('');
   reportWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(investigationCase.case_name)}</title><style>body{margin:0;padding:42px;color:#172033;background:#fff;font-family:Arial,sans-serif;line-height:1.55}main{max-width:900px;margin:auto}.brand{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#176b88}.header{border-bottom:2px solid #17344a;padding-bottom:24px}.header h1{font-size:30px;margin:12px 0}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.label,.eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#52657a}.value{font-weight:700;margin-top:4px}.case-notes{white-space:pre-wrap;margin:24px 0}.evidence{break-inside:avoid;border:1px solid #ccd6df;border-radius:10px;padding:20px;margin-top:18px}.evidence h2{font-size:17px;margin:8px 0}.url,.hash,.technical{font-family:monospace;font-size:11px;overflow-wrap:anywhere}.url{color:#52657a}.notes{white-space:pre-wrap}.evidence-grid{display:grid;grid-template-columns:220px 1fr;gap:22px;margin-top:16px}.evidence img{width:220px;max-height:150px;object-fit:cover;border:1px solid #ccd6df;border-radius:5px}.no-image{height:100px;border:1px dashed #aab8c5;display:grid;place-items:center;color:#68798a;font-size:12px}.hash{color:#176b57;line-height:1.6}@media print{body{padding:0}.evidence{break-inside:avoid}}</style></head><body><main><div class="header"><div class="brand">Ghostint · ${escapeHtml(translate('investigation.reportTitle'))}</div><h1>${escapeHtml(investigationCase.case_name)}</h1><div class="meta"><div><div class="label">${escapeHtml(translate('investigation.officer'))}</div><div class="value">${escapeHtml(investigationCase.investigating_officer || '—')}</div></div><div><div class="label">${escapeHtml(translate('investigation.agency'))}</div><div class="value">${escapeHtml(investigationCase.agency || '—')}</div></div><div><div class="label">${escapeHtml(translate('investigation.artifacts'))}</div><div class="value">${artifacts.length}</div></div></div></div><p class="case-notes">${escapeHtml(investigationCase.notes)}</p>${artifactMarkup}</main><script>window.onload=()=>{window.focus();window.print();}</script></body></html>`);
   reportWindow.document.close();
-}
-
-function sanitizePreviewHtml(html: string, baseUrl = ''): string {
-  if (typeof DOMParser === 'undefined') return html;
-  const document = new DOMParser().parseFromString(html, 'text/html');
-  document.querySelectorAll('script, iframe, object, embed, form').forEach((element) => element.remove());
-  document.querySelectorAll('*').forEach((element) => {
-    for (const attribute of [...element.attributes]) {
-      if (attribute.name.toLowerCase().startsWith('on')) element.removeAttribute(attribute.name);
-    }
-  });
-  const existingBase = document.querySelector('base');
-  if (!existingBase && baseUrl) {
-    const base = document.createElement('base');
-    base.href = baseUrl;
-    document.head.prepend(base);
-  }
-  return document.documentElement.outerHTML;
-}
-
-function isHtmlContent(html: string, contentType: string): boolean {
-  const ct = contentType.toLowerCase();
-  if (ct.includes('xml') && !ct.includes('html')) return false;
-  if (ct.includes('json')) return false;
-  if (ct.includes('text/plain')) return false;
-  if (ct.startsWith('image/')) return false;
-  const trimmed = html.trimStart();
-  if (trimmed.startsWith('<?xml')) return false;
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return false;
-  return /<html[\s>]/i.test(trimmed) || /<(body|div|p|span|table|head)[\s>]/i.test(trimmed);
-}
-
-function formatRawContent(content: string, contentType: string): string {
-  const trimmed = content.trim();
-  if (!trimmed) return '';
-  if (contentType.toLowerCase().includes('json')) {
-    try {
-      return JSON.stringify(JSON.parse(trimmed), null, 2);
-    } catch {
-      return content;
-    }
-  }
-  return content;
 }
 
 interface Props { onClose: () => void }
@@ -168,6 +73,7 @@ export default function InvestigationModule({ onClose }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showCapture, setShowCapture] = useState(false);
+  const [captureError, setCaptureError] = useState('');
   const [showReport, setShowReport] = useState(false);
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -264,48 +170,68 @@ export default function InvestigationModule({ onClose }: Props) {
   const handleCapture = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedCase) return;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const minimalSave = submitter?.dataset.minimal === 'true';
+
     const form = new FormData(event.currentTarget);
     const targetUrl = String(form.get('target_url') || '').trim();
     const notes = String(form.get('notes') || '').trim();
-    const imageFile = form.get('screenshot') instanceof File ? form.get('screenshot') as File : null;
-    if (!targetUrl) return;
+    const pastedHtml = String(form.get('html_paste') || '').trim();
+    const imageFile = form.get('screenshot') instanceof File && (form.get('screenshot') as File).size > 0 ? form.get('screenshot') as File : null;
+    const htmlFile = form.get('html_file') instanceof File && (form.get('html_file') as File).size > 0 ? form.get('html_file') as File : null;
+
+    if (!targetUrl && !htmlFile && !pastedHtml) {
+      setCaptureError(t('investigation.needTargetOrHtml'));
+      return;
+    }
+    if (targetUrl) {
+      try {
+        const parsed = new URL(targetUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('bad protocol');
+      } catch {
+        setCaptureError(t('investigation.invalidUrl'));
+        return;
+      }
+    }
+
     setLoading(true);
+    setCaptureError('');
     setError('');
     try {
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(targetUrl);
-        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
-      } catch {
-        throw new Error('Invalid URL');
+      let metadata: MetadataResponse;
+      let source = 'local-capture-engine';
+
+      if (htmlFile) {
+        // Imported page saved from the investigator's own browser: fully local.
+        metadata = parseHtmlDocument(await readFileAsText(htmlFile), targetUrl);
+        source = 'imported-html-file';
+      } else if (pastedHtml) {
+        metadata = parseHtmlDocument(pastedHtml, targetUrl);
+        source = 'pasted-html';
+      } else {
+        try {
+          metadata = await requestPageCapture(targetUrl);
+        } catch (cause) {
+          console.warn('Page capture unavailable', cause);
+          if (!minimalSave) {
+            // Keep the modal open so the investigator can import the HTML instead.
+            const code = cause instanceof CaptureError ? cause.code : 'UNKNOWN';
+            const reasonKey = `investigation.captureReason${code.charAt(0)}${code.slice(1).toLowerCase()}`;
+            const reason = t(reasonKey) !== reasonKey ? t(reasonKey) : (cause instanceof Error ? cause.message : String(cause));
+            const status = cause instanceof CaptureError && cause.status ? ` (HTTP ${cause.status})` : '';
+            setCaptureError(`${t('investigation.captureFailed')} ${reason}${status} ${t('investigation.captureImportHint')}`);
+            return;
+          }
+          metadata = emptyMetadata(targetUrl);
+          source = 'manual-record-no-content';
+        }
       }
-      let metadata: MetadataResponse = { finalUrl: targetUrl, title: parsedUrl.hostname, status: 0, contentType: '', html: '', meta: {}, links: [], screenshotDataUrl: '' };
-      try {
-        metadata = await requestPageCapture(targetUrl);
-      } catch (cause) {
-        console.warn('URL capture unavailable; saving target details only', cause);
-      }
-      const capturedAt = new Date().toISOString();
-      const preview = imageFile && imageFile.size > 0 ? await readFileAsDataUrl(imageFile) : safeImageSource(metadata.screenshotDataUrl);
-      const browserMetadata = {
-        source: 'url-metadata',
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-      };
-      const record = { id: crypto.randomUUID(), case_id: selectedCase.id, artifact_type: 'downloaded_page' as const, target_url: targetUrl, final_url: metadata.finalUrl, title: metadata.title || parsedUrl.hostname, http_status: metadata.status || null, content_type: metadata.contentType, raw_html: metadata.html, sha512: await sha512(`${targetUrl}|${metadata.finalUrl}|${capturedAt}`), captured_at: capturedAt, browser_metadata: browserMetadata, meta: metadata.meta, screenshot_preview: preview, screenshot_previews: preview ? [preview] : [], extracted_links: metadata.links, notes, created_at: capturedAt };
-      const { error: parentError } = await supabase.from('investigation_cases').upsert({ id: selectedCase.id, case_name: selectedCase.case_name, investigating_officer: selectedCase.investigating_officer, agency: selectedCase.agency, notes: selectedCase.notes, created_at: selectedCase.created_at, updated_at: selectedCase.updated_at }, { onConflict: 'id' });
-      if (parentError) throw parentError;
-      const { data, error: insertError } = await supabase.from('evidence_artifacts').insert(record).select().maybeSingle();
-      if (insertError || !data) throw insertError ?? new Error('Evidence could not be saved');
-      const savedArtifact = data as EvidenceArtifact;
-      const nextArtifacts = [savedArtifact, ...readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY)];
-      writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
-      setArtifacts((current) => [savedArtifact, ...current]);
+
+      const artifact = await buildArtifact(selectedCase.id, { targetUrl: targetUrl || metadata.finalUrl, notes, imageFile }, metadata, source);
+      persistArtifact(artifact);
+      setArtifacts((current) => [artifact, ...current]);
       setShowCapture(false);
+      if (source === 'manual-record-no-content') setError(t('investigation.capturePartial'));
     } catch (cause) {
       setError(t('investigation.captureError'));
       console.error(cause);
@@ -318,52 +244,29 @@ export default function InvestigationModule({ onClose }: Props) {
     setError('');
     try {
       const targetUrl = artifact.final_url || artifact.target_url;
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(targetUrl);
-      } catch {
-        parsedUrl = new URL('https://' + targetUrl);
-      }
-      let metadata: MetadataResponse = {
-        finalUrl: targetUrl,
-        title: parsedUrl.hostname,
-        status: 0,
-        contentType: '',
-        html: '',
-        meta: {},
-        links: [],
-        screenshotDataUrl: '',
-      };
-      try {
-        metadata = await requestPageCapture(targetUrl);
-      } catch (cause) {
-        console.warn('URL capture unavailable; updating target details only', cause);
-      }
-      const browserMetadata = {
-        source: 'url-metadata',
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-      };
-      const updates = {
-        final_url: metadata.finalUrl,
-        title: metadata.title || artifact.title || parsedUrl.hostname,
+      const metadata = await requestPageCapture(targetUrl);
+      const updates: Partial<EvidenceArtifact> = {
+        final_url: metadata.finalUrl || artifact.final_url,
+        title: metadata.title || artifact.title,
         http_status: metadata.status || artifact.http_status || null,
         content_type: metadata.contentType || artifact.content_type,
         raw_html: metadata.html || artifact.raw_html,
-        browser_metadata: browserMetadata,
+        browser_metadata: {
+          ...artifact.browser_metadata,
+          source: 'local-capture-engine',
+          refreshedAt: new Date().toISOString(),
+          textLines: metadata.text?.length ?? artifact.extracted_text?.length ?? 0,
+          bytes: metadata.bytes ?? metadata.html.length,
+          elapsedMs: metadata.elapsedMs ?? 0,
+        },
         meta: { ...artifact.meta, ...metadata.meta },
         screenshot_preview: safeImageSource(metadata.screenshotDataUrl) || artifact.screenshot_preview,
-        screenshot_previews: safeImageSource(metadata.screenshotDataUrl)
-          ? [metadata.screenshotDataUrl]
-          : artifact.screenshot_previews,
+        screenshot_previews: safeImageSource(metadata.screenshotDataUrl) ? [metadata.screenshotDataUrl] : artifact.screenshot_previews,
         extracted_links: metadata.links.length > 0 ? metadata.links : artifact.extracted_links,
+        extracted_text: metadata.text && metadata.text.length > 0 ? metadata.text : artifact.extracted_text,
+        extracted_assets: metadata.assets && metadata.assets.length > 0 ? metadata.assets : artifact.extracted_assets,
       };
-      const { data } = await supabase.from('evidence_artifacts').update(updates).eq('id', artifact.id).select().maybeSingle();
-      const updatedArtifact = (data as EvidenceArtifact) || { ...artifact, ...updates };
+      const updatedArtifact = { ...artifact, ...updates } as EvidenceArtifact;
       const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).map((item) => item.id === artifact.id ? updatedArtifact : item);
       writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
       setArtifacts((current) => current.map((item) => item.id === artifact.id ? updatedArtifact : item));
@@ -412,7 +315,7 @@ export default function InvestigationModule({ onClose }: Props) {
 
   return (
     <section className="flex-1 min-h-0 overflow-hidden bg-cyber-black text-cyber-text">
-      <div className="h-full overflow-y-auto custom-scrollbar p-6 lg:p-8">
+      <div className="h-full overflow-y-auto custom-scrollbar p-6 pb-32 lg:p-8 lg:pb-32">
         <div className="mx-auto max-w-[1500px]">
           <header className="flex flex-col gap-5 border-b border-cyber-border pb-6 md:flex-row md:items-end md:justify-between">
             <div>
@@ -426,7 +329,7 @@ export default function InvestigationModule({ onClose }: Props) {
             </div>
           </header>
 
-          {error && <div className="mt-5 flex items-center justify-between rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-300"><span>{error}</span><button onClick={() => setError('')}><X size={14} /></button></div>}
+          {error && <div className="mt-5 flex items-center justify-between rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-cyber-red"><span>{error}</span><button onClick={() => setError('')}><X size={14} /></button></div>}
 
           {!selectedCase ? (
             <div className="mt-7">
@@ -434,20 +337,91 @@ export default function InvestigationModule({ onClose }: Props) {
               {loading ? <LoadingState label={t('investigation.loading')} /> : cases.length === 0 ? <EmptyCases onCreate={() => setShowCreate(true)} /> : <div className={`grid gap-4 md:grid-cols-2 ${cardDensity === 'compact' ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>{cases.map((investigationCase) => <CaseCard key={investigationCase.id} investigationCase={investigationCase} compact={cardDensity === 'compact'} onClick={() => void handleSelectCase(investigationCase)} onEdit={() => { setSelectedCase(investigationCase); setShowEdit(true); }} onDelete={() => void handleDeleteCase(investigationCase)} />)}</div>}
             </div>
           ) : (
-            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => { setSelectedCase(null); window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: null } })); }} onEdit={() => setShowEdit(true)} onCapture={() => setShowCapture(true)} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} onGenerateArtifactCapture={(artifact) => void handleGenerateArtifactCapture(artifact)} />
+            <CaseWorkspace investigationCase={selectedCase} artifacts={filteredArtifacts} loading={loading} search={search} dateFilter={dateFilter} onSearch={setSearch} onDateFilter={setDateFilter} onBack={() => { setSelectedCase(null); window.dispatchEvent(new CustomEvent('investigation-case-selected', { detail: { caseId: null } })); }} onEdit={() => setShowEdit(true)} onCapture={() => { setCaptureError(''); setShowCapture(true); }} onReport={() => setShowReport(true)} onDeleteCase={() => void handleDeleteCase(selectedCase)} onDeleteArtifact={(id) => void handleDeleteArtifact(id)} onUpdateArtifactNotes={(id, notes) => void handleUpdateArtifactNotes(id, notes)} onUpdateArtifactPreview={(id, previews) => void handleUpdateArtifactPreview(id, previews)} onGenerateArtifactCapture={(artifact) => void handleGenerateArtifactCapture(artifact)} onArtifactAdded={(artifact) => setArtifacts((current) => current.some((item) => item.id === artifact.id) ? current : [artifact, ...current])} />
           )}
         </div>
       </div>
 
       {showCreate && <Modal title={t('investigation.createTitle')} onClose={() => setShowCreate(false)}><CaseForm submitLabel={t('investigation.create')} onSubmit={handleCreateCase} /></Modal>}
       {showEdit && selectedCase && <Modal title={t('investigation.editTitle')} onClose={() => setShowEdit(false)}><CaseForm investigationCase={selectedCase} submitLabel={t('investigation.save')} onSubmit={handleUpdateCase} /></Modal>}
-      {showCapture && <Modal title={t('investigation.captureTitle')} onClose={() => !loading && setShowCapture(false)}><form onSubmit={handleCapture} className="space-y-4"><Field label={t('investigation.targetUrl')} name="target_url" type="url" placeholder="https://example.org/page" required /><Field label={t('investigation.captureNoteLabel')} name="notes" placeholder={t('investigation.captureNotePlaceholder')} textarea /><label className="block text-sm font-medium text-cyber-text-dim"><span className="mb-1.5 block">{t('investigation.customScreenshot')}</span><input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full rounded-lg border border-cyber-border bg-cyber-black/60 p-2 text-xs text-cyber-text file:mr-3 file:rounded-md file:border-0 file:bg-cyber-cyan/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyber-cyan" /></label><div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3 text-xs leading-5 text-cyber-text-dim"><div className="flex items-center gap-2 text-cyber-cyan"><Globe2 size={13} /> {t('investigation.serverCapture')}</div><p className="mt-1">{t('investigation.serverCaptureDescription')}</p></div><div className="flex justify-end gap-2 pt-2"><button type="button" disabled={loading} onClick={() => setShowCapture(false)} className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim">{t('investigation.cancel')}</button><button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">{loading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />} {t('investigation.capture')}</button></div></form></Modal>}
+      {showCapture && (
+        <Modal title={t('investigation.captureTitle')} onClose={() => !loading && setShowCapture(false)}>
+          <form onSubmit={handleCapture} className="space-y-4">
+            <Field label={t('investigation.targetUrl')} name="target_url" type="url" placeholder="https://example.org/page" />
+            <Field label={t('investigation.captureNoteLabel')} name="notes" placeholder={t('investigation.captureNotePlaceholder')} textarea />
+
+            <div className="rounded-lg border border-cyber-border bg-cyber-black/40 p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-cyber-cyan">
+                <FileCode2 size={13} /> {t('investigation.htmlImportTitle')}
+              </div>
+              <p className="mb-3 text-[11px] leading-5 text-cyber-text-dim">{t('investigation.htmlImportHint')}</p>
+              <label className="block text-sm font-medium text-cyber-text-dim">
+                <span className="mb-1.5 block">{t('investigation.htmlImportFile')}</span>
+                <input
+                  name="html_file"
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  className="block w-full rounded-lg border border-cyber-border bg-cyber-black/60 p-2 text-xs text-cyber-text file:mr-3 file:rounded-md file:border-0 file:bg-cyber-cyan/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyber-cyan"
+                />
+              </label>
+              <label className="mt-3 block text-sm font-medium text-cyber-text-dim">
+                <span className="mb-1.5 block">{t('investigation.htmlPaste')}</span>
+                <textarea
+                  name="html_paste"
+                  rows={3}
+                  spellCheck={false}
+                  placeholder="<!doctype html>…"
+                  className="input-cyber resize-y font-mono text-[11px] leading-5"
+                />
+              </label>
+            </div>
+
+            <label className="block text-sm font-medium text-cyber-text-dim">
+              <span className="mb-1.5 block">{t('investigation.customScreenshot')}</span>
+              <input
+                name="screenshot"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="block w-full rounded-lg border border-cyber-border bg-cyber-black/60 p-2 text-xs text-cyber-text file:mr-3 file:rounded-md file:border-0 file:bg-cyber-cyan/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyber-cyan"
+              />
+            </label>
+
+            <div className="rounded-lg border border-cyber-border bg-cyber-black/60 p-3 text-xs leading-5 text-cyber-text-dim">
+              <div className="flex items-center gap-2 text-cyber-cyan"><Globe2 size={13} /> {t('investigation.serverCapture')}</div>
+              <p className="mt-1">{t('investigation.serverCaptureDescription')}</p>
+            </div>
+
+            {captureError && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] leading-5 text-amber-200">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>{captureError}</span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button type="button" disabled={loading} onClick={() => setShowCapture(false)} className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim">{t('investigation.cancel')}</button>
+              <button
+                type="submit"
+                data-minimal="true"
+                formNoValidate
+                disabled={loading}
+                className="rounded-lg border border-cyber-border px-4 py-2 text-xs text-cyber-text-dim transition hover:border-cyber-cyan/50 hover:text-cyber-cyan disabled:opacity-60"
+              >
+                {t('investigation.saveWithoutContent')}
+              </button>
+              <button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black disabled:opacity-60">
+                {loading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />} {t('investigation.capture')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </section>
   );
 }
 
 function CaseCard({ investigationCase, compact, onClick, onEdit, onDelete }: { investigationCase: InvestigationCase; compact: boolean; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
-  return <div className={`group relative rounded-xl border border-cyber-border bg-cyber-panel/60 text-left transition hover:-translate-y-0.5 hover:border-cyber-cyan/50 hover:bg-cyber-panel ${compact ? 'p-4' : 'p-5'}`}><button onClick={onClick} className="block w-full text-left"><div className={`flex items-start justify-between ${compact ? 'mb-4' : 'mb-6'}`}><div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyber-cyan/25 bg-cyber-cyan/10 text-cyber-cyan"><Archive size={18} /></div><ChevronRight size={16} className="text-cyber-text-dim transition group-hover:translate-x-1 group-hover:text-cyber-cyan" /></div><h3 className="truncate text-sm font-semibold text-cyber-text">{investigationCase.case_name}</h3><div className="mt-3 space-y-2 text-xs text-cyber-text-dim"><div className="flex items-center gap-2"><UserRound size={12} /> {investigationCase.investigating_officer || 'Officer not assigned'}</div><div className="flex items-center gap-2"><Calendar size={12} /> Updated {formatDate(investigationCase.updated_at)}</div></div></button><div className="mt-4 flex justify-end gap-1 border-t border-cyber-border pt-3"><button onClick={onEdit} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-cyber-cyan/10 hover:text-cyber-cyan" title="Edit case"><Pencil size={13} /></button><button onClick={onDelete} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-red-500/10 hover:text-red-400" title="Delete case"><Trash2 size={13} /></button></div></div>;
+  return <div className={`group relative rounded-xl border border-cyber-border bg-cyber-panel/60 text-left transition hover:-translate-y-0.5 hover:border-cyber-cyan/50 hover:bg-cyber-panel ${compact ? 'p-4' : 'p-5'}`}><button onClick={onClick} className="block w-full text-left"><div className={`flex items-start justify-between ${compact ? 'mb-4' : 'mb-6'}`}><div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyber-cyan/25 bg-cyber-cyan/10 text-cyber-cyan"><Archive size={18} /></div><ChevronRight size={16} className="text-cyber-text-dim transition group-hover:translate-x-1 group-hover:text-cyber-cyan" /></div><h3 className="truncate text-sm font-semibold text-cyber-text">{investigationCase.case_name}</h3><div className="mt-3 space-y-2 text-xs text-cyber-text-dim"><div className="flex items-center gap-2"><UserRound size={12} /> {investigationCase.investigating_officer || 'Officer not assigned'}</div><div className="flex items-center gap-2"><Calendar size={12} /> Updated {formatDate(investigationCase.updated_at)}</div></div></button><div className="mt-4 flex justify-end gap-1 border-t border-cyber-border pt-3"><button onClick={onEdit} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-cyber-cyan/10 hover:text-cyber-cyan" title="Edit case"><Pencil size={13} /></button><button onClick={onDelete} className="rounded-md p-1.5 text-cyber-text-dim hover:bg-red-500/10 hover:text-cyber-red" title="Delete case"><Trash2 size={13} /></button></div></div>;
 }
 
 function CaseWorkspace({
@@ -467,6 +441,7 @@ function CaseWorkspace({
   onUpdateArtifactNotes,
   onUpdateArtifactPreview,
   onGenerateArtifactCapture,
+  onArtifactAdded,
 }: {
   investigationCase: InvestigationCase;
   artifacts: EvidenceArtifact[];
@@ -484,8 +459,45 @@ function CaseWorkspace({
   onUpdateArtifactNotes: (id: string, notes: string) => void;
   onUpdateArtifactPreview: (id: string, previews: string[]) => void;
   onGenerateArtifactCapture: (artifact: EvidenceArtifact) => void;
+  onArtifactAdded: (artifact: EvidenceArtifact) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const toast = useToast();
+  const [view, setView] = useState<'evidence' | 'browser' | 'timeline' | 'reader'>('evidence');
+  const [packLoading, setPackLoading] = useState(false);
+
+  /** Libellés des entités du dossier graphique actif, pour le surlignage. */
+  const entityTerms = useStore((state) => {
+    const active = state.cases.find((item) => item.id === state.activeCaseId);
+    if (!active) return [] as string[];
+    return active.nodes
+      .map((node) => String((node.data as { label?: unknown })?.label ?? '').trim())
+      .filter((label) => label.length >= 3)
+      .slice(0, 400);
+  });
+
+  const handleExportPack = async () => {
+    if (artifacts.length === 0) {
+      toast.warning(t('investigation.noArtifacts'));
+      return;
+    }
+    setPackLoading(true);
+    try {
+      const fileName = await exportEvidencePack({
+        investigationCase,
+        artifacts,
+        translate: t,
+        lang,
+      });
+      toast.success(t('investigation.exportPack'), fileName);
+    } catch (cause) {
+      console.error('Evidence pack error:', cause);
+      toast.error(t('toast.exportFailed'), (cause as Error).message);
+    } finally {
+      setPackLoading(false);
+    }
+  };
+
   return (
     <div className="mt-7">
       <button onClick={onBack} className="mb-4 flex items-center gap-2 text-xs text-cyber-text-dim hover:text-cyber-cyan">
@@ -516,8 +528,16 @@ function CaseWorkspace({
               <Printer size={14} /> {t('investigation.report')}
             </button>
             <button
+              onClick={() => void handleExportPack()}
+              disabled={packLoading}
+              className="flex items-center gap-2 rounded-lg border border-cyber-green/40 bg-cyber-green/10 px-3 py-2 text-xs font-semibold text-cyber-green transition hover:bg-cyber-green/20 disabled:opacity-60"
+            >
+              {packLoading ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+              {t('investigation.exportPack')}
+            </button>
+            <button
               onClick={onDeleteCase}
-              className="flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10"
+              className="flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-cyber-red hover:bg-red-500/10"
             >
               <Trash2 size={14} /> {t('investigation.delete')}
             </button>
@@ -532,11 +552,46 @@ function CaseWorkspace({
         <div className="mt-5 grid gap-3 border-t border-cyber-border pt-5 sm:grid-cols-3">
           <Meta label={t('investigation.officer')} value={investigationCase.investigating_officer || '—'} icon={<UserRound size={13} />} />
           <Meta label={t('investigation.agency')} value={investigationCase.agency || '—'} icon={<ShieldCheck size={13} />} />
-          <Meta label={t('investigation.artifacts')} value={String(artifacts.length)} icon={<Fingerprint size={13} />} />
+          <Meta label={t('investigation.artifacts')} value={loading ? '…' : String(artifacts.length)} icon={<Fingerprint size={13} />} />
         </div>
       </div>
 
-      <div className="mt-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="mt-8 flex flex-wrap items-center gap-2 rounded-lg border border-cyber-border bg-cyber-panel/60 p-1">
+        <button
+          onClick={() => setView('evidence')}
+          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === 'evidence' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+        >
+          <Fingerprint size={13} /> {t('investigation.viewEvidence')}
+        </button>
+        <button
+          onClick={() => setView('browser')}
+          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === 'browser' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+        >
+          <Globe2 size={13} /> {t('investigation.viewBrowser')}
+        </button>
+        <button
+          onClick={() => setView('timeline')}
+          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === 'timeline' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+        >
+          <Calendar size={13} /> {t('investigation.viewTimeline')}
+        </button>
+        <button
+          onClick={() => setView('reader')}
+          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === 'reader' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+        >
+          <FileSearch size={13} /> {t('investigation.viewReader')}
+        </button>
+      </div>
+
+      {view === 'browser' ? (
+        <CaseBrowser caseId={investigationCase.id} onArtifactAdded={onArtifactAdded} />
+      ) : view === 'timeline' ? (
+        <EvidenceTimeline artifacts={artifacts} />
+      ) : view === 'reader' ? (
+        <EvidenceReader artifacts={artifacts} entityTerms={entityTerms} />
+      ) : (
+        <>
+      <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 items-center gap-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cyber-text-dim" />
@@ -568,6 +623,7 @@ function CaseWorkspace({
                 <th className="px-4 py-3 font-semibold">Evidence</th>
                 <th className="px-4 py-3 font-semibold">Target URL</th>
                 <th className="px-4 py-3 font-semibold">Integrity Hash</th>
+                <th className="px-4 py-3 font-semibold">{t('reliability.title')}</th>
                 <th className="px-4 py-3 font-semibold">Captured</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -575,7 +631,7 @@ function CaseWorkspace({
             <tbody className="divide-y divide-cyber-border/30">
               {artifacts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-cyber-text-dim">
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm text-cyber-text-dim">
                     {t('investigation.noArtifacts')}
                   </td>
                 </tr>
@@ -596,6 +652,8 @@ function CaseWorkspace({
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -617,6 +675,8 @@ function ArtifactRow({
 }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
+  const reliability = assessReliability(artifact);
+  const reliabilityStyle = RELIABILITY_STYLE[reliability.level];
   return (
     <>
       <tr className="group hover:bg-cyber-cyan/5">
@@ -644,11 +704,22 @@ function ArtifactRow({
             <Hash size={12} /> {artifact.sha512.slice(0, 18)}…
           </span>
         </td>
+        <td className="px-4 py-3">
+          <span
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold ${reliabilityStyle.border} ${reliabilityStyle.bg} ${reliabilityStyle.text}`}
+            title={reliability.checks
+              .map((check) => `${check.ok ? 'OK' : '—'} ${t(check.labelKey)}`)
+              .join('\n')}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${reliabilityStyle.dot}`} />
+            {t(RELIABILITY_LABEL_KEY[reliability.level])} · {reliability.score}%
+          </span>
+        </td>
         <td className="whitespace-nowrap px-4 py-3 text-xs text-cyber-text-dim">{formatDate(artifact.captured_at)}</td>
         <td className="px-4 py-3 text-right">
           <button
             onClick={onDelete}
-            className="rounded-md p-1.5 text-cyber-text-dim opacity-0 transition group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400"
+            className="rounded-md p-1.5 text-cyber-text-dim opacity-0 transition group-hover:opacity-100 hover:bg-red-500/10 hover:text-cyber-red"
             title="Delete artifact"
           >
             <Trash2 size={14} />
@@ -657,7 +728,7 @@ function ArtifactRow({
       </tr>
       {open && (
         <tr>
-          <td colSpan={5} className="bg-cyber-black/40 p-4">
+          <td colSpan={6} className="bg-cyber-black/40 p-4">
             <ArtifactDetail
               artifact={artifact}
               onCaptureModal={onCaptureModal}
@@ -686,12 +757,15 @@ function ArtifactDetail({
   onGenerateCapture: (artifact: EvidenceArtifact) => void;
 }) {
   const { t } = useLanguage();
-  const [tab, setTab] = useState<'preview' | 'html' | 'links' | 'metadata'>('preview');
+  const [tab, setTab] = useState<'preview' | 'text' | 'html' | 'links' | 'metadata'>('preview');
   const [imageIndex, setImageIndex] = useState(0);
   const [notes, setNotes] = useState(artifact.notes);
   const [imageFailed, setImageFailed] = useState(false);
   const [htmlPreviewFailed, setHtmlPreviewFailed] = useState(false);
   const [captureLoading, setCaptureLoading] = useState(false);
+  const [textFilter, setTextFilter] = useState('');
+  const [previewView, setPreviewView] = useState<'page' | 'image'>('page');
+  const [imageFit, setImageFit] = useState<'width' | 'contain'>('width');
 
   useEffect(() => {
     setTab('preview');
@@ -699,7 +773,17 @@ function ArtifactDetail({
     setNotes(artifact.notes);
     setImageFailed(false);
     setHtmlPreviewFailed(false);
+    setTextFilter('');
+    setImageFit('width');
+    setPreviewView(artifactImages(artifact).length > 0 && !isHtmlContent(artifact.raw_html, artifact.content_type) ? 'image' : 'page');
   }, [artifact.id, artifact.raw_html]);
+
+  const extractedText = artifact.extracted_text ?? [];
+  const filteredText = useMemo(() => {
+    const needle = textFilter.trim().toLowerCase();
+    if (!needle) return extractedText;
+    return extractedText.filter((line) => line.toLowerCase().includes(needle));
+  }, [extractedText, textFilter]);
 
   const images = artifactImages(artifact);
   const clampedIndex = Math.min(imageIndex, Math.max(0, images.length - 1));
@@ -715,15 +799,13 @@ function ArtifactDetail({
     [artifact.raw_html, artifact.final_url, artifact.target_url]
   );
   const rawFormatted = useMemo(() => formatRawContent(artifact.raw_html, artifact.content_type), [artifact.raw_html, artifact.content_type]);
-  const fallbackTitle = artifact.title || artifact.final_url || artifact.target_url;
   const protectedTarget = isProtectedTarget(artifact.final_url || artifact.target_url);
-  const target = artifact.final_url || artifact.target_url;
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex rounded-md border border-cyber-border p-0.5">
-          {(['preview', 'html', 'links', 'metadata'] as const).map((item) => (
+          {(['preview', 'text', 'html', 'links', 'metadata'] as const).map((item) => (
             <button
               key={item}
               onClick={() => setTab(item)}
@@ -731,7 +813,11 @@ function ArtifactDetail({
                 tab === item ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              {item === 'links' ? t('investigation.linksTab') : item}
+              {item === 'links'
+                ? t('investigation.linksTab')
+                : item === 'text'
+                  ? `${t('browser.tabText')}${extractedText.length ? ` (${extractedText.length})` : ''}`
+                  : item}
             </button>
           ))}
         </div>
@@ -740,6 +826,16 @@ function ArtifactDetail({
                   className="flex items-center gap-1.5 rounded-lg bg-cyber-cyan px-3 py-2 text-xs font-semibold text-cyber-black hover:bg-cyan-300"
                 >
                   <Plus size={13} /> {t('investigation.captureEvidence')}
+                </button>
+                <button
+                  onClick={() => {
+                    setCaptureLoading(true);
+                    void Promise.resolve(onGenerateCapture(artifact)).finally(() => setCaptureLoading(false));
+                  }}
+                  disabled={captureLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/10 px-3 py-2 text-xs font-semibold text-cyber-cyan transition hover:bg-cyber-cyan/20 disabled:opacity-60"
+                >
+                  {captureLoading ? <Loader size={13} className="animate-spin" /> : <RotateCw size={13} />} {t('investigation.retryCapture')}
                 </button>
                 <a
                   href={artifact.final_url}
@@ -780,95 +876,46 @@ function ArtifactDetail({
       )}
 
       {tab === 'preview' && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(420px,.88fr)]">
-          <div className="overflow-hidden rounded-lg border border-cyber-border bg-white">
-            {protectedTarget && activeImage && !imageFailed ? (
-              <img
-                src={safeImageSource(activeImage)}
-                alt={fallbackTitle}
-                onError={() => setImageFailed(true)}
-                className="h-[460px] w-full object-contain bg-[#080c14]"
-              />
-            ) : protectedTarget ? (
-              <DomSnapshotCard artifact={artifact} />
-            ) : isHtml && !htmlPreviewFailed ? (
-              <PreviewErrorBoundary fallback={<DomSnapshotCard artifact={artifact} />}>
-                <iframe
-                  title="Captured page preview"
-                  sandbox="allow-same-origin"
-                  srcDoc={safeHtml}
-                  onLoad={(event) => {
-                    const body = event.currentTarget.contentDocument?.body;
-                    if (body && !body.textContent?.trim() && body.children.length === 0) setHtmlPreviewFailed(true);
-                  }}
-                  className="h-[460px] w-full"
-                />
-              </PreviewErrorBoundary>
-            ) : (
-              <div className="flex h-[460px] flex-col">
-                <div className="border-b border-cyber-border bg-cyber-dark px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyber-cyan">
-                  {artifact.content_type || 'Raw content'} · {artifact.raw_html.length.toLocaleString('fr-FR')} characters
-                </div>
-                <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words bg-[#080c14] p-5 font-mono text-[12px] leading-6 text-slate-100">
-                  {rawFormatted || t('investigation.noHtml')}
-                </pre>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          {/* ── Visionneuse principale : occupe toute la place disponible ── */}
+          <div className="flex min-h-[480px] flex-col overflow-hidden rounded-lg border border-cyber-border bg-[var(--cyber-black)]">
+            <div className="flex flex-wrap items-center gap-2 border-b border-cyber-border bg-cyber-dark px-3 py-2">
+              <div className="flex rounded-md border border-cyber-border p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPreviewView('page')}
+                  disabled={!isHtml && !rawFormatted}
+                  className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition disabled:opacity-40 ${previewView === 'page' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+                >
+                  {t('investigation.previewPage')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewView('image')}
+                  disabled={images.length === 0}
+                  className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition disabled:opacity-40 ${previewView === 'image' ? 'bg-cyber-cyan/15 text-cyber-cyan' : 'text-cyber-text-dim hover:text-cyber-text'}`}
+                >
+                  {t('investigation.previewImage')}{images.length > 0 ? ` (${images.length})` : ''}
+                </button>
               </div>
-            )}
-          </div>
 
-          <div className="space-y-3">
-            <div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-lg border border-cyber-border bg-[#080c14] p-3">
-              {activeImage && !imageFailed ? (
-                <div className="flex max-h-[640px] w-full items-center justify-center overflow-auto rounded-md bg-white/5">
-                  <img
-                    src={safeImageSource(activeImage)}
-                    alt={`${t('investigation.previewAlt')} ${clampedIndex + 1}`}
-                    onError={() => setImageFailed(true)}
-                    className="block max-h-[620px] w-auto max-w-full object-contain object-center"
-                  />
-                </div>
-              ) : (
-                <div className="flex min-h-[300px] w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-cyber-border/60 bg-cyber-dark/40 p-8 text-center">
-                  <FileText size={28} className="text-cyber-border" />
-                  <div>
-                    <p className="truncate text-sm font-semibold text-cyber-text" title={fallbackTitle}>
-                      {fallbackTitle}
-                    </p>
-                    <p className="mt-1 text-[11px] font-mono text-cyber-text-dim">
-                      HTTP {artifact.http_status || '—'} · {artifact.content_type || t('investigation.rawContent')}
-                    </p>
-                  </div>
-                  <p className="text-sm text-cyber-text-dim">
-                    {imageFailed ? t('investigation.previewError') : 'Visual preview unavailable'}
-                  </p>
-                </div>
+              {previewView === 'image' && activeImage && (
+                <button
+                  type="button"
+                  onClick={() => setImageFit((current) => (current === 'width' ? 'contain' : 'width'))}
+                  className="rounded-md border border-cyber-border px-2.5 py-1 text-[11px] font-semibold text-cyber-text-dim transition hover:border-cyber-cyan/50 hover:text-cyber-cyan"
+                >
+                  {imageFit === 'width' ? t('investigation.fitContain') : t('investigation.fitWidth')}
+                </button>
               )}
 
-              {images.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setImageIndex((current) => (current - 1 + images.length) % images.length)}
-                    className="absolute left-5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-cyber-border bg-cyber-black/90 text-lg text-cyber-text shadow-lg hover:border-cyber-cyan hover:text-cyber-cyan"
-                    aria-label="Previous image"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setImageIndex((current) => (current + 1) % images.length)}
-                    className="absolute right-5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-cyber-border bg-cyber-black/90 text-lg text-cyber-text shadow-lg hover:border-cyber-cyan hover:text-cyber-cyan"
-                    aria-label="Next image"
-                  >
-                    ›
-                  </button>
-                  <span className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-cyber-black/90 px-2.5 py-1 text-[11px] font-mono text-cyber-text">
-                    {clampedIndex + 1} / {images.length}
-                  </span>
-                </>
-              )}
+              <span className="ml-auto truncate font-mono text-[10px] text-cyber-text-dim">
+                {previewView === 'image'
+                  ? `${activeImage ? t('investigation.previewImage') : '—'} · ${clampedIndex + 1}/${images.length || 0}`
+                  : `${artifact.content_type || t('investigation.rawContent')} · ${artifact.raw_html.length.toLocaleString('fr-FR')} ${t('investigation.characters')}`}
+              </span>
 
-              {activeImage && (
+              {previewView === 'image' && activeImage && (
                 <button
                   type="button"
                   onClick={() => {
@@ -876,20 +923,84 @@ function ArtifactDetail({
                     setImageIndex(nextImages.length === 0 ? 0 : Math.min(clampedIndex, nextImages.length - 1));
                     setImageFailed(false);
                     onUpdatePreview(artifact.id, nextImages);
+                    if (nextImages.length === 0) setPreviewView('page');
                   }}
-                  className="absolute right-5 top-5 flex items-center gap-1 rounded-md border border-red-400/40 bg-cyber-black/90 px-2 py-1.5 text-xs font-semibold text-red-300 shadow-lg transition hover:bg-red-500/20"
+                  className="flex items-center gap-1 rounded-md border border-red-400/40 px-2 py-1 text-[11px] font-semibold text-cyber-red transition hover:bg-red-500/20"
                   title={t('investigation.removeImage')}
                 >
-                  <Trash2 size={13} /> {t('investigation.removeImage')}
+                  <Trash2 size={12} /> {t('investigation.removeImage')}
                 </button>
               )}
             </div>
 
-            {/* Bouton "Joindre une image" uniquement */}
-            <div className="flex items-center justify-end gap-3 rounded-lg border border-cyber-border bg-cyber-dark p-3">
-              <label className="cursor-pointer flex items-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black transition hover:bg-cyan-300">
-                <FileText size={13} />
-                Joindre une image
+            <div className="relative flex-1 overflow-auto bg-[var(--cyber-black)]">
+              {previewView === 'image' && activeImage && !imageFailed ? (
+                <img
+                  src={safeImageSource(activeImage)}
+                  alt={`${t('investigation.previewAlt')} ${clampedIndex + 1}`}
+                  onError={() => setImageFailed(true)}
+                  className={imageFit === 'width' ? 'block h-auto w-full' : 'absolute inset-0 h-full w-full object-contain'}
+                />
+              ) : previewView === 'image' ? (
+                <div className="flex h-full min-h-[440px] w-full flex-col items-center justify-center gap-3 p-8 text-center">
+                  <FileText size={28} className="text-cyber-border" />
+                  <p className="text-sm text-cyber-text-dim">
+                    {imageFailed ? t('investigation.previewError') : t('investigation.noPreview')}
+                  </p>
+                </div>
+              ) : protectedTarget && !isHtml ? (
+                <DomSnapshotCard artifact={artifact} />
+              ) : isHtml && !htmlPreviewFailed ? (
+                <PreviewErrorBoundary fallback={<DomSnapshotCard artifact={artifact} />}>
+                  <iframe
+                    title="Captured page preview"
+                    sandbox="allow-same-origin"
+                    srcDoc={safeHtml}
+                    onLoad={(event) => {
+                      const body = event.currentTarget.contentDocument?.body;
+                      if (body && !body.textContent?.trim() && body.children.length === 0) setHtmlPreviewFailed(true);
+                    }}
+                    className="h-full min-h-[480px] w-full bg-white"
+                  />
+                </PreviewErrorBoundary>
+              ) : (
+                <pre className="min-h-[480px] w-full whitespace-pre-wrap break-words p-5 font-mono text-[12px] leading-6 text-slate-100">
+                  {rawFormatted || t('investigation.noHtml')}
+                </pre>
+              )}
+
+              {previewView === 'image' && images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setImageIndex((current) => (current - 1 + images.length) % images.length)}
+                    className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-cyber-border bg-cyber-black/90 text-lg text-cyber-text shadow-lg hover:border-cyber-cyan hover:text-cyber-cyan"
+                    aria-label="Previous image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageIndex((current) => (current + 1) % images.length)}
+                    className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-cyber-border bg-cyber-black/90 text-lg text-cyber-text shadow-lg hover:border-cyber-cyan hover:text-cyber-cyan"
+                    aria-label="Next image"
+                  >
+                    ›
+                  </button>
+                  <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-cyber-black/90 px-2.5 py-1 text-[11px] font-mono text-cyber-text">
+                    {clampedIndex + 1} / {images.length}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Colonne latérale compacte : vignettes, import, empreinte ── */}
+          <div className="space-y-3">
+            <div className="rounded-lg border border-cyber-border bg-cyber-dark p-3">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black transition hover:bg-cyan-300">
+                <Plus size={13} />
+                {t('investigation.attachImage')}
                 <input
                   type="file"
                   accept="image/*"
@@ -899,10 +1010,28 @@ function ArtifactDetail({
                     if (file) {
                       const dataUrl = await readFileAsDataUrl(file);
                       onUpdatePreview(artifact.id, [dataUrl, ...images]);
+                      setImageIndex(0);
+                      setImageFailed(false);
+                      setPreviewView('image');
                     }
+                    e.target.value = '';
                   }}
                 />
               </label>
+              {images.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {images.map((image, index) => (
+                    <button
+                      key={`${index}-${image.slice(-24)}`}
+                      type="button"
+                      onClick={() => { setImageIndex(index); setImageFailed(false); setPreviewView('image'); }}
+                      className={`overflow-hidden rounded-md border transition ${index === clampedIndex && previewView === 'image' ? 'border-cyber-cyan' : 'border-cyber-border hover:border-cyber-cyan/50'}`}
+                    >
+                      <img src={safeImageSource(image)} alt="" className="h-16 w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-cyber-border bg-cyber-dark p-4 text-sm text-cyber-text">
@@ -913,8 +1042,46 @@ function ArtifactDetail({
         </div>
       )}
 
+      {tab === 'text' && (
+        <div className="overflow-hidden rounded-lg border border-cyber-border bg-[var(--cyber-black)]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-cyber-border bg-cyber-dark px-4 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-cyber-cyan">
+              {t('browser.textExtracted')} · {filteredText.length}/{extractedText.length}
+            </span>
+            <div className="relative ml-auto min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyber-text-dim" />
+              <input
+                value={textFilter}
+                onChange={(event) => setTextFilter(event.target.value)}
+                placeholder={t('browser.searchInPage')}
+                className="input-cyber h-8 w-full pl-8 text-xs"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(filteredText.join('\n'))}
+              className="flex items-center gap-1.5 rounded-md border border-cyber-border px-2.5 py-1 text-[11px] text-cyber-text-dim transition hover:border-cyber-cyan/50 hover:text-cyber-cyan"
+            >
+              <Clipboard size={12} /> {t('browser.copyText')}
+            </button>
+          </div>
+          {filteredText.length === 0 ? (
+            <div className="p-8 text-center text-sm text-cyber-text-dim">{t('browser.noText')}</div>
+          ) : (
+            <ol className="max-h-[460px] divide-y divide-cyber-border/30 overflow-auto">
+              {filteredText.map((line, index) => (
+                <li key={`${index}-${line.slice(0, 24)}`} className="flex gap-3 px-4 py-2 hover:bg-cyber-cyan/5">
+                  <span className="w-10 shrink-0 select-none text-right font-mono text-[10px] text-cyber-text-dim">{index + 1}</span>
+                  <span className="break-words text-[13px] leading-6 text-cyber-text">{line}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+
       {tab === 'html' && (
-        <div className="overflow-hidden rounded-lg border border-cyber-border bg-[#080c14]">
+        <div className="overflow-hidden rounded-lg border border-cyber-border bg-[var(--cyber-black)]">
           <div className="border-b border-cyber-border bg-cyber-dark px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyber-cyan">
             HTML source · {artifact.raw_html.length.toLocaleString('fr-FR')} characters
           </div>
@@ -925,7 +1092,7 @@ function ArtifactDetail({
       )}
 
       {tab === 'links' && (
-        <div className="overflow-hidden rounded-lg border border-cyber-border bg-[#080c14]">
+        <div className="overflow-hidden rounded-lg border border-cyber-border bg-[var(--cyber-black)]">
           <div className="border-b border-cyber-border bg-cyber-dark px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyber-cyan">
             {t('investigation.linksTab')} · {artifact.extracted_links.length}
           </div>
@@ -982,7 +1149,7 @@ function ArtifactDetail({
 
 function DomSnapshotCard({ artifact }: { artifact: EvidenceArtifact }) {
   return (
-    <div className="flex h-[460px] flex-col items-center justify-center bg-[#080c14] p-6 text-center">
+    <div className="flex h-[460px] flex-col items-center justify-center bg-[var(--cyber-black)] p-6 text-center">
       <FileText size={32} className="mb-3 text-cyber-cyan" />
       <h3 className="text-sm font-semibold text-cyber-text">{artifact.title || 'Protected Target'}</h3>
       <p className="mt-1 font-mono text-xs text-cyber-text-dim">{artifact.final_url || artifact.target_url}</p>
@@ -1005,6 +1172,6 @@ function CaseForm({ investigationCase, submitLabel, onSubmit }: { investigationC
 
 function Meta({ label, value, icon }: { label: string; value: string; icon: ReactNode }) { return <div className="flex items-center gap-2 text-sm"><span className="text-cyber-cyan">{icon}</span><span><span className="block text-xs uppercase tracking-wider text-cyber-text-dim">{label}</span><span className="block truncate font-medium text-cyber-text">{value}</span></span></div>; }
 function Field({ label, name, placeholder, type = 'text', required = false, textarea = false, defaultValue }: { label: string; name: string; placeholder: string; type?: string; required?: boolean; textarea?: boolean; defaultValue?: string }) { return <label className="block text-sm font-medium text-cyber-text-dim"><span className="mb-1.5 block">{label}</span>{textarea ? <textarea name={name} placeholder={placeholder} defaultValue={defaultValue} required={required} rows={4} className="input-cyber resize-none text-sm leading-6" /> : <input name={name} type={type} placeholder={placeholder} defaultValue={defaultValue} required={required} className="input-cyber h-10 text-sm" />}</label>; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"><div className="w-full max-w-xl rounded-xl border border-cyber-border bg-cyber-dark shadow-2xl"><div className="flex items-center justify-between border-b border-cyber-border px-5 py-4"><h2 className="text-sm font-semibold">{title}</h2><button onClick={onClose} className="text-cyber-text-dim hover:text-cyber-text"><X size={16} /></button></div><div className="p-5">{children}</div></div></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/75 px-4 pb-[104px] pt-6 backdrop-blur-sm"><div className="flex max-h-full w-full max-w-xl flex-col rounded-xl border border-cyber-border bg-cyber-dark shadow-2xl"><div className="flex items-center justify-between border-b border-cyber-border px-5 py-4"><h2 className="text-sm font-semibold">{title}</h2><button onClick={onClose} className="text-cyber-text-dim hover:text-cyber-text"><X size={16} /></button></div><div className="custom-scrollbar overflow-y-auto p-5">{children}</div></div></div>; }
 function LoadingState({ label }: { label: string }) { return <div className="flex items-center justify-center gap-2 p-12 text-sm text-cyber-text-dim"><Loader size={15} className="animate-spin text-cyber-cyan" /> {label}</div>; }
 function EmptyCases({ onCreate }: { onCreate: () => void }) { const { t } = useLanguage(); return <div className="rounded-xl border border-dashed border-cyber-border p-16 text-center"><Archive size={32} className="mx-auto mb-4 text-cyber-border" /><h3 className="text-sm font-semibold">{t('investigation.emptyTitle')}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-cyber-text-dim">{t('investigation.emptyDescription')}</p><button onClick={onCreate} className="mt-5 rounded-lg bg-cyber-cyan px-4 py-2 text-xs font-semibold text-cyber-black">{t('investigation.createFirst')}</button></div>; }

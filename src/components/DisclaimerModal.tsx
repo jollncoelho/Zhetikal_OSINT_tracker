@@ -9,7 +9,7 @@ export default function DisclaimerModal({ onAccept }: DisclaimerModalProps) {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div
         className="relative mx-4 w-full max-w-md rounded-2xl border border-cyber-border bg-cyber-dark shadow-2xl"
-        style={{ boxShadow: '0 0 60px rgba(0,200,212,0.08), 0 25px 50px rgba(0,0,0,0.7)' }}
+        style={{ boxShadow: '0 0 60px rgb(var(--cyber-cyan-dim-rgb) / 0.08), 0 25px 50px rgba(0,0,0,0.7)' }}
       >
         {/* Top accent line */}
         <div className="h-0.5 w-full rounded-t-2xl bg-gradient-to-r from-transparent via-cyber-cyan/60 to-transparent" />
@@ -55,7 +55,7 @@ export default function DisclaimerModal({ onAccept }: DisclaimerModalProps) {
               bg-cyber-cyan/15 border border-cyber-cyan/40 text-cyber-cyan
               hover:bg-cyber-cyan/25 hover:border-cyber-cyan/70
               active:scale-[0.98]"
-            style={{ boxShadow: '0 0 20px rgba(0,200,212,0.15)' }}
+            style={{ boxShadow: '0 0 20px rgb(var(--cyber-cyan-dim-rgb) / 0.15)' }}
           >
             J'accepte les conditions d'utilisation
           </button>

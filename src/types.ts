@@ -277,3 +277,63 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
   ],
 };
 
+/* ------------------------------------------------------------------ *
+ * Liens du graphe : nature de la relation + niveau de confiance.
+ * Stockés dans `edge.data`, ce qui reste rétro-compatible avec les
+ * dossiers existants (données absentes → relation « related », 70 %).
+ * ------------------------------------------------------------------ */
+
+export type RelationType =
+  | 'related'
+  | 'owns'
+  | 'operates'
+  | 'communicates'
+  | 'hosts'
+  | 'uses'
+  | 'member'
+  | 'alias'
+  | 'located'
+  | 'evidence';
+
+export interface RelationData {
+  relation: RelationType;
+  /** Confiance de l'analyste, de 0 à 1. Pilote l'épaisseur de l'arête. */
+  confidence: number;
+}
+
+export const DEFAULT_RELATION: RelationType = 'related';
+export const DEFAULT_CONFIDENCE = 0.7;
+
+/**
+ * Palette des relations. Comme `ENTITY_COLORS`, c'est une **légende** :
+ * la teinte est stable d'un thème à l'autre (assombrie en thème clair
+ * via `entityTone`).
+ */
+export const RELATION_COLORS: Record<RelationType, string> = {
+  related: '#64748b',
+  owns: '#f59e0b',
+  operates: '#0ea5e9',
+  communicates: '#8b5cf6',
+  hosts: '#22d3ee',
+  uses: '#a3e635',
+  member: '#f472b6',
+  alias: '#fb7185',
+  located: '#10b981',
+  evidence: '#ef4444',
+};
+
+export const RELATION_TYPES = Object.keys(RELATION_COLORS) as RelationType[];
+
+/** Normalise `edge.data` en une relation complète et valide. */
+export function readRelation(data: unknown): RelationData {
+  const raw = (data ?? {}) as Partial<RelationData>;
+  const relation =
+    raw.relation && raw.relation in RELATION_COLORS ? raw.relation : DEFAULT_RELATION;
+  const confidence =
+    typeof raw.confidence === 'number' && Number.isFinite(raw.confidence)
+      ? Math.min(1, Math.max(0, raw.confidence))
+      : DEFAULT_CONFIDENCE;
+  return { relation, confidence };
+}
+
+

@@ -31,6 +31,57 @@
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+    <!--
+      Applique le thème mémorisé AVANT le premier rendu, en style inline sur <html>.
+
+      Les palettes sont injectées ici par `themeBootstrapPlugin` (vite.config.ts)
+      à partir de `src/theme/themes.ts` : source unique de vérité, rien à
+      maintenir en double.
+
+      Pourquoi des styles inline plutôt qu'une feuille de style ? Une règle
+      `:root` concurrente arrivée plus tard (feuille périmée restée dans le cache
+      du navigateur, ordre d'injection d'HMR…) écrasait les variables
+      hexadécimales tout en laissant les variantes `-rgb`, ce qui produisait un
+      thème hybride moitié sombre / moitié clair. Un style inline sur <html>
+      gagne sur toute règle non `!important` : le thème ne peut plus être corrompu.
+    -->
+    <script id="zhetikal-theme-data" type="application/json">__ZHETIKAL_THEME_BOOTSTRAP__</script>
+    <script>
+      (function () {
+        try {
+          var node = document.getElementById('zhetikal-theme-data');
+          var palettes = JSON.parse(node ? node.textContent || '[]' : '[]');
+          if (!palettes.length) return;
+
+          var stored = null;
+          try {
+            stored = localStorage.getItem('zhetikal-theme');
+          } catch (e) {
+            /* stockage indisponible : le thème par défaut s'appliquera */
+          }
+
+          var theme = null;
+          for (var i = 0; i < palettes.length; i++) {
+            if (palettes[i].id === stored) {
+              theme = palettes[i];
+              break;
+            }
+          }
+          if (!theme) theme = palettes[0];
+
+          var root = document.documentElement;
+          for (var j = 0; j < theme.tokens.length; j++) {
+            root.style.setProperty(theme.tokens[j][0], theme.tokens[j][1]);
+          }
+          root.style.colorScheme = theme.scheme;
+          root.style.backgroundColor = theme.bg;
+          root.setAttribute('data-theme', theme.id);
+        } catch (e) {
+          /* en cas d'échec, ThemeProvider appliquera le thème au montage */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
