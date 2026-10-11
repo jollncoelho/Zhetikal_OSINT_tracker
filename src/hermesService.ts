@@ -245,8 +245,15 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
 // that aggregates the free tiers of many providers behind a single API key.
 // Any OpenAI client works: just point the base URL at your router and use your key.
 
-export const DEFAULT_FREELLM_BASE_URL = 'http://localhost:3001/v1';
+// The FreeLLMAPI *desktop app* — the install the tutorial tells people to use —
+// listens on 127.0.0.1:31415 (its own `config.json` sets `"port": 31415`). The
+// 3001 default only applies to a standalone / Docker router. Defaulting to 3001
+// made a working desktop install look broken out of the box.
+export const DEFAULT_FREELLM_BASE_URL = 'http://127.0.0.1:31415/v1';
 export const DEFAULT_FREELLM_MODEL = 'deepseek-ai/DeepSeek-V4.1-Flash';
+
+/** Env var the FreeLLMAPI router reads to extend its CORS origin allowlist. */
+export const FREELLM_ORIGINS_ENV = 'DASHBOARD_ORIGINS';
 
 const LS_FREELLM_KEY = 'freellm_api_key';
 const LS_FREELLM_BASE_URL = 'freellm_base_url';
@@ -334,6 +341,145 @@ function getFreeLlmChatUrl(): string {
   return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
 }
 
+// ── Why a loopback router looks "injoignable" ────────────────────────────────
+// The FreeLLMAPI router *does* run a CORS middleware, but behind a strict origin
+// allowlist (see its `server/src/app.ts`):
+//
+//   const DEFAULT_DASHBOARD_ORIGINS = [
+//     'http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173',
+//   ];
+//   const allowedCorsOrigins =
+//     new Set([...DEFAULT_DASHBOARD_ORIGINS, ...cfg.dashboardOrigins]);
+//   app.use(cors({
+//     origin: (origin, cb) => cb(null, !origin || allowedCorsOrigins.has(origin)),
+//   }));
+//
+// The middleware is registered globally, so it covers `/v1/chat/completions`
+// too — but when the calling origin is not in that set it simply *omits*
+// `Access-Control-Allow-Origin`. The browser then throws away the response and
+// `fetch()` rejects with a generic network error, which surfaced here as
+// "FreeLLMAPI est injoignable" while the router was answering perfectly.
+//
+// That explains the whole symptom: it always worked under `npm run dev` (port
+// 5173 is allowlisted by default) and always failed from a hosted origin such as
+// https://tracker.prohacking77.me. Verified against a live router:
+//   Origin: http://localhost:5173        -> Access-Control-Allow-Origin: http://localhost:5173
+//   Origin: https://tracker.prohacking77.me -> (header absent, response unusable)
+//
+// `cfg.dashboardOrigins` is filled from the DASHBOARD_ORIGINS environment
+// variable (comma separated). That is the real fix, and it has to be set on the
+// *visitor's* machine, then the router restarted.
+//
+// As a fallback for users who cannot touch their environment, the Vite
+// dev/preview server exposes `/api/llm`, forwarding to the real address carried
+// by the `x-llm-target` header. Same-origin means there is no CORS to negotiate
+// at all. See `vite-plugin-llm-proxy.ts`. On static hosting that proxy does not
+// exist, so `llmFetch` falls back to a direct call.
+
+/** Path of the same-origin proxy exposed by the Vite plugin. */
+export const LLM_PROXY_PATH = '/api/llm';
+
+/** Header carrying the real target the browser cannot reach directly. */
+const LLM_TARGET_HEADER = 'x-llm-target';
+
+/** Marker set by the proxy; its absence means the plugin is not serving. */
+const LLM_PROXY_MARKER = 'x-llm-proxy';
+
+/** Hosts routed through the proxy instead of being called directly. */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]', '0.0.0.0']);
+
+function isLoopbackUrl(url: string): boolean {
+  try {
+    return LOOPBACK_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the page itself is served from a loopback origin (dev / preview).
+ * When it is not, the router's CORS allowlist is the thing that will bite — so
+ * the UI only shows the DASHBOARD_ORIGINS hint in that case.
+ */
+export function isLoopbackOrigin(): boolean {
+  if (typeof window === 'undefined') return true;
+  return LOOPBACK_HOSTS.has(window.location.hostname);
+}
+
+/**
+ * `fetch` for LLM backends. Loopback targets go through the same-origin proxy so
+ * the browser never negotiates CORS; anything else is called directly. If the
+ * proxy is absent (static hosting of `dist/`, without the Vite plugin) we fall
+ * back to a direct call rather than breaking silently.
+ */
+export async function llmFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  if (typeof window === 'undefined' || !isLoopbackUrl(url)) {
+    return fetch(url, init);
+  }
+
+  const headers = new Headers(init.headers);
+  headers.set(LLM_TARGET_HEADER, url);
+
+  try {
+    const proxied = await fetch(LLM_PROXY_PATH, { ...init, headers });
+    // The marker proves the Vite plugin answered, rather than the SPA fallback.
+    if (proxied.headers.get(LLM_PROXY_MARKER) === '1') return proxied;
+  } catch {
+    // Proxy unreachable — fall through to the direct call below.
+  }
+  return fetch(url, init);
+}
+
+/**
+ * Tell "the router is down" apart from "the browser refused the response".
+ *
+ * A CORS rejection and a refused connection both land in `catch` as the same
+ * opaque `TypeError: Failed to fetch`, so the old message blamed the router even
+ * when it was answering fine. A `no-cors` request is exempt from the origin
+ * policy: if it resolves, *something* answered on that port and the real problem
+ * is the CORS allowlist — exactly what every visitor hit on the public link.
+ */
+async function probeLoopbackReachable(url: string): Promise<boolean> {
+  try {
+    const signal =
+      typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+        ? AbortSignal.timeout(4000)
+        : undefined;
+    await fetch(url, { method: 'POST', mode: 'no-cors', body: '{}', signal });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Actionable "injoignable" message, specialised on the reachability probe. */
+function freeLlmUnreachableError(url: string, reachable: boolean): Error {
+  const lines = [`FreeLLMAPI est injoignable depuis cette page (${url}).`, ''];
+
+  if (reachable) {
+    lines.push(
+      "Le routeur répond bien : c'est le navigateur qui refuse de lire la réponse (CORS).",
+      '',
+      "Le routeur FreeLLMAPI n'autorise que les origines de sa liste (par défaut localhost:5173).",
+      `Déclare l'origine de cette page dans la variable d'environnement ${FREELLM_ORIGINS_ENV},`,
+      "puis RELANCE FreeLLMAPI — la variable n'est lue qu'au démarrage :",
+      '',
+      '  • Windows      : setx DASHBOARD_ORIGINS "https://ton-domaine.tld"',
+      '  • macOS/Linux  : export DASHBOARD_ORIGINS="https://ton-domaine.tld"',
+      '',
+      'Plusieurs origines : sépare-les par des virgules.'
+    );
+  } else {
+    lines.push(
+      "Aucune réponse sur ce port. Vérifie que le routeur est démarré et que l'URL de base",
+      'est celle de « Copy base URL » dans l\'application FreeLLMAPI',
+      '(app de bureau : http://127.0.0.1:31415/v1 — auto-hébergé : http://localhost:3001/v1).'
+    );
+  }
+
+  return new Error(lines.join('\n'));
+}
+
 /**
  * FreeLLMAPI is a self-hosted router. A very common mistake is to point the base
  * URL at the marketing site (https://freellmapi.co) instead of at a running
@@ -409,7 +555,7 @@ async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, ana
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await llmFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -417,12 +563,8 @@ async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, ana
       },
       body: JSON.stringify(payload),
     });
-  } catch (err) {
-    throw new Error(
-      `FreeLLMAPI est injoignable (${url}).\n\n` +
-        `Vérifie que ton routeur FreeLLMAPI est bien démarré et que l'URL de base est correcte ` +
-        `(par défaut : http://localhost:3001/v1).`
-    );
+  } catch {
+    throw freeLlmUnreachableError(url, await probeLoopbackReachable(url));
   }
 
   if (!response.ok) {
@@ -497,12 +639,12 @@ export async function fetchFreeLlmModels(): Promise<string[]> {
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await llmFetch(url, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${key}` },
     });
   } catch {
-    throw new Error(`Impossible de joindre le routeur FreeLLMAPI (${url}).`);
+    throw freeLlmUnreachableError(url, await probeLoopbackReachable(url));
   }
 
   if (!response.ok) {
@@ -526,7 +668,7 @@ export async function checkFreeLlm(): Promise<boolean> {
   const key = getFreeLlmKey();
   if (!key) return false;
   try {
-    const res = await fetch(getFreeLlmChatUrl(), {
+    const res = await llmFetch(getFreeLlmChatUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
       body: JSON.stringify(buildFreeLlmPayload([{ role: 'user', content: 'ping' }], { max_tokens: 1 })),

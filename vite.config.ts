@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { localCapturePlugin } from './vite-plugin-local-capture';
+import { llmProxyPlugin } from './vite-plugin-llm-proxy';
 import { themeBootstrapData, THEME_BOOTSTRAP_PLACEHOLDER } from './src/theme/themes';
 
 /**
@@ -24,7 +25,7 @@ function themeBootstrapPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [localCapturePlugin(), themeBootstrapPlugin(), react()],
+  plugins: [localCapturePlugin(), llmProxyPlugin(), themeBootstrapPlugin(), react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
   },

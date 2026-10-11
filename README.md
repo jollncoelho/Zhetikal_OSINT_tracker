@@ -65,7 +65,7 @@ Propulsé par **Ollama**, ce mode fonctionne en isolation totale, sans connexion
 ### 2. Mode Avancé (Puissance Augmentée) 🚀
 Propulsé par **FreeLLMAPI** ([freellmapi.co](https://freellmapi.co)), un routeur open-source qui agrège les paliers gratuits de dizaines de fournisseurs derrière un seul endpoint compatible OpenAI.
 
-> ⚠️ **Important : FreeLLMAPI n'est pas un service hébergé.** `freellmapi.co` est le site vitrine : il ne fournit pas d'API d'inférence. Vous devez faire tourner le routeur vous-même (application de bureau Windows, Docker ou Node.js), puis renseigner son adresse dans le champ **URL de base** de la barre d'analyse (par défaut `http://localhost:3001/v1`), avec la clé API créée dans le tableau de bord du routeur.
+> ⚠️ **Important : FreeLLMAPI n'est pas un service hébergé.** `freellmapi.co` est le site vitrine : il ne fournit pas d'API d'inférence. Vous devez faire tourner le routeur vous-même (application de bureau Windows, Docker ou Node.js), puis renseigner son adresse dans le champ **URL de base** de la barre d'analyse (l'application de bureau écoute sur `http://127.0.0.1:31415/v1`, c'est la valeur par défaut du champ ; un routeur Docker/Node autonome utilise `http://localhost:3001/v1`), avec la clé API créée dans le tableau de bord du routeur.
 
 Renseignez la **clé API**, l'**URL de base** de votre routeur et le **modèle** souhaité directement dans la barre d'analyse pour enrichir votre dossier avec des suggestions d'entités avancées à injecter.
 
@@ -80,6 +80,43 @@ Renseignez la **clé API**, l'**URL de base** de votre routeur et le **modèle**
 6. Dans Ghostint Tracker, sélectionnez **Avancé (FreeLLMAPI)**, collez l'URL de base et la clé, puis vérifiez que le voyant passe au vert.
 
 > 💡 L'URL de base doit se terminer par **`/v1`**. Sans le `/v1`, le routeur renvoie la page HTML de son interface web, ce qui provoque une erreur JSON.
+
+#### ⚠️ Ouvrir Ghostint Tracker depuis un site hébergé (`https://…`) — l'étape CORS
+
+**Symptôme :** le mode Local (Ollama) fonctionne, mais le mode Avancé affiche « **FreeLLMAPI est injoignable** » alors que le routeur tourne et répond (`curl` fonctionne). Le voyant reste rouge.
+
+**Cause :** le routeur FreeLLMAPI applique une **liste blanche d'origines CORS**. Par défaut, cette liste ne contient que les ports de développement :
+
+```
+http://localhost:5173   http://127.0.0.1:5173   http://[::1]:5173
+```
+
+Quand la page qui appelle le routeur ne fait pas partie de cette liste, le routeur **n'envoie aucun en-tête `Access-Control-Allow-Origin`** et le navigateur jette la réponse. JavaScript ne voit alors qu'une erreur réseau générique — d'où le message trompeur « injoignable ». C'est pour cela que tout marchait en `npm run dev` (port 5173 autorisé) et que rien ne passait depuis `https://tracker.prohacking77.me`.
+
+**Correction :** déclarez l'origine de votre site dans la variable d'environnement `DASHBOARD_ORIGINS`, puis **relancez le routeur** (la variable n'est lue qu'au démarrage).
+
+```bash
+# Windows (PowerShell ou cmd) — persistant, vaut pour tous les lancements suivants
+setx DASHBOARD_ORIGINS "https://tracker.prohacking77.me"
+
+# macOS / Linux — avant de lancer le routeur
+export DASHBOARD_ORIGINS="https://tracker.prohacking77.me"
+```
+
+Plusieurs origines se séparent par des virgules : `"https://tracker.prohacking77.me,https://www.prohacking77.me"`.
+
+Ensuite, **quittez complètement FreeLLMAPI** (icône de la zone de notification → *Quit*, pas seulement fermer la fenêtre) et relancez-le. Vérification :
+
+```bash
+curl -i -X OPTIONS http://127.0.0.1:31415/v1/chat/completions \
+  -H "Origin: https://tracker.prohacking77.me" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type,authorization"
+```
+
+La réponse doit contenir `Access-Control-Allow-Origin: https://tracker.prohacking77.me`. Si cet en-tête est absent, le navigateur bloquera — quoi que fasse l'application.
+
+> ℹ️ Cette variable se règle **sur la machine de chaque utilisateur**, pas sur le serveur qui héberge l'application : c'est le navigateur du visiteur qui contrôle l'accès à son propre routeur local. Pensez à le mentionner dans le tutoriel vidéo.
 
 #### Mode Auto (recommandé)
 Par défaut, Ghostint Tracker n'envoie **aucun nom de modèle** : le routeur choisit lui-même lequel utiliser et **bascule automatiquement** vers le suivant lorsqu'un quota gratuit est épuisé (mécanisme de « Fallback Chain » de FreeLLMAPI). Vous n'avez donc rien à connaître des noms de modèles, et l'analyse ne casse pas quand un fournisseur atteint sa limite.

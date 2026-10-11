@@ -17,6 +17,7 @@ import {
   getFreeLlmAuto,
   setFreeLlmAuto,
   fetchFreeLlmModels,
+  isLoopbackOrigin,
   DEFAULT_FREELLM_BASE_URL,
   DEFAULT_FREELLM_MODEL,
 } from '../hermesService';
@@ -591,6 +592,13 @@ export const HermesAnalyzer: React.FC = () => {
               <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.4 }}>
                 {t('analyzer.baseUrlHint')}
               </span>
+              {/* Only meaningful when the app itself is served from a hosted
+                  origin — that is when the router's CORS allowlist blocks us. */}
+              {!isLoopbackOrigin() && (
+                <span style={{ fontSize: 9, color: 'var(--cyber-orange)', lineHeight: 1.45 }}>
+                  {t('analyzer.originsHint')}
+                </span>
+              )}
             </div>
             {/* Auto mode — let the router pick and fail over between models */}
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
