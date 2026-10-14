@@ -250,7 +250,16 @@ async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analy
 // 3001 default only applies to a standalone / Docker router. Defaulting to 3001
 // made a working desktop install look broken out of the box.
 export const DEFAULT_FREELLM_BASE_URL = 'http://127.0.0.1:31415/v1';
-export const DEFAULT_FREELLM_MODEL = 'deepseek-ai/DeepSeek-V4.1-Flash';
+
+// `auto` is a real id in the router's catalogue and means "pick for me, and
+// fail over when a free tier runs out" — the same thing the Auto checkbox asks
+// for. The previous default named a model the catalogue does not contain
+// (`deepseek-ai/DeepSeek-V4.1-Flash`; the real ids are `deepseek-v4-flash`,
+// `deepseek-v4-flash-0731`, `deepseek-v4-pro`), so with Auto unchecked and the
+// field left empty every analysis failed with a 400 that read like a bug in
+// the app. `isFreeLlmAutoEffective()` already treats `auto` as auto mode, so
+// this default sends no `model` field at all.
+export const DEFAULT_FREELLM_MODEL = 'auto';
 
 /** Env var the FreeLLMAPI router reads to extend its CORS origin allowlist. */
 export const FREELLM_ORIGINS_ENV = 'DASHBOARD_ORIGINS';

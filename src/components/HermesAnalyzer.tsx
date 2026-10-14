@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle } from 'lucide-react';
+import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle, PlugZap } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import {
   runAnalysis,
@@ -39,6 +39,7 @@ export const HermesAnalyzer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<ServiceStatus>('unknown');
   const [freeLlmStatus, setFreeLlmStatus] = useState<ServiceStatus>('unknown');
+  const [checking, setChecking] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);
 
@@ -60,12 +61,38 @@ export const HermesAnalyzer: React.FC = () => {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const { t } = useLanguage();
 
+  /**
+   * Both backends live on 127.0.0.1. Chrome 138+ refuses a loopback request
+   * that carries no user activation — and a silent refusal sticks to the
+   * origin. Probing automatically on mount therefore does two bad things: it
+   * paints a perfectly healthy router red, and it can burn the local-network
+   * permission before the user has clicked anything. On a hosted origin the
+   * indicator stays grey and we wait for the explicit "Test connection"
+   * button below — its click *is* the user activation Chrome wants.
+   */
   useEffect(() => {
+    if (!isLoopbackOrigin()) {
+      setOllamaStatus('unknown');
+      setFreeLlmStatus('unknown');
+      return;
+    }
     Promise.all([checkOllama(), checkFreeLlm()]).then(([ollama, freeLlm]) => {
       setOllamaStatus(ollama ? 'up' : 'down');
       setFreeLlmStatus(freeLlm ? 'up' : 'down');
     });
   }, [savedKey]);
+
+  /** User-initiated probe — the only kind that can succeed on a hosted origin. */
+  const runChecks = async () => {
+    setChecking(true);
+    try {
+      const [ollama, freeLlm] = await Promise.all([checkOllama(), checkFreeLlm()]);
+      setOllamaStatus(ollama ? 'up' : 'down');
+      setFreeLlmStatus(freeLlm ? 'up' : 'down');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const handleSaveKey = () => {
     const trimmed = keyInput.trim();
@@ -608,6 +635,34 @@ export const HermesAnalyzer: React.FC = () => {
                   {t('analyzer.originsHint')}
                 </span>
               )}
+            </div>
+
+            {/* Explicit, user-initiated probe. On a hosted origin this is the
+                only moment Chrome will consider granting local network access:
+                a request fired on mount carries no user activation and is
+                refused, which used to leave the status dot permanently red. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <button
+                onClick={runChecks}
+                disabled={checking}
+                style={{
+                  alignSelf: 'flex-start',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 10px', borderRadius: 7,
+                  background: 'rgb(var(--cyber-cyan-rgb) / 0.15)',
+                  border: '1px solid rgb(var(--cyber-cyan-rgb) / 0.4)',
+                  color: 'var(--cyber-cyan)',
+                  fontSize: 10, fontWeight: 700,
+                  cursor: checking ? 'wait' : 'pointer',
+                  opacity: checking ? 0.6 : 1,
+                }}
+              >
+                <PlugZap size={11} />
+                {checking ? t('analyzer.testing') : t('analyzer.testConnection')}
+              </button>
+              <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
+                {t('analyzer.testConnectionHint')}
+              </span>
             </div>
             {/* Auto mode — let the router pick and fail over between models */}
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
