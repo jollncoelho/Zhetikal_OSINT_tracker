@@ -81,11 +81,29 @@ Renseignez la **clé API**, l'**URL de base** de votre routeur et le **modèle**
 
 > 💡 L'URL de base doit se terminer par **`/v1`**. Sans le `/v1`, le routeur renvoie la page HTML de son interface web, ce qui provoque une erreur JSON.
 
-#### ⚠️ Ouvrir Ghostint Tracker depuis un site hébergé (`https://…`) — l'étape CORS
+#### ⚠️ Ouvrir Ghostint Tracker depuis un site hébergé (`https://…`) — les deux autorisations
 
-**Symptôme :** le mode Local (Ollama) fonctionne, mais le mode Avancé affiche « **FreeLLMAPI est injoignable** » alors que le routeur tourne et répond (`curl` fonctionne). Le voyant reste rouge.
+**Symptôme :** le mode Avancé affiche « **FreeLLMAPI est injoignable** » alors que le routeur tourne et répond (`curl` fonctionne). Le voyant reste rouge.
 
-**Cause :** le routeur FreeLLMAPI applique une **liste blanche d'origines CORS**. Par défaut, cette liste ne contient que les ports de développement :
+Depuis un site hébergé, **deux verrous indépendants** peuvent bloquer l'accès à un backend local — Ollama **comme** FreeLLMAPI. Les deux se règlent une seule fois, **sur la machine de l'utilisateur**.
+
+##### Verrou 1 — l'autorisation du navigateur (« Local Network Access »)
+
+Chrome 138 et suivants interdisent à une page servie en `https://` de joindre `127.0.0.1` sans l'accord explicite de l'utilisateur. Sans cet accord, la requête échoue **avant même de partir** :
+
+```
+Access to fetch at 'http://127.0.0.1:31415/…' from origin 'https://…'
+has been blocked by CORS policy: Permission was denied for this request
+to access the `loopback` address space.
+```
+
+→ À la première analyse, Chrome demande **« Accéder aux appareils de votre réseau local ? »** : répondez **Autoriser**. Le réglage se modifie ensuite dans `chrome://settings/content/localNetworkAccess`.
+
+> ⚠️ Ce verrou frappe **aussi Ollama**. Si Ollama semblait fonctionner, c'est qu'il était testé avec un navigateur plus ancien — avec Chrome 155, les deux sont concernés.
+
+##### Verrou 2 — la liste blanche du routeur FreeLLMAPI
+
+Le routeur applique une **liste blanche d'origines CORS**. Par défaut, cette liste ne contient que les ports de développement :
 
 ```
 http://localhost:5173   http://127.0.0.1:5173   http://[::1]:5173
@@ -116,7 +134,9 @@ curl -i -X OPTIONS http://127.0.0.1:31415/v1/chat/completions \
 
 La réponse doit contenir `Access-Control-Allow-Origin: https://tracker.prohacking77.me`. Si cet en-tête est absent, le navigateur bloquera — quoi que fasse l'application.
 
-> ℹ️ Cette variable se règle **sur la machine de chaque utilisateur**, pas sur le serveur qui héberge l'application : c'est le navigateur du visiteur qui contrôle l'accès à son propre routeur local. Pensez à le mentionner dans le tutoriel vidéo.
+> ℹ️ Cette variable se règle **sur la machine de chaque utilisateur**, pas sur le serveur qui héberge l'application : c'est le navigateur du visiteur qui contrôle l'accès à son propre routeur local. Pensez à mentionner **les deux verrous** dans le tutoriel vidéo — l'autorisation « réseau local » de Chrome d'abord, `DASHBOARD_ORIGINS` ensuite.
+>
+> 💡 **Aucune de ces deux étapes n'est nécessaire avec un fournisseur hébergé.** Le panneau Avancé accepte n'importe quelle URL compatible OpenAI : `https://openrouter.ai/api/v1`, `https://api.groq.com/openai/v1`, `https://api.deepseek.com/v1`, `https://api.mistral.ai/v1`, `https://api.together.xyz/v1`… Ces services renvoient des en-têtes CORS corrects, donc l'appel fonctionne depuis le site public **sans rien installer**. C'est le modèle « je colle une clé et ça marche », celui d'Hermes à l'époque.
 
 #### Mode Auto (recommandé)
 Par défaut, Ghostint Tracker n'envoie **aucun nom de modèle** : le routeur choisit lui-même lequel utiliser et **bascule automatiquement** vers le suivant lorsqu'un quota gratuit est épuisé (mécanisme de « Fallback Chain » de FreeLLMAPI). Vous n'avez donc rien à connaître des noms de modèles, et l'analyse ne casse pas quand un fournisseur atteint sa limite.

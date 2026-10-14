@@ -471,9 +471,16 @@ function freeLlmUnreachableError(url: string, reachable: boolean): Error {
     );
   } else {
     lines.push(
-      "Aucune réponse sur ce port. Vérifie que le routeur est démarré et que l'URL de base",
-      'est celle de « Copy base URL » dans l\'application FreeLLMAPI',
-      '(app de bureau : http://127.0.0.1:31415/v1 — auto-hébergé : http://localhost:3001/v1).'
+      'Aucune réponse sur ce port. Deux causes possibles :',
+      '',
+      "1. Le routeur n'est pas démarré. Lance FreeLLMAPI et vérifie que l'URL de base",
+      '   est celle de « Copy base URL » (app de bureau : http://127.0.0.1:31415/v1 —',
+      '   auto-hébergé : http://localhost:3001/v1).',
+      '',
+      '2. Chrome a bloqué la requête avant qu\'elle parte. Depuis Chrome 138, un site',
+      '   public doit obtenir ton accord pour joindre 127.0.0.1 : réponds « Autoriser »',
+      '   à l\'invite « Accéder aux appareils de votre réseau local ». Ce blocage frappe',
+      '   aussi Ollama. Vérifie aussi tes extensions et ton VPN.'
     );
   }
 

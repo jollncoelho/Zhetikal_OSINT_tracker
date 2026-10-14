@@ -593,9 +593,12 @@ export const HermesAnalyzer: React.FC = () => {
                 {t('analyzer.baseUrlHint')}
               </span>
               {/* Only meaningful when the app itself is served from a hosted
-                  origin — that is when the router's CORS allowlist blocks us. */}
+                  origin — that is when the router's CORS allowlist blocks us.
+                  Deliberately styled as plain info, not a warning: this is a
+                  one-time setup, and showing it in alert colours made people
+                  believe the mode could never work. */}
               {!isLoopbackOrigin() && (
-                <span style={{ fontSize: 9, color: 'var(--cyber-orange)', lineHeight: 1.45 }}>
+                <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
                   {t('analyzer.originsHint')}
                 </span>
               )}

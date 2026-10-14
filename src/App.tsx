@@ -409,7 +409,11 @@ function AppInner() {
     },
     {
       id: 'home',
-      label: 'prohacking77.me',
+      // Icon-only entry. The domain used to be printed here, which put the
+      // personal site's name in every screenshot of the tool — keep the house,
+      // drop the text (the tooltip still says where it goes).
+      label: '',
+      title: t('header.home'),
       icon: Home,
       href: 'https://prohacking77.me',
     },

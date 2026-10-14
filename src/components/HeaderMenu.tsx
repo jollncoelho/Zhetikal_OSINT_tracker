@@ -4,7 +4,10 @@ import { Check, ChevronDown } from 'lucide-react';
 
 export interface HeaderMenuItem {
   id: string;
+  /** Visible text. Leave empty to render the icon alone. */
   label: string;
+  /** Tooltip — falls back to `label`. Needed for icon-only entries. */
+  title?: string;
   icon: LucideIcon;
   /** Action interne. */
   onClick?: () => void;
@@ -68,7 +71,7 @@ export default function HeaderMenu({ label, title, icon: TriggerIcon, items, ali
             const content = (
               <>
                 <Icon size={13} className="flex-shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.label && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                 {item.active && <Check size={12} className="flex-shrink-0" />}
               </>
             );
@@ -76,11 +79,22 @@ export default function HeaderMenu({ label, title, icon: TriggerIcon, items, ali
               <div key={item.id}>
                 {item.separatorBefore && <div className="my-1 h-px bg-cyber-border" />}
                 {item.href ? (
-                  <a href={item.href} target="_blank" rel="noopener noreferrer" className={className} onClick={() => setOpen(false)}>
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={item.title ?? item.label}
+                    className={className}
+                    onClick={() => setOpen(false)}
+                  >
                     {content}
                   </a>
                 ) : (
-                  <button className={className} onClick={() => { setOpen(false); item.onClick?.(); }}>
+                  <button
+                    className={className}
+                    title={item.title ?? item.label}
+                    onClick={() => { setOpen(false); item.onClick?.(); }}
+                  >
                     {content}
                   </button>
                 )}
