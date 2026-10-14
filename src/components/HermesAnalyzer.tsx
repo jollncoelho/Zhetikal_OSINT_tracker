@@ -274,10 +274,30 @@ export const HermesAnalyzer: React.FC = () => {
     ? discovery.entities.filter((e) => e.label && !existingLabels.has(e.label.trim().toLowerCase()))
     : [];
 
+  /**
+   * The dot has three states, and the grey one is the one people misread: on a
+   * hosted origin nothing is probed automatically, so grey means "not tested
+   * yet", not "down". Spell that out in a tooltip — a silent grey dot next to
+   * "Local (Ollama)" reads as "Ollama broke".
+   */
   const statusDot = (status: ServiceStatus) => {
-    if (status === 'up') return <span style={{ color: 'var(--cyber-green)', fontSize: 10 }}>&#9679;</span>;
-    if (status === 'down') return <span style={{ color: 'var(--cyber-red)', fontSize: 10 }}>&#9679;</span>;
-    return <span style={{ color: 'var(--cyber-text-dim)', fontSize: 10 }}>&#9679;</span>;
+    const label =
+      status === 'up'
+        ? t('analyzer.statusUp')
+        : status === 'down'
+          ? t('analyzer.statusDown')
+          : t('analyzer.statusUnknown');
+    const color =
+      status === 'up'
+        ? 'var(--cyber-green)'
+        : status === 'down'
+          ? 'var(--cyber-red)'
+          : 'var(--cyber-text-dim)';
+    return (
+      <span title={label} style={{ color, fontSize: 10, cursor: 'help' }}>
+        &#9679;
+      </span>
+    );
   };
 
   return (
