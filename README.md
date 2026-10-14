@@ -81,6 +81,21 @@ Renseignez la **clé API**, l'**URL de base** de votre routeur et le **modèle**
 
 > 💡 L'URL de base doit se terminer par **`/v1`**. Sans le `/v1`, le routeur renvoie la page HTML de son interface web, ce qui provoque une erreur JSON.
 
+> 🔑 **La clé et l'URL de base vont par paire — c'est le piège le plus fréquent.** Les deux champs décrivent *le même service* ; une clé n'a aucune valeur ailleurs :
+>
+> | URL de base | Clé à coller |
+> |---|---|
+> | `http://127.0.0.1:31415/v1` — **ton** routeur FreeLLMAPI | la **Unified key** de FreeLLMAPI |
+> | `https://openrouter.ai/api/v1` | ta clé **OpenRouter** |
+> | `https://api.groq.com/openai/v1` | ta clé **Groq** |
+> | `https://api.deepseek.com/v1` | ta clé **DeepSeek** |
+> | `https://api.mistral.ai/v1` | ta clé **Mistral** |
+> | `https://api.together.xyz/v1` | ta clé **Together** |
+>
+> **La Unified key de FreeLLMAPI ne vaut que pour ton propre routeur.** FreeLLMAPI n'héberge aucune API d'inférence : `freellmapi.co` est le site vitrine et `api.freellmapi.co` ne sert que le catalogue de modèles (vérifié : `/v1/models` et `/v1/chat/completions` y répondent `404`). Cette clé est donc inutilisable depuis un autre poste, et inutilisable depuis Internet.
+>
+> **À l'inverse, une clé de fournisseur ne vaut que pour son fournisseur** — mais elle fonctionne **depuis le site public, sans rien installer** et sans les deux autorisations décrites ci-dessous : ces services renvoient des en-têtes CORS corrects. C'est la voie la plus simple pour un visiteur.
+
 #### ⚠️ Ouvrir Ghostint Tracker depuis un site hébergé (`https://…`) — les deux autorisations
 
 **Symptôme :** le mode Avancé affiche « **FreeLLMAPI est injoignable** » alors que le routeur tourne et répond (`curl` fonctionne). Le voyant reste rouge.

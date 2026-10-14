@@ -592,6 +592,12 @@ export const HermesAnalyzer: React.FC = () => {
               <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.4 }}>
                 {t('analyzer.baseUrlHint')}
               </span>
+              {/* The most common misunderstanding: the key and the URL must
+                  belong to the same service. A FreeLLMAPI key is useless
+                  against a hosted provider, and vice versa. */}
+              <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
+                {t('analyzer.keyMatchesUrl')}
+              </span>
               {/* Only meaningful when the app itself is served from a hosted
                   origin — that is when the router's CORS allowlist blocks us.
                   Deliberately styled as plain info, not a warning: this is a
