@@ -673,6 +673,14 @@ export const HermesAnalyzer: React.FC = () => {
                   >
                     {typeof window !== 'undefined' ? window.location.origin : ''}
                   </code>
+                  {/* Some Chromium forks never surface the prompt: Comet 143
+                      refuses the request outright (its console says "unknown
+                      address space", not "loopback") and asks nothing. So
+                      "answer Allow" is not actionable there — give the manual
+                      route, which is a one-time setting and survives restarts. */}
+                  <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
+                    {t('analyzer.permissionManual')}
+                  </span>
                 </>
               )}
             </div>

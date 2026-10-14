@@ -112,6 +112,26 @@ to access the `loopback` address space.
 
 > ⚠️ Ce verrou frappe **aussi Ollama**. Si Ollama semblait fonctionner, c'est qu'il était testé avec un navigateur plus ancien — avec Chrome 155, les deux sont concernés.
 
+##### Si le navigateur ne demande jamais rien (cas de Comet)
+
+Certains navigateurs à base de Chromium **n'affichent pas l'invite** : la requête est refusée en silence, et le message parle d'`unknown` au lieu de `loopback` — signe que le verrou est bien là mais qu'aucune fenêtre ne s'ouvrira jamais :
+
+```
+has been blocked by CORS policy: Permission was denied for this request
+to access the `unknown` address space.
+```
+
+**Comet 143** est dans ce cas. Le réglage existe pourtant, il faut simplement **autoriser le site à la main**. C'est un réglage unique, et **il survit aux redémarrages du navigateur** :
+
+1. Paramètres → **Confidentialité et sécurité** → **Accès au réseau local**
+   (ou `chrome://settings/content/localNetworkAccess`) ;
+2. dans **« Autorisés à se connecter à n'importe quel appareil sur votre réseau local »**, cliquez **Ajouter** ;
+3. collez l'origine **exacte** de la page, par exemple `https://tracker.query-intel.com`.
+
+Vérifié en pilotant Comet : avec ce réglage, la requête atteint le routeur (`401` sans clé, `200` avec), et cela **tient après redémarrage**.
+
+> À l'inverse, **Brave 155 n'applique pas ce verrou** : la requête de bouclage passe directement. Le navigateur change donc le résultat — si l'IA marche dans l'un et pas dans l'autre, c'est exactement ici qu'il faut regarder.
+
 ##### Verrou 2 — la liste blanche du routeur FreeLLMAPI
 
 Le routeur applique une **liste blanche d'origines CORS**. Par défaut, cette liste ne contient que les ports de développement :
