@@ -631,9 +631,29 @@ export const HermesAnalyzer: React.FC = () => {
                   one-time setup, and showing it in alert colours made people
                   believe the mode could never work. */}
               {!isLoopbackOrigin() && (
-                <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
-                  {t('analyzer.originsHint')}
-                </span>
+                <>
+                  <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
+                    {t('analyzer.originsHint')}
+                  </span>
+                  {/* The origin to declare, spelled out. The same deployment is
+                      often reachable under several domains, and only the one in
+                      the address bar counts — declaring the wrong one is the
+                      easiest mistake to make and the hardest to see. */}
+                  <span style={{ fontSize: 9, color: 'var(--cyber-text-dim)', lineHeight: 1.45 }}>
+                    {t('analyzer.yourOrigin')}
+                  </span>
+                  <code
+                    style={{
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: 'var(--cyber-cyan)',
+                      userSelect: 'all',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {typeof window !== 'undefined' ? window.location.origin : ''}
+                  </code>
+                </>
               )}
             </div>
 

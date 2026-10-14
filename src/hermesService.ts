@@ -463,20 +463,37 @@ async function probeLoopbackReachable(url: string): Promise<boolean> {
 
 /** Actionable "injoignable" message, specialised on the reachability probe. */
 function freeLlmUnreachableError(url: string, reachable: boolean): Error {
-  const lines = [`FreeLLMAPI est injoignable depuis cette page (${url}).`, ''];
+  // The page's own origin is what the router's allowlist has to contain — and
+  // it is the one thing nobody can guess, because the same deployment is often
+  // reachable under several domains. Print it ready to paste, rather than a
+  // placeholder that sent people off to declare the wrong one.
+  const origin =
+    typeof window !== 'undefined' && window.location ? window.location.origin : 'https://ton-domaine.tld';
+  const lines = [
+    `FreeLLMAPI est injoignable depuis cette page (${url}).`,
+    '',
+    `Origine de cette page : ${origin}`,
+    '',
+  ];
 
   if (reachable) {
     lines.push(
       "Le routeur répond bien : c'est le navigateur qui refuse de lire la réponse (CORS).",
       '',
-      "Le routeur FreeLLMAPI n'autorise que les origines de sa liste (par défaut localhost:5173).",
-      `Déclare l'origine de cette page dans la variable d'environnement ${FREELLM_ORIGINS_ENV},`,
-      "puis RELANCE FreeLLMAPI — la variable n'est lue qu'au démarrage :",
+      "Le routeur FreeLLMAPI n'autorise que les origines de sa liste (par défaut localhost:5173),",
+      "et celle de cette page n'en fait pas partie.",
       '',
-      '  • Windows      : setx DASHBOARD_ORIGINS "https://ton-domaine.tld"',
-      '  • macOS/Linux  : export DASHBOARD_ORIGINS="https://ton-domaine.tld"',
+      `Ajoute-la à ${FREELLM_ORIGINS_ENV}, puis RELANCE FreeLLMAPI (la variable n'est lue`,
+      "qu'au démarrage) :",
       '',
-      'Plusieurs origines : sépare-les par des virgules.'
+      `  • Windows      : setx DASHBOARD_ORIGINS "${origin}"`,
+      `  • macOS/Linux  : export DASHBOARD_ORIGINS="${origin}"`,
+      '',
+      'Plusieurs origines : sépare-les par des virgules.',
+      '',
+      "⚠️ Vérifie que c'est bien CETTE adresse que tu as déclarée : un même site peut",
+      "être servi sous plusieurs domaines, et seul celui de la barre d'adresse compte.",
+      "Une origine déclarée pour tracker.exemple.com n'ouvre rien pour tracker.autre.tld."
     );
   } else {
     lines.push(
