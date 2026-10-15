@@ -6,7 +6,7 @@ import { ENTITY_FIELDS, ENTITY_LABELS, ENTITY_COLORS } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import IconPicker from './IconPicker';
 
-const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
+const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
 
 interface Props {
   nodeId: string;

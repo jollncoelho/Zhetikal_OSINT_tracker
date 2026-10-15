@@ -31,7 +31,7 @@ import type { Edge } from '@xyflow/react';
 
 /** Outil externe de projection satellite — mis en avant directement dans l'en-tête. */
 const GODSEYE_URL =
-  import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
+  import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
 
 function AppInner() {
   const {
@@ -415,7 +415,7 @@ function AppInner() {
       label: '',
       title: t('header.home'),
       icon: Home,
-      href: 'https://prohacking77.me',
+      href: 'https://query-intel.com',
     },
   ];
 

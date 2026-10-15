@@ -24,7 +24,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp'];
 const LINK_TYPES = ['url', 'domain', 'hostname'];
 
-const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.prohacking77.me';
+const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
 
 function extractCoords(data: EntityData): { lat: number; lon: number } | null {
   const f = data.fields;

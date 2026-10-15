@@ -371,9 +371,9 @@ function getFreeLlmChatUrl(): string {
 //
 // That explains the whole symptom: it always worked under `npm run dev` (port
 // 5173 is allowlisted by default) and always failed from a hosted origin such as
-// https://tracker.prohacking77.me. Verified against a live router:
+// https://tracker.query-intel.com. Verified against a live router:
 //   Origin: http://localhost:5173        -> Access-Control-Allow-Origin: http://localhost:5173
-//   Origin: https://tracker.prohacking77.me -> (header absent, response unusable)
+//   Origin: https://tracker.query-intel.com -> (header absent, response unusable)
 //
 // `cfg.dashboardOrigins` is filled from the DASHBOARD_ORIGINS environment
 // variable (comma separated). That is the real fix, and it has to be set on the
