@@ -345,7 +345,15 @@ export const useStore = create<AppState>()(
           const state = get();
           const caseData = state.cases.find((c) => c.id === state.activeCaseId);
           if (!caseData) return '';
-          return JSON.stringify(caseData, null, 2);
+          const json = JSON.stringify(caseData, null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${caseData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          return json;
         },
 
         importCase: (json) => {
