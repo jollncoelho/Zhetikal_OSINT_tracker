@@ -4,11 +4,12 @@ import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   Activity, Briefcase, FileJson, FileText, Ghost, Home, Image as ImageIcon,
-  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Star, X,
+  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Send, Star, X,
 } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
+import TelegramSearch from './components/TelegramSearch';
 import DisclaimerModal from './components/DisclaimerModal';
 import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
@@ -78,6 +79,7 @@ function AppInner() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [telegramOpen, setTelegramOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(
@@ -269,6 +271,7 @@ function AppInner() {
       { id: 'view-map', label: t('header.map'), group: navGroup, icon: Map, keywords: 'carte adresses geolocalisation', run: () => setView('map') },
       { id: 'view-investigation', label: t('header.cases'), group: navGroup, icon: Briefcase, keywords: 'dossiers enquetes preuves', run: () => setView('investigation') },
       { id: 'open-tools', label: t('header.tools'), group: navGroup, icon: Ghost, keywords: 'outils toolkit ghostint', run: () => setToolkitOpen(true) },
+      { id: 'open-telegram', label: t('telegram.title'), group: navGroup, icon: Send, keywords: 'telegram canal groupe osint handle', run: () => setTelegramOpen(true) },
       { id: 'toggle-stats', label: t('stats.title'), group: navGroup, icon: Activity, keywords: 'statistiques compteurs', run: () => setStatsOpen((value) => !value) },
       { id: 'new-case', label: t('sidebar.newCase'), group: caseGroup, icon: Plus, keywords: 'creer nouveau dossier', run: () => handleCreateCase(`${t('sidebar.newCase')} ${cases.length + 1}`, '') },
     ];
@@ -341,8 +344,8 @@ function AppInner() {
     t, lang, cases, activeCaseId, themeId, themes,
     setView, setTheme, setLang, handleCreateCase, switchCase, handleAddEntity,
     handleSaveProgress, handleExportJson, exportPdfFn, exportPngFn,
+    setTelegramOpen,
   ]);
-
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
   }, []);
@@ -515,6 +518,21 @@ function AppInner() {
               <Ghost size={12} />
               <span className="hidden lg:inline">{t('header.tools')}</span>
             </button>
+            {/* Telegram — module d'analyse : même famille visuelle que les
+                outils, mais teinte de marque pour qu'on ne le confonde pas. */}
+            <button
+              onClick={() => setTelegramOpen(true)}
+              title={t('telegram.openPanel')}
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors"
+              style={{
+                borderColor: 'rgb(var(--cyber-cyan-rgb) / 0.3)',
+                background: 'rgb(var(--cyber-panel-rgb) / 0.6)',
+                color: 'var(--cyber-cyan)',
+              }}
+            >
+              <Send size={12} />
+              <span className="hidden xl:inline">Telegram</span>
+            </button>
             {/* God's Eye — outil phare : bouton dédié, volontairement visible
                 (il n'est plus rangé dans le menu « Plus »). */}
             <a
@@ -665,6 +683,8 @@ function AppInner() {
           <HermesAnalyzer />
         </div>
       </div>
+
+      <TelegramSearch isOpen={telegramOpen} onClose={() => setTelegramOpen(false)} />
 
       {photoViewer && (
         <div

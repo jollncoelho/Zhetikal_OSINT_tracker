@@ -20,7 +20,14 @@ export type EntityType =
   | 'note'
   | 'social'
   | 'ttp'
-  | 'photo';
+  | 'photo'
+  /* Telegram — trois natures distinctes plutôt qu'un seul type « social » :
+     un canal, un groupe et un compte n'ont ni les mêmes métadonnées ni la même
+     valeur d'enquête. Les séparer permet de les filtrer et de les colorer
+     indépendamment dans le graphe. */
+  | 'telegram_channel'
+  | 'telegram_group'
+  | 'telegram_user';
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin' | 'x';
 
 export const SOCIAL_PLATFORMS: { id: SocialPlatform; label: string; color: string }[] = [
@@ -106,6 +113,9 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   social: 'Social Media',
   ttp: 'TTP',
   photo: 'Photo',
+  telegram_channel: 'Telegram Channel',
+  telegram_group: 'Telegram Group',
+  telegram_user: 'Telegram User',
 };
 
 export const ENTITY_COLORS: Record<EntityType, string> = {
@@ -129,6 +139,11 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   social: '#1877f2',
   ttp: '#f472b6',
   photo: '#f43f5e',
+  /* Famille bleue Telegram. Les trois teintes restent assez éloignées pour
+     qu'on distingue un canal d'un groupe d'un compte sans lire l'étiquette. */
+  telegram_channel: '#229ed9',
+  telegram_group: '#0088cc',
+  telegram_user: '#5fb8e8',
 };
 
 export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
@@ -152,6 +167,9 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   social: 'Share2',
   ttp: 'Crosshair',
   photo: 'Camera',
+  telegram_channel: 'Megaphone',
+  telegram_group: 'Users',
+  telegram_user: 'UserRound',
 };
 
 export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; type: 'text' | 'number' }[]> = {
@@ -274,6 +292,29 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'technique',   label: 'Technique',   type: 'text' },
     { key: 'platform',    label: 'Platform',    type: 'text' },
     { key: 'description', label: 'Description', type: 'text' },
+  ],
+  /* Ordre volontaire : la carte n'affiche que les **trois premiers** champs
+     renseignés, donc handle → audience → description donne une fiche lisible
+     d'un coup d'œil. */
+  telegram_channel: [
+    { key: 'handle',      label: 'Handle',      type: 'text' },
+    { key: 'subscribers', label: 'Subscribers', type: 'text' },
+    { key: 'description', label: 'Description', type: 'text' },
+    { key: 'verified',    label: 'Verified',    type: 'text' },
+    { key: 'url',         label: 'Channel URL', type: 'text' },
+  ],
+  telegram_group: [
+    { key: 'handle',      label: 'Handle',      type: 'text' },
+    { key: 'members',     label: 'Members',     type: 'text' },
+    { key: 'description', label: 'Description', type: 'text' },
+    { key: 'verified',    label: 'Verified',    type: 'text' },
+    { key: 'url',         label: 'Invite URL',  type: 'text' },
+  ],
+  telegram_user: [
+    { key: 'handle',   label: 'Handle',   type: 'text' },
+    { key: 'verified', label: 'Verified', type: 'text' },
+    { key: 'bio',      label: 'Bio',      type: 'text' },
+    { key: 'url',      label: 'Profile URL', type: 'text' },
   ],
 };
 

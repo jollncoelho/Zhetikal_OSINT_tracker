@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { CaseData, EntityData, EntityNode, MapPin, PinLink, RelationData } from '../types';
-import { DEFAULT_CONFIDENCE, DEFAULT_RELATION, ENTITY_COLORS } from '../types';
+import { DEFAULT_CONFIDENCE, DEFAULT_RELATION, ENTITY_COLORS, ENTITY_ICON_NAMES } from '../types';
 import type { Edge } from '@xyflow/react';
 
 interface AppState {
@@ -44,28 +44,9 @@ interface AppState {
   removePinLink: (id: string) => void;
 }
 
-const ENTITY_ICONS: Record<string, string> = {
-  ip: 'Globe',
-  domain: 'Globe',
-  hostname: 'Server',
-  email: 'Mail',
-  username: 'User',
-  phone: 'Phone',
-  asn: 'Network',
-  location: 'MapPin',
-  organization: 'Building2',
-  person: 'User',
-  file: 'FileText',
-  hash: 'Fingerprint',
-  sslcert: 'ShieldCheck',
-  url: 'Link',
-  crypto: 'Bitcoin',
-  iban: 'Building2',
-  note: 'StickyNote',
-  social: 'Share2',
-  ttp: 'Crosshair',
-  photo: 'Camera',
-};
+/* `ENTITY_ICONS` vivait ici en double de `ENTITY_ICON_NAMES` (types.ts), et les
+   deux avaient divergé : tout nouveau type d'entité retombait sur l'icône
+   « Globe » parce que seule la copie locale était lue. On n'en garde qu'une. */
 
 export const useStore = create<AppState>()(
   devtools(
@@ -159,7 +140,7 @@ export const useStore = create<AppState>()(
               label,
               notes: '',
               color: (ENTITY_COLORS as Record<string, string>)[type] || '#10b981',
-              icon: ENTITY_ICONS[type] || 'Globe',
+              icon: (ENTITY_ICON_NAMES as Record<string, string>)[type] || 'Globe',
               ...extra,
             } as EntityData,
           };

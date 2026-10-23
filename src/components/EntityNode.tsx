@@ -5,7 +5,8 @@ import {
   FileText, Link, Bitcoin, StickyNote, Share2, Camera,
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
   Trash2, X, Check, NotebookPen,
-  ExternalLink, SlidersHorizontal, Search, Satellite
+  ExternalLink, SlidersHorizontal, Search, Satellite,
+  Megaphone, Users, UserRound, Send
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { ENTITY_FIELDS } from '../types';
@@ -19,10 +20,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Globe, Mail, User, Phone, MapPin, Building2,
   FileText, Link, Bitcoin, StickyNote, Share2, Camera,
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
+  Megaphone, Users, UserRound,
 };
 
-const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp'];
+const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp', 'telegram_channel', 'telegram_group', 'telegram_user'];
 const LINK_TYPES = ['url', 'domain', 'hostname'];
+/** Types dont le nœud porte une URL Telegram ouvrable (`fields.url`). */
+const TELEGRAM_TYPES = ['telegram_channel', 'telegram_group', 'telegram_user'];
 
 const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
 
@@ -206,6 +210,9 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const pivotOsintUrl = buildOsintPivotUrl(data.entityType, data.label);
   const IconComponent = ICON_MAP[data.icon] || Globe;
   const isLocation = data.entityType === 'location';
+  /** Les nœuds Telegram portent la photo publique du canal quand elle existe. */
+  const telegramAvatar =
+    TELEGRAM_TYPES.includes(data.entityType) && data.photoUrl ? data.photoUrl : null;
 
   /**
    * 2 à 3 champs clés remontés sur la carte : uniquement ceux réellement
@@ -249,9 +256,20 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
       {/* Contenu : occupe 100% de l'espace, aucune interférence */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: customIcon ? 'transparent' : `${tone}22` }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: customIcon || telegramAvatar ? 'transparent' : `${tone}22` }}>
           {customIcon ? (
             <img src={customIcon.dataUrl} alt="" className="w-full h-full object-contain" />
+          ) : telegramAvatar ? (
+            <img
+              src={telegramAvatar}
+              alt=""
+              className="w-full h-full object-cover rounded-lg"
+              onError={(event) => {
+                // Une photo distante peut expirer : on masque l'image cassée
+                // plutôt que de laisser un carré vide.
+                (event.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
           ) : (
             <IconComponent size={14} style={{ color: tone }} />
           )}
@@ -385,6 +403,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
               <ExternalLink size={12} />
             </a>
           )}
+
+          {TELEGRAM_TYPES.includes(data.entityType) && (() => {
+            // `fields.url` est écrit par le module Telegram ; à défaut on
+            // reconstruit l'adresse depuis le handle, pour qu'un nœud saisi à
+            // la main reste ouvrable.
+            const fields = (data.fields ?? {}) as Record<string, unknown>;
+            const rawUrl = typeof fields.url === 'string' ? fields.url.trim() : '';
+            const rawHandle = typeof fields.handle === 'string' ? fields.handle.trim().replace(/^@/, '') : '';
+            const href = rawUrl || (rawHandle ? `https://t.me/${rawHandle}` : '');
+            if (!href) return null;
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer" title={t('node.openTelegram')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
+                <Send size={12} />
+              </a>
+            );
+          })()}
 
           {LINK_TYPES.includes(data.entityType) && openUrl && (
             <a href={data.entityType === 'url' ? data.label : openUrl} target="_blank" rel="noopener noreferrer" title={t('node.visitLink')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-cyber-cyan hover:bg-cyber-cyan/10 transition-colors">
