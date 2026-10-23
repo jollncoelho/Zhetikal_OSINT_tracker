@@ -573,6 +573,44 @@ export async function fetchProfile(
   });
 }
 
+/**
+ * Nombre de pages publiques relues quand la recherche du serveur ne donne rien.
+ * La page `t.me/s/<canal>` n'affiche que les 20 derniers messages ; `?before=<id>`
+ * remonte dans l'historique. Trois pages ≈ 60 messages, soit ~3 s de plus avec
+ * la limite de débit — acceptable pour ne pas annoncer à tort « mot absent ».
+ */
+const SCAN_PAGES = 3;
+
+/** Relit les dernières pages publiques d'un canal, du plus récent au plus ancien. */
+async function scanRecentPosts(
+  handle: string,
+  pages: number,
+  signal?: AbortSignal
+): Promise<TelegramPost[]> {
+  const collected: TelegramPost[] = [];
+  const seen = new Set<string>();
+  let before: string | null = null;
+
+  for (let page = 0; page < pages; page += 1) {
+    const url = `https://t.me/s/${handle}${before ? `?before=${before}` : ''}`;
+    const batch = await rateLimited(async () =>
+      parsePostsHtml(await readHtml(url, signal), handle, 40)
+    );
+    const fresh = batch.filter((post) => !seen.has(post.id));
+    fresh.forEach((post) => {
+      seen.add(post.id);
+      collected.push(post);
+    });
+    // Page vide ou identique à la précédente : on est au bout de l'aperçu.
+    if (fresh.length === 0) break;
+    const ids = fresh.map((post) => Number(post.id)).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) break;
+    before = String(Math.min(...ids));
+  }
+
+  return collected.sort((a, b) => Number(b.id) - Number(a.id));
+}
+
 /** Récupère les messages publics d'un canal, éventuellement filtrés. */
 export async function fetchPosts(
   handle: string,
@@ -583,20 +621,46 @@ export async function fetchPosts(
   if (!HANDLE_RE.test(normalized)) {
     throw new TelegramError('invalid', 'Handle de canal invalide.');
   }
-  const query = keyword?.trim() ? `?q=${encodeURIComponent(keyword.trim())}` : '';
-  return rateLimited(async () => {
-    const html = await readHtml(`https://t.me/s/${normalized}${query}`, signal);
-    const posts = parsePostsHtml(html, normalized);
-    if (posts.length === 0) {
-      throw new TelegramError(
-        'empty',
-        keyword?.trim()
-          ? 'Aucun message public ne contient ce mot-clé dans ce canal.'
-          : 'Ce canal ne publie pas de prévisualisation web (ou il est vide).'
+  const needle = (keyword ?? '').trim();
+
+  // 1. Recherche côté serveur : elle porte sur tout l'historique indexé, donc on
+  //    la tente d'abord. C'est aussi le seul moyen d'atteindre les vieux posts.
+  if (needle) {
+    const hits = await rateLimited(async () => {
+      const html = await readHtml(
+        `https://t.me/s/${normalized}?q=${encodeURIComponent(needle)}`,
+        signal
       );
-    }
-    return posts;
-  });
+      return parsePostsHtml(html, normalized);
+    });
+    if (hits.length > 0) return hits;
+  }
+
+  // 2. Repli local. La recherche du serveur est stricte (mots entiers, index) :
+  //    elle rate les fragments et parfois des messages récents. On relit donc
+  //    les dernières pages et on filtre sur la sous-chaîne.
+  const scanned = await scanRecentPosts(normalized, needle ? SCAN_PAGES : 1, signal);
+
+  if (scanned.length === 0) {
+    throw new TelegramError(
+      'empty',
+      'Ce canal n’expose aucun message public : sa prévisualisation web est vide ou désactivée par son propriétaire.'
+    );
+  }
+
+  if (!needle) return scanned;
+
+  const found = scanned.filter((post) => post.text.toLowerCase().includes(needle.toLowerCase()));
+  if (found.length > 0) return found.slice(0, 24);
+
+  const scope =
+    scanned.length === 1
+      ? 'le seul message public du canal'
+      : `les ${scanned.length} derniers messages publics du canal`;
+  throw new TelegramError(
+    'empty',
+    `Telegram ne trouve aucun message contenant « ${needle} », y compris dans ${scope}.`
+  );
 }
 
 /**

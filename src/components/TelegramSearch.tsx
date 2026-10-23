@@ -527,6 +527,12 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
             <p className="py-8 text-center text-xs text-cyber-text-dim">{t('telegram.emptyPosts')}</p>
           )}
 
+          {tab === 'posts' && posts.length > 0 && (
+            <p className="text-[10px] text-cyber-text-dim">
+              {t('telegram.postsCount').replace('{n}', String(posts.length))}
+            </p>
+          )}
+
           {tab === 'posts' &&
             posts.map((post) => {
               const already = !!injected[`post:${post.id}`];
