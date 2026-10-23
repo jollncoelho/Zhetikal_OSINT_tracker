@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -7,6 +7,8 @@ import {
   BackgroundVariant,
   ConnectionMode,
   ConnectionLineType,
+  useStore,
+  useReactFlow,
   type NodeTypes,
   type Node,
   type Edge,
@@ -332,6 +334,59 @@ interface InfoTabProps {
   onRegisterExportPdf: (fn: () => Promise<void>) => void;
 }
 
+/**
+ * Cadre le graphe à l'ouverture, centré, sans jamais dépasser 50 %.
+ *
+ * Sans ce réglage, React Flow démarre à son viewport par défaut — zoom 1 (100 %)
+ * ancré sur le coin supérieur gauche — donc un dossier dont les nœuds sont
+ * posés autour de l'origine apparaît décentré vers le haut à gauche, et un
+ * dossier étalé sort de l'écran.
+ *
+ * `fitView` avec `maxZoom` donne les deux comportements d'un coup : un petit
+ * graphe est plafonné à 50 %, un grand graphe descend plus bas pour tenir
+ * entièrement, et le centre du cadrage est toujours le centre des nœuds.
+ *
+ * Le point délicat est le *moment*. Nos nœuds sont des composants React dont
+ * les dimensions viennent du DOM : appeler `fitView` avant qu'elles soient
+ * mesurées cadrerait des boîtes de taille nulle, donc un zoom infini ramené au
+ * plafond de 50 % — et un graphe large déborderait quand même. On attend donc
+ * que chaque nœud ait une largeur et une hauteur réelles.
+ */
+function InitialViewport({ maxZoom = 0.5 }: { maxZoom?: number }) {
+  const { fitView } = useReactFlow();
+  const fitted = useRef(false);
+
+  const allMeasured = useStore((state) => {
+    const nodes = state.nodes;
+    if (nodes.length === 0) return false;
+    return nodes.every((node) => {
+      const internal = state.nodeLookup?.get(node.id);
+      const width = internal?.measured?.width ?? node.measured?.width ?? node.width ?? 0;
+      const height = internal?.measured?.height ?? node.measured?.height ?? node.height ?? 0;
+      return width > 0 && height > 0;
+    });
+  });
+
+  const fit = useCallback(() => {
+    if (fitted.current) return;
+    fitted.current = true;
+    void fitView({ padding: 0.25, maxZoom, duration: 0 });
+  }, [fitView, maxZoom]);
+
+  useEffect(() => {
+    if (allMeasured) fit();
+  }, [allMeasured, fit]);
+
+  // Filet de sécurité : un nœud masqué ou une mesure qui n'aboutit jamais ne
+  // doit pas laisser l'analyste devant un canevas vide à 100 %.
+  useEffect(() => {
+    const timer = setTimeout(fit, 1200);
+    return () => clearTimeout(timer);
+  }, [fit]);
+
+  return null;
+}
+
 export default function InfoTab({
   nodes,
   edges,
@@ -389,9 +444,15 @@ export default function InfoTab({
             connectionLineType={ConnectionLineType.Bezier}
             defaultEdgeOptions={{ type: 'custom' }}
             proOptions={{ hideAttribution: true }}
+            /* React Flow plafonne le dézoom à 0,5 par défaut : un dossier étalé
+               ne pouvait donc jamais tenir entier, quel que soit le cadrage. */
+            minZoom={0.15}
             className="bg-cyber-black"
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--cyber-border)" />
+            {/* Remonté à chaque changement de dossier : ouvrir un autre dossier
+                recadre, mais ajouter un nœud ne bouge pas la vue en cours. */}
+            <InitialViewport key={activeCase?.id ?? 'aucun-dossier'} />
             <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
             <MiniMap
               nodeColor={(node) => {

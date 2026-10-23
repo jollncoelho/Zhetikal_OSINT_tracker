@@ -15,8 +15,10 @@ import {
   TelegramError,
   entityTypeFor,
   fetchPosts,
+  getReaderKey,
   parseTargets,
   resolveMany,
+  setReaderKey,
   type TelegramEntityKind,
   type TelegramErrorCode,
   type TelegramPost,
@@ -192,6 +194,9 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
   const [failures, setFailures] = useState<{ input: string; message: string; code: TelegramErrorCode }[]>([]);
   const [posts, setPosts] = useState<TelegramPost[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<TelegramErrorCode | null>(null);
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [keyValue, setKeyValue] = useState(() => getReaderKey());
 
   /** Identifiants déjà injectés, pour éviter les doublons involontaires. */
   const [injected, setInjected] = useState<Record<string, boolean>>({});
@@ -213,10 +218,19 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
 
   const targetCount = useMemo(() => parseTargets(input).length, [input]);
 
+  /**
+   * Le lecteur a refusé au moins une requête (blocage anonyme, quota, clé
+   * invalide). Les échecs par cible ne remontent pas dans `error` : ils vivent
+   * dans `failures`, il faut donc regarder les deux pour ouvrir le champ de clé.
+   */
+  const readerBlocked =
+    errorCode === 'reader' || failures.some((failure) => failure.code === 'reader');
+
   const runProfiles = useCallback(async () => {
     if (!input.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     setProfiles([]);
     setFailures([]);
     const controller = new AbortController();
@@ -230,6 +244,7 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
       }
     } catch (err) {
       setError(err instanceof TelegramError ? err.message : t('telegram.genericError'));
+      setErrorCode(err instanceof TelegramError ? err.code : null);
     } finally {
       setLoading(false);
       abortRef.current = null;
@@ -240,6 +255,7 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
     if (!channel.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     setPosts([]);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -249,6 +265,7 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       setError(err instanceof TelegramError ? err.message : t('telegram.genericError'));
+      setErrorCode(err instanceof TelegramError ? err.code : null);
     } finally {
       setLoading(false);
       abortRef.current = null;
@@ -569,9 +586,75 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
             })}
         </div>
 
-        {/* Pied — ce que le module ne sait pas faire */}
+        {/* Pied — ce que le module ne sait pas faire, puis la clé du lecteur */}
         <div className="border-t border-cyber-border px-5 py-2.5">
           <p className="text-[9px] leading-relaxed text-cyber-text-dim">{t('telegram.footerNote')}</p>
+
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <button
+              onClick={() => setKeyOpen((open) => !open)}
+              className="flex items-center gap-1 text-[9px] font-semibold text-cyber-text-dim transition-colors hover:text-cyber-cyan"
+            >
+              <KeyRound size={9} />
+              {t('telegram.readerKey')}
+              <span
+                className="rounded px-1 font-mono text-[8px]"
+                style={{
+                  color: keyValue ? 'var(--cyber-cyan)' : 'var(--cyber-text-dim)',
+                  background: 'rgb(var(--cyber-panel-rgb) / 0.8)',
+                }}
+              >
+                {keyValue ? t('telegram.readerKeySet') : t('telegram.readerKeyUnset')}
+              </span>
+            </button>
+            <a
+              href="https://jina.ai/reader"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[9px] text-cyber-text-dim transition-colors hover:text-cyber-cyan"
+            >
+              {t('telegram.readerKeyGet')} <ExternalLink size={8} />
+            </a>
+          </div>
+
+          {(keyOpen || readerBlocked) && (
+            <div
+              className="mt-1.5 rounded-lg border px-2 py-1.5"
+              style={{
+                borderColor: readerBlocked ? 'rgb(var(--cyber-orange-rgb) / 0.4)' : 'var(--cyber-border)',
+                background: 'rgb(var(--cyber-panel-rgb) / 0.5)',
+              }}
+            >
+              <p className="text-[9px] leading-relaxed text-cyber-text-dim">{t('telegram.readerKeyHint')}</p>
+              <div className="mt-1 flex gap-1.5">
+                <input
+                  type="password"
+                  value={keyValue}
+                  onChange={(event) => setKeyValue(event.target.value)}
+                  placeholder={t('telegram.readerKeyPlaceholder')}
+                  className="min-w-0 flex-1 rounded-md border border-cyber-border bg-cyber-dark px-2 py-1 font-mono text-[10px] text-cyber-text outline-none focus:border-cyber-cyan/50"
+                />
+                <button
+                  onClick={() => {
+                    setReaderKey(keyValue);
+                    setError(null);
+                    setErrorCode(null);
+                    // Les échecs dus au lecteur ne valent plus rien sous la
+                    // nouvelle configuration ; ceux qui viennent de Telegram
+                    // (handle inexistant, groupe privé) restent affichés.
+                    setFailures((previous) => previous.filter((failure) => failure.code !== 'reader'));
+                    setKeyOpen(false);
+                    toast.success(
+                      keyValue.trim() ? t('telegram.readerKeySaved') : t('telegram.readerKeyCleared')
+                    );
+                  }}
+                  className="flex-shrink-0 rounded-md border border-cyber-cyan/40 px-2 py-1 text-[10px] font-semibold text-cyber-cyan transition-colors hover:bg-cyber-cyan/10"
+                >
+                  {t('telegram.readerKeySave')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>,

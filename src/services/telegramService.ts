@@ -94,7 +94,9 @@ export type TelegramErrorCode =
   | 'rate-limit'
   | 'network'
   | 'blocked'
-  | 'empty';
+  | 'empty'
+  /** Le lecteur a refusé la requête : quota anonyme, ou clé absente/invalide. */
+  | 'reader';
 
 export class TelegramError extends Error {
   code: TelegramErrorCode;
@@ -128,6 +130,34 @@ export function getReaderBase(): string {
   }
   const env = (import.meta as unknown as { env?: Record<string, string> }).env;
   return env?.VITE_TELEGRAM_READER?.trim() || DEFAULT_TELEGRAM_READER;
+}
+
+/**
+ * Clé d'API du lecteur, si l'analyste en a fourni une.
+ *
+ * Sans clé, le lecteur public compte les requêtes **par adresse IP** (20/min) et
+ * applique des blocages anti-abus à l'échelle du domaine entier : quand
+ * quelqu'un sature `t.me` en anonyme, tout le monde est bloqué, y compris une
+ * enquête en cours. Avec une clé (gratuite), le quota est compté par clé, donc
+ * le comportement des autres ne nous atteint plus.
+ */
+export function getReaderKey(): string {
+  try {
+    return localStorage.getItem('telegram_reader_key')?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setReaderKey(key: string): void {
+  try {
+    const value = key.trim();
+    if (value) localStorage.setItem('telegram_reader_key', value);
+    else localStorage.removeItem('telegram_reader_key');
+    readCache.clear();
+  } catch {
+    /* rien à faire : la clé ne survivra pas au rechargement. */
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -250,8 +280,92 @@ function rateLimited<T>(fn: () => Promise<T>): Promise<T> {
  * Requête vers le lecteur
  * ------------------------------------------------------------------ */
 
+/**
+ * Cache mémoire des pages déjà lues.
+ *
+ * Une recherche par mot-clé déclenche jusqu'à quatre lectures de la même page
+ * (`?q=`, puis trois pages d'historique). Sans cache, relancer une analyse sur
+ * le même canal multiplie les requêtes pour un résultat identique — et c'est
+ * exactement ce qui fait basculer le lecteur public en mode anti-abus.
+ */
+const READ_CACHE_TTL = 10 * 60 * 1000;
+const readCache = new Map<string, { html: string; at: number }>();
+
+export function clearReaderCache(): void {
+  readCache.clear();
+}
+
+/**
+ * Traduit un refus du lecteur en message exploitable.
+ *
+ * Le corps d'un 403 n'est pas une page d'erreur générique : c'est du JSON qui
+ * dit *pourquoi*. Le confondre avec « quota atteint, réessaie plus tard »
+ * laissait croire à une limite de Telegram, alors qu'il s'agit d'un blocage
+ * anti-abus du service de lecture — souvent causé par un tiers.
+ */
+function describeReaderRefusal(status: number, body: string): TelegramError {
+  let payload: { name?: string; message?: string; readableMessage?: string } = {};
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    /* corps non JSON : on garde le message générique. */
+  }
+  const raw = payload.readableMessage || payload.message || '';
+
+  // « Anonymous access to domain t.me blocked until Fri Oct 23 2026 19:05:07 GMT+0000 »
+  const blocked = /anonymous access to domain ([^\s]+) blocked until ([^(]+)/i.exec(raw);
+  if (blocked) {
+    const host = blocked[1];
+    let readerHost = getReaderBase();
+    try {
+      readerHost = new URL(readerHost).host;
+    } catch {
+      /* base de lecteur personnalisée non absolue : on affiche la valeur brute. */
+    }
+    const until = new Date(blocked[2].trim());
+    const when = Number.isNaN(until.getTime())
+      ? ''
+      : ` jusqu'à ${until.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` +
+        ` (${until.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })})`;
+    const key = getReaderKey();
+    return new TelegramError(
+      'reader',
+      `Le service de lecture (${readerHost}) a fermé l'accès anonyme à ${host}${when}. ` +
+        `Ce n'est ni une limite de Telegram ni un problème de compte : le service bloque tout le monde ` +
+        `en anonyme après un abus venu d'ailleurs. ` +
+        (key
+          ? 'Une clé est bien enregistrée : vérifie qu’elle est valide et non épuisée.'
+          : 'Renseigne une clé de lecture gratuite ci-dessous pour t’affranchir de cet accès anonyme, ou réessaie après cette heure.')
+    );
+  }
+
+  if (status === 401) {
+    return new TelegramError(
+      'reader',
+      'La clé de lecture a été refusée (HTTP 401). Vérifie-la ou efface-la pour revenir à l’accès anonyme.'
+    );
+  }
+
+  if (payload.name === 'RateLimitError' || status === 429) {
+    return new TelegramError(
+      'rate-limit',
+      'Le service de lecture limite le débit (quota anonyme). Patiente une minute, ou renseigne une clé gratuite.'
+    );
+  }
+
+  return new TelegramError(
+    'reader',
+    `Le service de lecture a refusé la requête (HTTP ${status}). ` +
+      (raw ? raw.slice(0, 200) : 'Aucun détail fourni.')
+  );
+}
+
 async function readHtml(targetUrl: string, signal?: AbortSignal): Promise<string> {
+  const cached = readCache.get(targetUrl);
+  if (cached && Date.now() - cached.at < READ_CACHE_TTL) return cached.html;
+
   const endpoint = `${getReaderBase()}${targetUrl}`;
+  const key = getReaderKey();
 
   const attempt = async (): Promise<Response> =>
     fetch(endpoint, {
@@ -261,6 +375,7 @@ async function readHtml(targetUrl: string, signal?: AbortSignal): Promise<string
         Accept: 'text/html',
         // Le lecteur rend le HTML d'origine au lieu d'un Markdown aplati.
         'X-Return-Format': 'html',
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
     });
 
@@ -290,24 +405,25 @@ async function readHtml(targetUrl: string, signal?: AbortSignal): Promise<string
     if (response.status === 429) {
       throw new TelegramError(
         'rate-limit',
-        'Le lecteur public limite le débit. Patiente une minute avant de relancer.'
+        'Le service de lecture limite le débit (quota anonyme). Patiente une minute, ou renseigne une clé gratuite.'
       );
     }
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new TelegramError(
-      'blocked',
-      `Le lecteur a refusé la requête (HTTP ${response.status}). ` +
-        'Un quota a peut-être été atteint ; réessaie plus tard.'
-    );
+    const body = await response.text().catch(() => '');
+    throw describeReaderRefusal(response.status, body);
   }
 
   if (!response.ok) {
     throw new TelegramError('network', `Le lecteur a répondu HTTP ${response.status}.`);
   }
 
-  return response.text();
+  const html = await response.text();
+  // Une page vide n'est pas une lecture réussie : la mettre en cache ferait
+  // persister un faux « canal sans messages » pendant dix minutes.
+  if (html.trim()) readCache.set(targetUrl, { html, at: Date.now() });
+  return html;
 }
 
 /* ------------------------------------------------------------------ *
