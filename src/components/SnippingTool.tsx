@@ -212,7 +212,7 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
         title={t('snipping.title')}
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-[11px] font-semibold hover:bg-cyber-cyan/20 transition-colors"
       >
-        <Camera size={12} /> {t('snipping.button')}
+        <Camera size={12} /> <span className="hidden 2xl:inline">{t('snipping.button')}</span>
       </button>
     );
   }

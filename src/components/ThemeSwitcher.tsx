@@ -38,7 +38,7 @@ export default function ThemeSwitcher() {
         className="flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[11px] font-semibold text-cyber-text-dim transition-all hover:border-cyber-cyan/30 hover:bg-cyber-cyan/10 hover:text-cyber-cyan"
       >
         <Palette size={12} />
-        <span className="hidden xl:inline">{t(theme.labelKey)}</span>
+        <span className="hidden 2xl:inline">{t(theme.labelKey)}</span>
       </button>
 
       {open && (

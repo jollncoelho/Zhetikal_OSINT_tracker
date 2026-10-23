@@ -444,79 +444,102 @@ function AppInner() {
       />
 
       <div className="flex-1 flex flex-col relative min-w-0">
-        <div className="h-[60px] flex items-center justify-between px-4 border-b border-cyber-border bg-cyber-dark/80 backdrop-blur-sm z-10 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* En-tête — trois zones. Les zones latérales sont `flex-1 basis-0`
+            (donc de largeur égale : la navigation reste centrée) mais la droite
+            est bornée par `min-w-fit` : elle ne peut jamais descendre sous la
+            largeur réelle de ses boutons. Sans cette borne, elle débordait vers
+            la gauche et passait par-dessus la navigation quand le nom du
+            dossier était long. C'est la gauche qui absorbe le manque, et son
+            nom s'y tronque. */}
+        <div className="z-10 flex h-[60px] flex-shrink-0 items-center gap-3 border-b border-cyber-border bg-cyber-dark/80 px-4 backdrop-blur-sm">
+          {/* Gauche — identité du dossier, sur deux lignes pour que le nom
+              garde toute la largeur disponible sans disputer la place aux
+              compteurs. */}
+          <div className="flex min-w-0 flex-1 basis-0 items-center gap-2.5">
             <img
               src="/photo_2026-05-04_13-46-20.jpg"
               alt="Zhétikal"
-              className="h-11 w-11 rounded-full object-cover object-center mix-blend-lighten flex-shrink-0"
+              className="h-9 w-9 flex-shrink-0 rounded-full object-cover object-center mix-blend-lighten"
               style={{ filter: 'brightness(1.15) contrast(1.1)' }}
             />
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-semibold text-cyber-text truncate">
+            <div className="min-w-0">
+              <p
+                className="truncate text-[13px] font-semibold leading-tight text-cyber-text"
+                title={activeCase?.name || 'No Case'}
+              >
                 {activeCase?.name || 'No Case'}
-              </span>
+              </p>
               {activeCase && (
-                <span className="text-[10px] font-mono text-cyber-text-dim bg-cyber-panel px-2 py-0.5 rounded border border-cyber-border whitespace-nowrap">
-                  {nodeCount}e / {edgeCount}l / {pinCount}p
-                </span>
+                <p className="mt-0.5 flex items-center gap-1 font-mono text-[10px] leading-none text-cyber-text-dim">
+                  <span>{nodeCount}e</span>
+                  <span className="opacity-40">·</span>
+                  <span>{edgeCount}l</span>
+                  <span className="opacity-40">·</span>
+                  <span>{pinCount}p</span>
+                </p>
               )}
             </div>
           </div>
 
-          {/* Centre — navigation principale, groupée en un seul bloc */}
-          <div className="mx-auto flex items-center gap-0.5 rounded-xl border border-cyber-border bg-cyber-panel/60 p-1">
+          {/* Centre — navigation principale, jamais compressée */}
+          <div className="flex flex-shrink-0 items-center gap-0.5 rounded-xl border border-cyber-border bg-cyber-panel/60 p-1">
             <button
               onClick={() => setView('graph')}
+              title={t('header.graph')}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
                 view === 'graph'
                   ? 'bg-cyber-cyan/15 text-cyber-cyan'
                   : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              <Network size={11} /> {t('header.graph')}
+              <Network size={11} /> <span className="hidden xl:inline">{t('header.graph')}</span>
             </button>
             <button
               onClick={() => setView('map')}
+              title={t('header.map')}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
                 view === 'map'
                   ? 'bg-cyber-cyan/15 text-cyber-cyan'
                   : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              <Map size={11} /> {t('header.map')}
+              <Map size={11} /> <span className="hidden xl:inline">{t('header.map')}</span>
             </button>
             <button
               onClick={() => setView('investigation')}
+              title={t('header.cases')}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all ${
                 view === 'investigation'
                   ? 'bg-cyber-cyan/15 text-cyber-cyan'
                   : 'text-cyber-text-dim hover:text-cyber-text'
               }`}
             >
-              <Briefcase size={11} /> {t('header.cases')}
+              <Briefcase size={11} /> <span className="hidden xl:inline">{t('header.cases')}</span>
             </button>
           </div>
 
-          {/* Droite — recherche, outils, réglages, menu */}
-          <div className="flex items-center gap-2">
+          {/* Droite — chaque bouton est `shrink-0` et ses libellés
+              n'apparaissent qu'au-delà de la largeur nécessaire : sous 1280 px
+              on obtient une barre d'icônes propre au lieu de boutons écrasés. */}
+          <div className="flex min-w-fit flex-1 basis-0 items-center justify-end gap-1.5 [&>*]:shrink-0">
             <button
               onClick={() => setPaletteOpen(true)}
               title={`${t('palette.open')} (Ctrl+K)`}
-              className="flex items-center gap-2 rounded-lg border border-cyber-border bg-cyber-panel px-2.5 py-1.5 text-[11px] font-medium text-cyber-text-dim transition-all hover:border-cyber-cyan/40 hover:text-cyber-cyan"
+              className="flex h-[30px] items-center gap-2 rounded-lg border border-cyber-border bg-cyber-panel px-2.5 text-[11px] font-medium text-cyber-text-dim transition-all hover:border-cyber-cyan/40 hover:text-cyber-cyan"
             >
               <Search size={12} />
-              <span className="hidden xl:inline">{t('palette.open')}</span>
-              <kbd className="hidden rounded border border-cyber-border bg-cyber-dark px-1.5 py-0.5 font-mono text-[10px] lg:inline">
+              <span className="hidden 2xl:inline">{t('palette.open')}</span>
+              <kbd className="hidden rounded border border-cyber-border bg-cyber-dark px-1.5 py-0.5 font-mono text-[10px] leading-none xl:inline">
                 Ctrl K
               </kbd>
             </button>
             <button
               onClick={() => setToolkitOpen(true)}
+              title={t('header.tools')}
               className="flex items-center gap-1.5 rounded-lg border border-cyber-cyan/30 bg-cyber-cyan/10 px-3 py-1.5 text-[11px] font-semibold text-cyber-cyan transition-colors hover:bg-cyber-cyan/20"
             >
               <Ghost size={12} />
-              <span className="hidden lg:inline">{t('header.tools')}</span>
+              <span className="hidden xl:inline">{t('header.tools')}</span>
             </button>
             {/* Telegram — module d'analyse : même famille visuelle que les
                 outils, mais teinte de marque pour qu'on ne le confonde pas. */}
@@ -531,7 +554,7 @@ function AppInner() {
               }}
             >
               <Send size={12} />
-              <span className="hidden xl:inline">Telegram</span>
+              <span className="hidden 2xl:inline">Telegram</span>
             </button>
             {/* God's Eye — outil phare : bouton dédié, volontairement visible
                 (il n'est plus rangé dans le menu « Plus »). */}
@@ -543,7 +566,7 @@ function AppInner() {
               className="flex items-center gap-1.5 rounded-lg border border-cyber-cyan/40 bg-cyber-panel px-3 py-1.5 text-[11px] font-semibold text-cyber-cyan transition-all hover:border-cyber-cyan/70 hover:bg-cyber-cyan/15"
             >
               <Satellite size={12} />
-              <span className="hidden lg:inline">God's Eye</span>
+              <span className="hidden xl:inline">God's Eye</span>
             </a>
             <LanguageSwitcher />
             <ThemeSwitcher />
