@@ -385,10 +385,13 @@ export function parseProfileHtml(html: string, handle: string): TelegramProfile 
   // pages le premier est vide. On ne retient donc pas « le premier non vide »
   // mais **la ligne qui est réellement un compteur** — sinon BotFather était
   // classé « utilisateur » et son nombre d'utilisateurs perdu.
-  const subscribersLabel =
+  const rawExtra =
     Array.from(doc.querySelectorAll('.tgme_page_extra'))
       .map((el) => clean(el.textContent))
       .find((text) => /(subscribers|members|monthly users)/i.test(text)) ?? '';
+  // « 58 members, 8 online » : la présence en ligne est une statistique volatile
+  // qui n'a rien à faire sur une fiche d'enquête.
+  const subscribersLabel = rawExtra.replace(/\s*,?\s*\d[\d\s]*\s*online\b.*$/i, '').trim();
   const subscribers = subscribersLabel ? parseCount(subscribersLabel) : null;
 
   const bio = stripBoilerplate(clean(doc.querySelector('.tgme_page_description')?.textContent));
@@ -574,6 +577,27 @@ export async function fetchProfile(
 }
 
 /**
+ * Ce que Telegram a réellement servi sur `t.me/s/<handle>`.
+ *
+ * Pour un **canal**, c'est un fil de messages. Pour un **groupe**, Telegram
+ * renvoie la page de présentation : `/s/` n'existe pas pour les groupes —
+ * vérifié sur trois groupes publics, tous renvoient « Telegram: View @x » sans
+ * un seul message. Ce n'est donc pas un aperçu désactivé, c'est une limite de
+ * la plateforme, et le message d'erreur doit le dire.
+ */
+function describePublicPage(html: string): { kind: 'feed' | 'profile' | 'empty'; extra: string } {
+  const doc = parseDocument(html);
+  if (doc.querySelector('.tgme_widget_message[data-post]')) return { kind: 'feed', extra: '' };
+  const title = doc.querySelector('.tgme_page_title');
+  if (!title) return { kind: 'empty', extra: '' };
+  const extra =
+    Array.from(doc.querySelectorAll('.tgme_page_extra'))
+      .map((el) => clean(el.textContent))
+      .find((text) => /(subscribers|members|monthly users)/i.test(text)) ?? '';
+  return { kind: 'profile', extra: extra.replace(/\s*,?\s*\d[\d\s]*\s*online\b.*$/i, '').trim() };
+}
+
+/**
  * Nombre de pages publiques relues quand la recherche du serveur ne donne rien.
  * La page `t.me/s/<canal>` n'affiche que les 20 derniers messages ; `?before=<id>`
  * remonte dans l'historique. Trois pages ≈ 60 messages, soit ~3 s de plus avec
@@ -586,16 +610,17 @@ async function scanRecentPosts(
   handle: string,
   pages: number,
   signal?: AbortSignal
-): Promise<TelegramPost[]> {
+): Promise<{ posts: TelegramPost[]; firstHtml: string }> {
   const collected: TelegramPost[] = [];
   const seen = new Set<string>();
   let before: string | null = null;
+  let firstHtml = '';
 
   for (let page = 0; page < pages; page += 1) {
     const url = `https://t.me/s/${handle}${before ? `?before=${before}` : ''}`;
-    const batch = await rateLimited(async () =>
-      parsePostsHtml(await readHtml(url, signal), handle, 40)
-    );
+    const html = await rateLimited(async () => readHtml(url, signal));
+    if (page === 0) firstHtml = html;
+    const batch = parsePostsHtml(html, handle, 40);
     const fresh = batch.filter((post) => !seen.has(post.id));
     fresh.forEach((post) => {
       seen.add(post.id);
@@ -608,7 +633,7 @@ async function scanRecentPosts(
     before = String(Math.min(...ids));
   }
 
-  return collected.sort((a, b) => Number(b.id) - Number(a.id));
+  return { posts: collected.sort((a, b) => Number(b.id) - Number(a.id)), firstHtml };
 }
 
 /** Récupère les messages publics d'un canal, éventuellement filtrés. */
@@ -639,9 +664,24 @@ export async function fetchPosts(
   // 2. Repli local. La recherche du serveur est stricte (mots entiers, index) :
   //    elle rate les fragments et parfois des messages récents. On relit donc
   //    les dernières pages et on filtre sur la sous-chaîne.
-  const scanned = await scanRecentPosts(normalized, needle ? SCAN_PAGES : 1, signal);
+  const { posts: scanned, firstHtml } = await scanRecentPosts(
+    normalized,
+    needle ? SCAN_PAGES : 1,
+    signal
+  );
 
   if (scanned.length === 0) {
+    const shape = describePublicPage(firstHtml);
+    if (shape.kind === 'profile') {
+      const isGroup = /members/i.test(shape.extra);
+      const fiche = shape.extra ? ` (${shape.extra})` : '';
+      throw new TelegramError(
+        'empty',
+        isGroup
+          ? `@${normalized} est un groupe${fiche}. Telegram ne publie la liste des messages que pour les canaux : la fiche reste lisible dans l'onglet « Profils & canaux ».`
+          : `@${normalized} n'expose pas de fil de messages public${fiche}. Sa fiche reste lisible dans l'onglet « Profils & canaux ».`
+      );
+    }
     throw new TelegramError(
       'empty',
       'Ce canal n’expose aucun message public : sa prévisualisation web est vide ou désactivée par son propriétaire.'
