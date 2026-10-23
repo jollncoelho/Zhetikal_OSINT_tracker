@@ -375,6 +375,7 @@ function AppInner() {
         deleteEdge(selectedEdgeId);
         setSelectedEdgeId(null);
       }
+      if (e.key === 'Escape') setStatsOpen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -451,7 +452,7 @@ function AppInner() {
             la gauche et passait par-dessus la navigation quand le nom du
             dossier était long. C'est la gauche qui absorbe le manque, et son
             nom s'y tronque. */}
-        <div className="z-10 flex h-[60px] flex-shrink-0 items-center gap-3 border-b border-cyber-border bg-cyber-dark/80 px-4 backdrop-blur-sm">
+        <div className="z-30 flex h-[60px] flex-shrink-0 items-center gap-3 border-b border-cyber-border bg-cyber-dark/80 px-4 backdrop-blur-sm">
           {/* Gauche — identité du dossier, sur deux lignes pour que le nom
               garde toute la largeur disponible sans disputer la place aux
               compteurs. */}
@@ -576,8 +577,21 @@ function AppInner() {
         </div>
 
         {statsOpen && (
-          <div className="absolute top-14 right-4 z-20 w-64 rounded-xl border border-cyber-border bg-cyber-dark/95 backdrop-blur-sm p-4 animate-fade-in">
-            <h3 className="text-xs font-semibold text-cyber-text-dim uppercase tracking-wider mb-3">{t('stats.title')}</h3>
+          <div className="absolute top-[68px] right-4 z-20 w-64 rounded-xl border border-cyber-border bg-cyber-dark/95 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold text-cyber-text-dim uppercase tracking-wider">{t('stats.title')}</h3>
+              {/* Sans cette croix, le panneau n'avait aucune sortie : le menu
+                  « Plus » qui l'ouvre passait dessous, donc impossible de le
+                  refermer au même endroit. */}
+              <button
+                onClick={() => setStatsOpen(false)}
+                title={t('stats.close')}
+                aria-label={t('stats.close')}
+                className="flex h-5 w-5 items-center justify-center rounded text-cyber-text-dim transition-colors hover:bg-cyber-panel hover:text-cyber-text"
+              >
+                <X size={12} />
+              </button>
+            </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-cyber-text-dim">{t('stats.entities')}</span>
