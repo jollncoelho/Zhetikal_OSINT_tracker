@@ -946,41 +946,40 @@ function sanitizeNamedClaims(summary: string, knownBlob: string, unsupported: Se
 }
 
 /**
- * Types dont la valeur ne peut venir que du dossier, jamais d'une déduction.
- *
- * Un ASN, une localisation, un certificat : rien de tout cela ne se déduit
- * d'un nom de domaine. Un modèle qui en propose un l'a inventé.
- */
-const GROUNDED_ONLY_TYPES = new Set(['asn', 'location', 'sslcert']);
-
-/** Le libellé contient-il un nom d'hébergeur, de CDN, de pays ou de ville ? */
-function isVendorDerived(label: string): boolean {
-  const lower = label.toLowerCase();
-  return [...INFRA_VENDORS, ...GEO_NAMES].some((name) => hasToken(lower, name));
-}
-
-/**
  * L'entité proposée est-elle recevable ?
  *
- * ⚠️ Le défaut le plus coûteux était ici : `flagUnsupportedClaims` ajoutait
- * **toutes** les entités proposées à son ensemble de référence. Le modèle
- * produisait `ns1.hetzner.com`, ce qui rendait « Hetzner » légitime, ce qui
- * blanchissait la phrase « l'ASN 24940 (Hetzner Online GmbH), Nuremberg ».
- * Le garde-fou se validait par sa propre invention. La référence est désormais
- * le **dossier seul**.
+ * Règle unique, et stricte : **une entité n'entre dans le graphe que si le
+ * dossier la contient déjà**. Le modèle structure ce qui est là ; il ne le
+ * complète pas.
+ *
+ * Deux défauts successifs ont mené là. D'abord le garde-fou se validait par sa
+ * propre invention — `ns1.hetzner.com` rendait « Hetzner » légitime. Ensuite,
+ * en n'exigeant l'ancrage que pour les ASN et les localisations, six adresses
+ * fabriquées sur le domaine du dossier (`contact@`, `support@`, `sales@`,
+ * `admin@`, `billing@`, `info@`) ont été présentées comme des découvertes et
+ * injectables en un clic. Une adresse inventée coûte plus cher qu'une adresse
+ * manquante : elle oriente l'enquête vers un compte qui n'existe pas.
+ *
+ * Ce que cela ne casse pas : une adresse réellement présente dans une note ou
+ * un champ du dossier reste promue en entité. C'est le seul cas utile — et il
+ * est conservé, parce que le libellé y est ancré.
  */
 function isUnsupportedEntity(entity: HermesEntity, groundedBlob: string): boolean {
   const label = String(entity.label ?? '').trim();
   if (!label) return true;
-  // Étayée par le dossier : on garde, quel que soit son type.
-  if (mentionsKnown(groundedBlob, label.toLowerCase())) return false;
+  return !mentionsKnown(groundedBlob, label.toLowerCase());
+}
 
-  if (GROUNDED_ONLY_TYPES.has(entity.type)) return true;
-  if (/^AS-?\d{2,7}$/i.test(label)) return true;
-  // `ns1.hetzner.com` : un hôte chez un hébergeur que le dossier ne mentionne pas.
-  if (isVendorDerived(label)) return true;
-
-  return false;
+/** Remplace dans un texte les valeurs non ancrées par le marqueur. */
+function neutraliseTokens(text: string, values: string[]): string {
+  let out = text;
+  for (const value of values) {
+    out = out.replace(
+      new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(value)}(?![\\p{L}\\p{N}])`, 'giu'),
+      `$1${UNSUPPORTED_MARKER}`
+    );
+  }
+  return out;
 }
 
 /** Exporté pour les tests : c'est ici que se joue la différence entre un
@@ -1014,11 +1013,18 @@ export function flagUnsupportedClaims(
     .filter(Boolean)
     .join(' | ');
 
-  for (const mention of extractMentionedIdentifiers(discovery.summary)) {
-    if (!mentionsKnown(knownBlob, mention.value.toLowerCase())) unsupported.add(mention.value);
-  }
+  // Les identifiants que le dossier ne contient pas sont eux aussi écartés de
+  // la prose : une adresse inventée citée dans le texte oriente autant qu'une
+  // adresse inventée injectée dans le graphe.
+  const ungroundedIdentifiers = extractMentionedIdentifiers(discovery.summary)
+    .map((mention) => mention.value)
+    .filter((value) => !mentionsKnown(knownBlob, value.toLowerCase()));
+  ungroundedIdentifiers.forEach((value) => unsupported.add(value));
 
-  const summary = sanitizeNamedClaims(discovery.summary, knownBlob, unsupported);
+  const summary = neutraliseTokens(
+    sanitizeNamedClaims(discovery.summary, knownBlob, unsupported),
+    ungroundedIdentifiers
+  );
 
   // Un lien dont une extrémité n'existe pas ne mène nulle part : le panneau
   // affichait « nom d'utilisateur → email 1 », deux libellés fictifs.
