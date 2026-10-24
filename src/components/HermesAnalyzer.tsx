@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Minimize2, Maximize2, Save, Eye, EyeOff, Key, PlusCircle, PlugZap } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import {
@@ -288,6 +288,46 @@ export const HermesAnalyzer: React.FC = () => {
     : [];
 
   /**
+   * Pages publiques à ouvrir pour chaque domaine du dossier.
+   *
+   * Aucune requête n'est émise : le modèle ne peut pas « trouver » une adresse
+   * publiée — il n'a ni réseau ni moteur — et faire lire une cible par un
+   * lecteur tiers la révélerait à ce tiers. On se contente donc de nommer les
+   * endroits où l'analyste regarde lui-même : c'est un pense-bête, pas une
+   * découverte, et rien ici ne prétend être une donnée.
+   */
+  const checkTargets = useMemo(() => {
+    const seen = new Set<string>();
+    const targets: { domain: string; pages: { label: string; url: string }[] }[] = [];
+
+    for (const node of nodes) {
+      const type = String(node.data?.entityType ?? '');
+      if (!['domain', 'hostname', 'url'].includes(type)) continue;
+
+      const host = String(node.data?.label ?? '')
+        .trim()
+        .replace(/^https?:\/\//i, '')
+        .replace(/[/?#].*$/, '')
+        .toLowerCase();
+
+      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || seen.has(host)) continue;
+      seen.add(host);
+
+      targets.push({
+        domain: host,
+        pages: [
+          { label: '/contact', url: `https://${host}/contact` },
+          { label: '/mentions-legales', url: `https://${host}/mentions-legales` },
+          { label: '/a-propos', url: `https://${host}/a-propos` },
+          { label: 'WHOIS', url: `https://who.is/whois/${host}` },
+        ],
+      });
+    }
+
+    return targets;
+  }, [nodes]);
+
+  /**
    * The dot has three states, and the grey one is the one people misread: on a
    * hosted origin nothing is probed automatically, so grey means "not tested
    * yet", not "down". Spell that out in a tooltip — a silent grey dot next to
@@ -543,6 +583,64 @@ export const HermesAnalyzer: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Pages à ouvrir soi-même : aucun appel réseau, aucune donnée
+                  inventée. Le pendant honnête de « l'IA devrait trouver ça ». */}
+              {checkTargets.length > 0 && (
+                <div
+                  data-testid="hermes-check-pages"
+                  style={{
+                    padding: '10px 16px',
+                    borderTop: '1px solid rgb(var(--cyber-cyan-rgb) / 0.2)',
+                    background: 'rgb(var(--cyber-panel-rgb) / 0.4)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'var(--cyber-cyan)',
+                      marginBottom: 4,
+                    }}
+                  >
+                    {t('analyzer.checkPages')}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--cyber-text-dim)', lineHeight: 1.5, marginBottom: 8 }}>
+                    {t('analyzer.checkPagesHint')}
+                  </div>
+                  {checkTargets.map(({ domain, pages }) => (
+                    <div key={domain} style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, color: 'var(--cyber-text)', fontFamily: 'monospace', marginBottom: 3 }}>
+                        {domain}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {pages.map((page) => (
+                          <a
+                            key={page.url}
+                            href={page.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 5,
+                              border: '1px solid rgb(var(--cyber-cyan-rgb) / 0.35)',
+                              background: 'rgb(var(--cyber-cyan-rgb) / 0.1)',
+                              color: 'var(--cyber-cyan)',
+                              fontSize: 10,
+                              textDecoration: 'none',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {page.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </>

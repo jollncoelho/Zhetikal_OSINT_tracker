@@ -166,6 +166,9 @@ const fr: Dict = {
   'analyzer.local': 'Local (Ollama)',
   'analyzer.advanced': 'Avancé (FreeLLMAPI)',
   'analyzer.launch': 'Lancer l\'Analyse',
+  'analyzer.checkPages': 'Pages à vérifier pour ce domaine',
+  'analyzer.checkPagesHint':
+    "Aucune requête n'est envoyée : ces liens s'ouvrent dans votre navigateur. Une adresse n'entre dans le dossier que si vous l'y ajoutez.",
   'analyzer.unsupported': 'Valeurs écartées — absentes du dossier :',
   'analyzer.unsupportedHint': 'Le modèle les a produites sans appui sur vos entités : elles ont été remplacées par [non renseigné] dans le rapport. Ne les retenez pas sans vérification.',
   'analyzer.analyzing': 'Analyse en cours…',
@@ -647,6 +650,9 @@ const en: Dict = {
   'analyzer.local': 'Local (Ollama)',
   'analyzer.advanced': 'Advanced (FreeLLMAPI)',
   'analyzer.launch': 'Launch Analysis',
+  'analyzer.checkPages': 'Pages to check for this domain',
+  'analyzer.checkPagesHint':
+    'No request is sent: these links open in your browser. An address only enters the case if you add it yourself.',
   'analyzer.unsupported': 'Values discarded — absent from the case:',
   'analyzer.unsupportedHint': 'The model produced them without support in your entities, so they were replaced by [non renseigné] in the report. Do not retain them without verification.',
   'analyzer.analyzing': 'Analyzing…',
@@ -1025,6 +1031,9 @@ const es: Dict = {
   'analyzer.local': 'Local (Ollama)',
   'analyzer.advanced': 'Avanzado (FreeLLMAPI)',
   'analyzer.launch': 'Lanzar Análisis',
+  'analyzer.checkPages': 'Páginas que verificar para este dominio',
+  'analyzer.checkPagesHint':
+    'No se envía ninguna petición: estos enlaces se abren en su navegador. Una dirección solo entra en el caso si usted la añade.',
   'analyzer.unsupported': 'Valores descartados — ausentes del caso:',
   'analyzer.unsupportedHint': 'El modelo los produjo sin apoyo en sus entidades: se sustituyeron por [non renseigné] en el informe. No los retenga sin verificarlos.',
   'analyzer.analyzing': 'Analizando…',
@@ -1403,6 +1412,9 @@ const pt: Dict = {
   'analyzer.local': 'Local (Ollama)',
   'analyzer.advanced': 'Avançado (FreeLLMAPI)',
   'analyzer.launch': 'Iniciar Análise',
+  'analyzer.checkPages': 'Páginas a verificar para este domínio',
+  'analyzer.checkPagesHint':
+    'Nenhum pedido é enviado: estes links abrem no seu navegador. Um endereço só entra no dossiê se você o adicionar.',
   'analyzer.unsupported': 'Valores descartados — ausentes do dossiê:',
   'analyzer.unsupportedHint': 'O modelo produziu-os sem apoio nas suas entidades: foram substituídos por [non renseigné] no relatório. Não os retenha sem verificação.',
   'analyzer.analyzing': 'Analisando…',
