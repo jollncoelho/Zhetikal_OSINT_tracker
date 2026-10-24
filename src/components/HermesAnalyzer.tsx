@@ -42,6 +42,15 @@ export const HermesAnalyzer: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);
+  /** Secondes écoulées + caractères reçus : la preuve visible que ça avance. */
+  const [elapsed, setElapsed] = useState(0);
+  const [received, setReceived] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [loading]);
 
   // FreeLLMAPI config state
   const [savedKey, setSavedKey] = useState<string>(() => getFreeLlmKey());
@@ -174,8 +183,12 @@ export const HermesAnalyzer: React.FC = () => {
     setLoading(true);
     setError(null);
     setDiscovery(null);
+    setElapsed(0);
+    setReceived(0);
     try {
-      const result = await runAnalysis(mode, { nodes, edges }, analystName);
+      const result = await runAnalysis(mode, { nodes, edges }, analystName, (progress) => {
+        setReceived(progress.chars);
+      });
       setDiscovery(result);
     } catch (err: any) {
       setError(err.message ?? 'Unknown error');
@@ -1039,7 +1052,7 @@ export const HermesAnalyzer: React.FC = () => {
                   flexShrink: 0,
                 }}
               />
-              {t('analyzer.analyzing')}
+              {t('analyzer.analyzing')} {elapsed}s{received > 0 ? ` · ${received}c` : ''}
             </>
           ) : (
             <>🧬 {t('analyzer.launch')}</>

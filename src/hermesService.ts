@@ -60,6 +60,159 @@ export const queryHermes = async (messages: HermesMessage[], workdir?: string): 
 
 const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
 
+/**
+ * Bornes de temps de l'analyse locale.
+ *
+ * Sans elles, `fetch` n'a aucun délai maximal : si Ollama accepte la connexion
+ * mais n'envoie jamais la réponse, la promesse ne se résout ni ne se rejette,
+ * et le bouton reste sur « Analyse en cours… » indéfiniment. L'analyste n'a
+ * alors aucun moyen de savoir si le modèle travaille ou s'il est bloqué.
+ */
+const OLLAMA_STALL_MS = 45_000;
+const OLLAMA_TOTAL_MS = 240_000;
+
+/**
+ * Assez pour un rapport JSON complet, trop court pour une divagation : un
+ * modèle bavard peut générer jusqu'à saturer son contexte, ce qui prend des
+ * dizaines de minutes pour un résultat inutilisable.
+ */
+const OLLAMA_MAX_TOKENS = 2048;
+
+export interface OllamaProgress {
+  /** Nombre de fragments reçus — la preuve que le modèle produit encore. */
+  chunks: number;
+  /** Caractères déjà générés. */
+  chars: number;
+  elapsedMs: number;
+}
+
+/**
+ * Génère une réponse Ollama en flux, avec deux garde-fous.
+ *
+ * `think: false` est le point décisif. Les modèles de raisonnement (le modèle
+ * de cet utilisateur déclare la capacité `thinking`) écrivent par défaut toute
+ * leur chaîne de pensée **dans le champ `response`** : mesuré sur cette
+ * machine, « Réponds uniquement : OK » prenait 58,7 s et renvoyait un
+ * « Thinking Process: 1. Analyze the Request… ». Avec `think: false`, la même
+ * requête prend 1,2 s et renvoie « OK ». Sur un vrai graphe, la différence
+ * n'est pas une optimisation : c'est la différence entre une analyse qui
+ * aboutit et une analyse qui ne finit jamais.
+ */
+async function ollamaGenerate(
+  payload: Record<string, unknown>,
+  onProgress?: (progress: OllamaProgress) => void
+): Promise<string> {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  let stalled = false;
+  let expired = false;
+
+  let stallTimer: ReturnType<typeof setTimeout> | undefined;
+  const armStall = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      stalled = true;
+      controller.abort();
+    }, OLLAMA_STALL_MS);
+  };
+  const hardTimer = setTimeout(() => {
+    expired = true;
+    controller.abort();
+  }, OLLAMA_TOTAL_MS);
+
+  const explainAbort = (): Error => {
+    const seconds = Math.round((Date.now() - startedAt) / 1000);
+    if (stalled) {
+      return new Error(
+        `Ollama n'a plus rien envoyé pendant ${Math.round(OLLAMA_STALL_MS / 1000)} s : le modèle est probablement bloqué ` +
+          `(mémoire insuffisante pour le charger, ou modèle trop lourd pour la machine).\n\n` +
+          `Essaie un modèle plus petit dans le menu de configuration (gemma:2b, llama3.2), ` +
+          `ou ferme les applications qui consomment de la mémoire.`
+      );
+    }
+    if (expired) {
+      return new Error(
+        `L'analyse locale a dépassé ${Math.round(OLLAMA_TOTAL_MS / 60000)} min (${seconds} s) et a été interrompue.\n\n` +
+          `Le modèle tourne mais n'a pas fini : soit le graphe est très volumineux, soit le modèle est trop lourd ` +
+          `pour cette machine. Réduis le nombre d'entités analysées, ou choisis un modèle plus petit.`
+      );
+    }
+    return new Error(`Analyse interrompue après ${seconds} s.`);
+  };
+
+  armStall();
+
+  try {
+    let response: Response;
+    try {
+      response = await fetch(OLLAMA_GENERATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, stream: true }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (stalled || expired) throw explainAbort();
+      throw new Error(
+        'Ollama est injoignable (connexion refusée sur le port 11434). Vérifie qu\'Ollama tourne bien en arrière-plan.'
+      );
+    }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Ollama a répondu HTTP ${response.status}${detail ? ` : ${detail.slice(0, 300)}` : ''}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      // Pas de flux disponible (navigateur ancien) : on retombe sur le JSON complet.
+      const data = await response.json();
+      return String(data?.response ?? '');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+    let chunks = 0;
+
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        armStall();
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let part: { response?: string; error?: string };
+          try {
+            part = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (part.error) throw new Error(`Ollama : ${part.error}`);
+          if (part.response) {
+            text += part.response;
+            chunks += 1;
+            onProgress?.({ chunks, chars: text.length, elapsedMs: Date.now() - startedAt });
+          }
+        }
+      }
+    } catch (error) {
+      if (stalled || expired) throw explainAbort();
+      throw error;
+    }
+
+    return text;
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer);
+    clearTimeout(hardTimer);
+  }
+}
+
 export const RECOMMENDED_MODELS = [
   { id: 'nemotron-3.5-lightning', label: 'nemotron-3.5-lightning (NVIDIA — Recommandé pour l\'extraction d\'entités)' },
   { id: 'gemma:2b', label: 'gemma:2b' },
@@ -211,32 +364,35 @@ function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
   return { entities, relations, summary };
 }
 
-async function runLocalAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
+async function runLocalAnalysis(
+  graphData: { nodes: any[]; edges: any[] },
+  analystName?: string,
+  onProgress?: (progress: OllamaProgress) => void
+): Promise<HermesDiscovery> {
   const model = getOllamaModel();
   if (!model) {
     throw new Error('Aucun modèle Ollama sélectionné. Choisis un modèle dans le menu de configuration avant de lancer l\'analyse.');
   }
-  let response: Response;
+  const base = {
+    model,
+    prompt: buildGraphPrompt(graphData, analystName),
+    options: { num_predict: OLLAMA_MAX_TOKENS },
+  };
+
+  let text: string;
   try {
-    response = await fetch(OLLAMA_GENERATE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        prompt: buildGraphPrompt(graphData, analystName),
-        stream: false,
-      }),
-    });
-  } catch (err) {
-    throw new Error('Ollama is unreachable (connection refused on port 11434). Make sure Ollama is running.');
+    text = await ollamaGenerate({ ...base, think: false }, onProgress);
+  } catch (error) {
+    // `think` n'existe que depuis Ollama 0.12 : sur une version plus ancienne
+    // le champ est refusé. On réessaie sans lui plutôt que d'échouer.
+    if (/think/i.test((error as Error).message) && /HTTP 400/.test((error as Error).message)) {
+      text = await ollamaGenerate(base, onProgress);
+    } else {
+      throw error;
+    }
   }
 
-  if (!response.ok) {
-    throw new Error(`Ollama returned HTTP ${response.status}: ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  const text: string = data?.response ?? '';
+  if (!text.trim()) throw new Error('Ollama a renvoyé une réponse vide.');
   return parseOllamaTextToDiscovery(text);
 }
 
@@ -595,8 +751,22 @@ async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, ana
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
+      // Même raison que côté Ollama : sans borne, une requête acceptée puis
+      // abandonnée par le routeur laisse le bouton tourner indéfiniment.
+      signal:
+        typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+          ? AbortSignal.timeout(120_000)
+          : undefined,
     });
-  } catch {
+  } catch (error) {
+    const name = (error as Error).name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      throw new Error(
+        'FreeLLMAPI n\'a pas répondu en 2 min : la requête a été interrompue.\n\n' +
+          'Le routeur est peut-être saturé, ou aucun fournisseur de la chaîne de repli ne répond. ' +
+          'Réessaie, ou choisis un modèle précis au lieu du mode Auto.'
+      );
+    }
     throw freeLlmUnreachableError(url, await probeLoopbackReachable(url));
   }
 
@@ -644,9 +814,10 @@ async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, ana
 export async function runAnalysis(
   mode: AnalysisMode,
   graphData: { nodes: any[]; edges: any[] },
-  analystName?: string
+  analystName?: string,
+  onProgress?: (progress: OllamaProgress) => void
 ): Promise<HermesDiscovery> {
-  if (mode === 'local') return runLocalAnalysis(graphData, analystName);
+  if (mode === 'local') return runLocalAnalysis(graphData, analystName, onProgress);
   return runFreeLlmAnalysis(graphData, analystName);
 }
 
