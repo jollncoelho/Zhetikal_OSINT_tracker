@@ -69,7 +69,13 @@ const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
  * alors aucun moyen de savoir si le modèle travaille ou s'il est bloqué.
  */
 const OLLAMA_STALL_MS = 45_000;
-const OLLAMA_TOTAL_MS = 240_000;
+/**
+ * Plafond absolu, calé sur `num_predict` : 2048 jetons à la vitesse observée
+ * sur cette machine (≈ 3,6 jetons/s) font ~9 min. Une analyse réelle sur un
+ * petit graphe prend déjà 2 min 30, donc un plafond plus court interromprait
+ * du travail légitime. Le vrai filet reste le détecteur d'immobilité.
+ */
+const OLLAMA_TOTAL_MS = 600_000;
 
 /**
  * Assez pour un rapport JSON complet, trop court pour une divagation : un
@@ -270,53 +276,161 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName
     .filter(Boolean)
     .join(' | ');
 
-  return `Tu es un expert d'élite en OSINT et en investigation numérique. Tu agis comme le co-enquêteur de ${analyst}. Ton but est d'analyser les entités fournies issues d'un graphique d'investigation, de croiser les données de manière logique et de proposer de nouvelles pistes d'enquêtes ultra-précises. Tu ne résumes JAMAIS ce qui est déjà visible — tu vas au-delà : croisements de registres, DNS, géolocalisation, réseaux sociaux, banques, structures offshore, incohérences, hypothèses de relocalisation.
+  return `Tu es un enquêteur OSINT senior. Tu travailles le dossier de ${analyst}.
 
-Voici les données actuelles du graphique sous forme d'entités :
+Ta spécialité : partir de quelques identifiants et reconstruire l'infrastructure, les comptes et les personnes derrière. Tu penses en PIVOTS — chaque donnée doit ouvrir la suivante.
 
-ENTITÉS:
+Ce que tu ne fais jamais :
+- inventer un fait. Tu sépares toujours ce que les données ÉTABLISSENT, ce que tu en DÉDUIS, et ce qui reste À VÉRIFIER.
+- citer une information que tu ne peux pas relier aux entités fournies.
+- répéter ce que le graphe montre déjà : l'analyste le voit.
+
+DOSSIER — ENTITÉS :
 ${nodeLines || '(aucune)'}
 
-LIENS:
+LIENS :
 ${edgeLines || '(aucun)'}
 
-VALEURS DÉJÀ PRÉSENTES (NE PAS REPROPOSER):
+VALEURS DÉJÀ PRÉSENTES (ne pas reproposer) :
 ${existingValues || '(aucune)'}
 
----
+===
 
-Tu dois générer une réponse STRICTEMENT structurée sous la forme suivante (respecte les balises textuelles) :
+Tu produis trois sections, dans cet ordre, sans rien d'autre.
 
 === ANALYSE ===
-Rédige ton rapport d'investigation de manière fluide et immersive. Adresse-toi directement à ${analyst}. Fais des liens, évoque des vérifications de registres, des serveurs suspects, des hypothèses de relocalisation ou des incohérences. Le ton doit être ultra-professionnel, percutant et sans aucune liste à puces technique. 3 à 6 phrases de prose dense.
+Un rapport de 4 à 8 phrases adressé à ${analyst}. Commence par ce que le dossier établit. Enchaîne sur ce que cela implique — infrastructure, opérateur, cohérence ou contradiction. Termine par la vérification la plus rentable à faire maintenant, et pourquoi.
+Si une donnée manque pour conclure, dis-le. Une hypothèse se présente comme une hypothèse, jamais glissée comme un fait.
 
 === NOUVELLES ENTITÉS ===
-Liste UNIQUEMENT les entités NOUVELLES découvertes ou déduites lors de ton analyse. N'inclus JAMAIS les entités de départ fournies ci-dessus.
+RÈGLE D'EXHAUSTIVITÉ — la plus importante :
+tout identifiant concret que tu écris dans le rapport ci-dessus doit aussi figurer dans cette liste. Adresse e-mail, numéro de téléphone, pseudo, domaine, URL, adresse IP, ASN, certificat, portefeuille crypto, IBAN, nom de personne ou d'organisation, ville, date de naissance : tout. Un identifiant cité dans le texte mais absent de cette liste est une faute grave — l'analyste ne pourra pas l'exploiter.
 
-RÈGLES STRICTES POUR LA VALEUR (VALUE) DE CHAQUE ENTITÉ :
-1. La valeur doit être EXCLUSIVEMENT la donnée brute, exacte, sans aucun texte descriptif ni parenthèses.
+Un e-mail cité dans une phrase EST une entité EMAIL. Un pseudo cité EST une entité PSEUDO. Chaque identifiant distinct donne une ligne distincte : quatre adresses différentes font quatre entités, jamais une seule.
+
+Ne liste QUE les entités nouvelles ou déduites : n'inclus jamais une entité de départ.
+
+RÈGLES STRICTES POUR LA VALEUR (VALUE) :
+1. La valeur est EXCLUSIVEMENT la donnée brute, exacte, sans description ni parenthèses.
    - IP : "185.220.101.5" et JAMAIS "[IP Adress] (Requête...)"
    - IBAN : "FR763000..." et JAMAIS "IBAN1"
    - Domaine : "k-digital.com" et JAMAIS "Domaine suspect k-digital.com"
-2. La description, la justification ou le contexte va dans le champ NOTES, jamais dans VALUE.
-3. DÉDUPLICATION : Ne propose JAMAIS une entité dont la valeur brute existe déjà dans la liste "VALEURS DÉJÀ PRÉSENTES" ci-dessus. Vérifie chaque valeur avant de la proposer.
+   - E-mail : "contact@k-digital.com" et JAMAIS "l'e-mail de contact"
+2. Le contexte et la justification vont dans NOTES, jamais dans VALUE.
+3. DÉDUPLICATION : ne propose jamais une valeur déjà présente dans « VALEURS DÉJÀ PRÉSENTES ».
+4. Maximum 12 entités. Choisis les pivots les plus utiles.
 
-Format strict pour chaque entité (4 lignes par entité) :
-- TYPE: [TYPE EN MAJUSCULE]
+Format strict, 4 lignes par entité :
+- TYPE: [type]
 - VALUE: [valeur brute exacte]
-- NOTES: [description/court contexte ou justification]
+- NOTES: [contexte court, et si c'est une déduction, écris « déduit : »]
 - ---
 
-Types valides : PSEUDO, EMAIL, TELEPHONE, NOM, PRENOM, URL, IP, DOMAINE, HOSTNAME, ASN, HASH, SSL_CERT, TTP, ORGANISATION, LOCALISATION, COMPTE_SOCIAL, PHOTO, VEHICULE, IBAN, NOTE
+Types valides (recopie exactement l'un de ces mots) : PSEUDO, EMAIL, TELEPHONE, PERSONNE, ORGANISATION, URL, DOMAINE, HOSTNAME, IP, ASN, HASH, SSL_CERT, TTP, LOCALISATION, COMPTE_SOCIAL, PHOTO, IBAN, CRYPTO, NOTE
 Si aucune nouvelle entité, écris : (aucune nouvelle entité)
 
----
-Réponds UNIQUEMENT avec ces deux sections dans l'ordre. Aucun JSON. Aucun markdown superflu. Aucune phrase hors-sections.`;
+=== LIENS SUGGÉRÉS ===
+Une relation par ligne, au format exact : SOURCE → CIBLE
+Utilise EXACTEMENT la valeur brute, telle qu'écrite dans VALUE ou déjà présente dans le dossier. Aucune phrase, aucune ponctuation autour.
+Si aucun lien, écris : (aucun lien)`;
 }
 
-function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
-  const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTITÉS\s*===|$)/i);
-  const entitesMatch = text.match(/===\s*NOUVELLES ENTIT[ÉE]S?\s*===\s*\n([\s\S]*?)$/i);
+/**
+ * Types émis par le modèle → types canoniques de `EntityType`.
+ *
+ * Le prompt demande des libellés en majuscules lisibles, mais le store attend
+ * les clés exactes de `ENTITY_COLORS` / `ENTITY_ICON_NAMES` / `ENTITY_FIELDS`.
+ * Sans cette table, un nœud injecté recevait `entityType: 'EMAIL'` : couleur par
+ * défaut, icône « Globe » et aucun champ structuré — la donnée était sur le
+ * graphe mais inexploitable.
+ */
+const ENTITY_TYPE_MAP: Record<string, string> = {
+  PSEUDO: 'username',
+  USERNAME: 'username',
+  COMPTE_SOCIAL: 'social',
+  SOCIAL: 'social',
+  EMAIL: 'email',
+  MAIL: 'email',
+  TELEPHONE: 'phone',
+  PHONE: 'phone',
+  NOM: 'person',
+  PRENOM: 'person',
+  PERSONNE: 'person',
+  PERSON: 'person',
+  ORGANISATION: 'organization',
+  ORGANIZATION: 'organization',
+  URL: 'url',
+  DOMAINE: 'domain',
+  DOMAIN: 'domain',
+  HOSTNAME: 'hostname',
+  IP: 'ip',
+  ASN: 'asn',
+  HASH: 'hash',
+  SSL_CERT: 'sslcert',
+  SSLCERT: 'sslcert',
+  TTP: 'ttp',
+  LOCALISATION: 'location',
+  LOCATION: 'location',
+  PHOTO: 'photo',
+  IBAN: 'iban',
+  CRYPTO: 'crypto',
+  FICHIER: 'file',
+  FILE: 'file',
+  VEHICULE: 'note',
+  NOTE: 'note',
+};
+
+function normalizeEntityType(raw: string): string {
+  const key = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return ENTITY_TYPE_MAP[key] ?? 'note';
+}
+
+/**
+ * Filet de sécurité déterministe : relève dans le rapport les identifiants
+ * concrets qui n'ont pas été listés comme entités.
+ *
+ * Compter sur la consigne du prompt ne suffit pas — un petit modèle l'oublie une
+ * fois sur deux, et l'analyste se retrouve avec un rapport qui parle de quatre
+ * adresses e-mail et une seule entité injectable. Ici, ce qui est écrit dans le
+ * texte est relevé mécaniquement, donc rien ne se perd.
+ */
+function extractMentionedIdentifiers(text: string): { type: string; value: string }[] {
+  const found: { type: string; value: string }[] = [];
+  let rest = text;
+
+  const take = (pattern: RegExp, type: string, clean?: (value: string) => string) => {
+    rest = rest.replace(pattern, (match) => {
+      const value = (clean ? clean(match) : match).trim();
+      if (value) found.push({ type, value });
+      return ' ';
+    });
+  };
+
+  // Les e-mails d'abord : sinon leur domaine serait aussi relevé comme domaine.
+  take(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, 'email');
+  // Puis les URL, pour la même raison vis-à-vis de leur hôte.
+  take(/\bhttps?:\/\/[^\s<>"'`)\]]+/gi, 'url', (value) => value.replace(/[.,;:]+$/, ''));
+  take(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, 'ip');
+  // Téléphone : uniquement la forme internationale, sinon les dates et les
+  // identifiants numériques seraient pris pour des numéros.
+  take(/\+\d{1,3}[\s.-]?(?:\d[\s.-]?){7,13}\d/g, 'phone', (value) => value.replace(/[\s.-]+/g, ' ').trim());
+  take(
+    /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|me|ru|cn|fr|de|info|xyz|top|onion|co|biz|site|online|shop|app|dev|gov|edu)\b/gi,
+    'domain'
+  );
+  take(/(?:^|[\s(])@([A-Za-z0-9_]{3,32})\b/g, 'username', (value) => value.replace(/^[\s(]+/, ''));
+
+  return found;
+}
+
+/** Exporté pour les tests : la lecture de la réponse du modèle est le point
+ *  où se joue la différence entre un rapport lisible et des pivots exploitables. */
+export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
+  const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTIT[ÉE]S?\s*===|$)/i);
+  const entitesMatch = text.match(
+    /===\s*NOUVELLES ENTIT[ÉE]S?\s*===\s*\n([\s\S]*?)(?:===\s*LIENS|$)/i
+  );
+  const liensMatch = text.match(/===\s*LIENS[^=\n]*===\s*\n([\s\S]*?)$/i);
 
   let summary = '';
   const entities: HermesEntity[] = [];
@@ -337,7 +451,7 @@ function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
         const v = valueMatch[1].trim();
         const notes = notesMatch ? notesMatch[1].trim() : '';
         if (t && v) {
-          entities.push({ type: t, label: v, properties: notes ? { notes } : undefined });
+          entities.push({ type: normalizeEntityType(t), label: v, properties: notes ? { notes } : undefined });
         }
       }
     }
@@ -350,7 +464,7 @@ function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
         if (sep > 0) {
           const type = trimmed.slice(0, sep).trim().toUpperCase();
           const label = trimmed.slice(sep + 1).trim();
-          if (type && label) entities.push({ type, label });
+          if (type && label) entities.push({ type: normalizeEntityType(type), label });
         }
       }
     }
@@ -364,12 +478,35 @@ function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
       if (sep > 0) {
         const type = trimmed.slice(0, sep).trim().toUpperCase();
         const label = trimmed.slice(sep + 1).trim();
-        if (type && label && /^[A-Z_]+$/.test(type)) entities.push({ type, label });
+        if (type && label && /^[A-Z_]+$/.test(type)) entities.push({ type: normalizeEntityType(type), label });
       }
     }
   }
 
+  if (liensMatch) {
+    for (const line of liensMatch[1].split('\n')) {
+      const cleaned = line.replace(/^[-*]\s*/, '').trim();
+      if (!cleaned || /^\(aucun/i.test(cleaned)) continue;
+      const parts = cleaned.split(/\s*(?:→|->|=>|\|)\s*/);
+      if (parts.length < 2) continue;
+      const source = parts[0].trim();
+      const target = parts[1].trim();
+      if (source && target) relations.push({ source, target, type: 'associated' });
+    }
+  }
+
   if (!summary) summary = text.slice(0, 2000).trim();
+
+  // Rattrapage : tout identifiant écrit dans le rapport mais absent de la liste
+  // devient une entité. Sans cela, un rapport qui parle de quatre adresses
+  // e-mail n'en rendait qu'une injectable.
+  const known = new Set(entities.map((entity) => entity.label.trim().toLowerCase()));
+  for (const mention of extractMentionedIdentifiers(summary)) {
+    const key = mention.value.trim().toLowerCase();
+    if (!key || known.has(key)) continue;
+    known.add(key);
+    entities.push({ type: mention.type, label: mention.value, properties: { notes: 'Cité dans l’analyse.' } });
+  }
 
   return { entities, relations, summary };
 }
