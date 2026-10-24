@@ -334,6 +334,7 @@ export const HermesAnalyzer: React.FC = () => {
       {/* Results panel */}
       {!minimized && (discovery || error) && (
         <div
+          data-testid="hermes-result"
           style={{
             width: '100%',
             background: 'var(--cyber-dark)',
@@ -367,6 +368,7 @@ export const HermesAnalyzer: React.FC = () => {
             <>
               {/* Summary — narrative investigation text */}
               <div
+                data-testid="hermes-summary"
                 style={{
                   padding: '12px 16px',
                   borderBottom: '1px solid rgb(var(--cyber-cyan-rgb) / 0.2)',
@@ -383,9 +385,29 @@ export const HermesAnalyzer: React.FC = () => {
                 {discovery.summary}
               </div>
 
+              {/* Valeurs citées par le modèle mais absentes du dossier : on les
+                  montre au lieu de laisser passer une affirmation pour un fait. */}
+              {!!discovery.unsupported?.length && (
+                <div
+                  data-testid="hermes-unsupported"
+                  style={{
+                    padding: '8px 16px',
+                    borderBottom: '1px solid rgb(var(--cyber-cyan-rgb) / 0.2)',
+                    background: 'rgb(var(--cyber-orange-rgb) / 0.08)',
+                    fontSize: 10,
+                    lineHeight: 1.6,
+                    color: 'var(--cyber-orange)',
+                  }}
+                >
+                  <b>{t('analyzer.unsupported')}</b>{' '}
+                  <span style={{ fontFamily: 'monospace' }}>{discovery.unsupported.join(' · ')}</span>
+                  <div style={{ color: 'var(--cyber-text-dim)', marginTop: 2 }}>{t('analyzer.unsupportedHint')}</div>
+                </div>
+              )}
+
               {/* Entities */}
               {newEntities.length > 0 && (
-                <div style={{ padding: '10px 16px' }}>
+                <div data-testid="hermes-entities" style={{ padding: '10px 16px' }}>
                   {/* Header row: count + inline inject button */}
                   <div
                     style={{

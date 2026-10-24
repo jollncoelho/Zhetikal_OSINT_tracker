@@ -70,6 +70,15 @@ const OLLAMA_GENERATE_URL = 'http://localhost:11434/api/generate';
  */
 const OLLAMA_STALL_MS = 45_000;
 /**
+ * Délai accordé avant le **premier** fragment.
+ *
+ * Il ne mesure pas la même chose que l'immobilité en cours de génération : avant
+ * le premier jeton, le modèle avale tout le prompt (consignes + graphe). Sur un
+ * 9,2 B en Q8 et sans GPU, cette phase dure couramment une minute ; la compter
+ * comme un blocage faisait échouer des analyses parfaitement saines.
+ */
+const OLLAMA_FIRST_CHUNK_MS = 240_000;
+/**
  * Plafond absolu, calé sur `num_predict` : 2048 jetons à la vitesse observée
  * sur cette machine (≈ 3,6 jetons/s) font ~9 min. Une analyse réelle sur un
  * petit graphe prend déjà 2 min 30, donc un plafond plus court interromprait
@@ -112,14 +121,18 @@ async function ollamaGenerate(
   const controller = new AbortController();
   let stalled = false;
   let expired = false;
+  let started = false;
 
   let stallTimer: ReturnType<typeof setTimeout> | undefined;
   const armStall = () => {
     if (stallTimer) clearTimeout(stallTimer);
-    stallTimer = setTimeout(() => {
-      stalled = true;
-      controller.abort();
-    }, OLLAMA_STALL_MS);
+    stallTimer = setTimeout(
+      () => {
+        stalled = true;
+        controller.abort();
+      },
+      started ? OLLAMA_STALL_MS : OLLAMA_FIRST_CHUNK_MS
+    );
   };
   const hardTimer = setTimeout(() => {
     expired = true;
@@ -130,10 +143,13 @@ async function ollamaGenerate(
     const seconds = Math.round((Date.now() - startedAt) / 1000);
     if (stalled) {
       return new Error(
-        `Ollama n'a plus rien envoyé pendant ${Math.round(OLLAMA_STALL_MS / 1000)} s : le modèle est probablement bloqué ` +
-          `(mémoire insuffisante pour le charger, ou modèle trop lourd pour la machine).\n\n` +
-          `Essaie un modèle plus petit dans le menu de configuration (gemma:2b, llama3.2), ` +
-          `ou ferme les applications qui consomment de la mémoire.`
+        started
+          ? `Ollama s'est arrêté en cours de génération (plus rien pendant ${Math.round(OLLAMA_STALL_MS / 1000)} s).\n\n` +
+            `Le modèle a probablement manqué de mémoire. Essaie un modèle plus petit dans le menu de configuration ` +
+            `(gemma:2b, llama3.2), ou ferme les applications qui consomment de la mémoire.`
+          : `Le modèle n'a pas commencé à répondre en ${Math.round(OLLAMA_FIRST_CHUNK_MS / 60000)} min : il n'arrive pas ` +
+            `à charger ou à digérer le prompt.\n\n` +
+            `Essaie un modèle plus petit (gemma:2b, llama3.2) — un 9 B en Q8 demande beaucoup de mémoire vive.`
       );
     }
     if (expired) {
@@ -211,6 +227,7 @@ async function ollamaGenerate(
           }
           if (part.error) throw new Error(`Ollama : ${part.error}`);
           if (part.response) {
+            started = true;
             text += part.response;
             chunks += 1;
             onProgress?.({ chunks, chars: text.length, elapsedMs: Date.now() - startedAt });
@@ -252,6 +269,72 @@ export function setOllamaModel(model: string): void {
   }
 }
 
+/**
+ * Consignes de cadrage, envoyées comme **message système**.
+ *
+ * Séparer les règles des données n'est pas cosmétique : un modèle d'instruction
+ * accorde plus de poids à un rôle système qu'à des consignes noyées au milieu
+ * d'un long message utilisateur. Côté Ollama, le champ `system` de
+ * `/api/generate` joue ce rôle ; côté FreeLLMAPI (compatible OpenAI), c'est le
+ * message `role: "system"`.
+ *
+ * Les interdits portent sur ce que le modèle *ajoute* : sans eux, il complète
+ * un graphe de trois nœuds avec une IP, un ASN, une ville et un hébergeur
+ * inventés, présentés comme des constats.
+ */
+function buildAnalysisSystemPrompt(analyst: string): string {
+  return `Tu es un analyste OSINT senior, strict, pragmatique et purement factuel. Tu rédiges pour ${analyst} un rapport d'audit technique.
+
+RÈGLES IMPÉRATIVES
+
+1. AUCUNE DRAMATISATION. Bannis le vocabulaire romanesque ou « hollywoodien » : « camouflage opératoire », « infrastructure éphémère », « nœud Tor », « dark web », « opérateur insaisissable », « rotation des identités ». Une adresse IP n'est une passerelle Tor que si les données le disent explicitement. Le ton est celui d'un rapport d'audit, pas d'un thriller.
+
+2. RIGUEUR FACTUELLE. Tu ne conclus que sur les données techniques réellement fournies dans le graphe. Si l'hébergeur, l'ASN, le pays ou la date ne figurent pas dans les entités, tu écris qu'ils sont inconnus — tu ne les devines pas, tu ne les déduis pas du préfixe d'une IP, et tu n'inventes aucun scénario d'infrastructure.
+
+3. HYPOTHÈSES NOMMÉES. Toute supposition commence par « Hypothèse à vérifier : » et n'est jamais présentée comme un constat.
+
+4. TON. Sobre, technique, concis. Aucune flatterie, aucune mise en scène.
+
+5. EXHAUSTIVITÉ. Tout identifiant concret que tu écris dans le rapport doit aussi figurer dans la liste d'entités. Un identifiant cité dans le texte mais absent de la liste est une faute grave : l'analyste ne pourra pas l'exploiter.
+
+Tu ne cites jamais une information que tu ne peux pas relier aux entités fournies, et tu ne répètes pas ce que le graphe montre déjà.`;
+}
+
+/**
+ * Inventaire déterministe de ce que le dossier ne contient pas.
+ *
+ * La consigne « n'invente pas » reste une consigne : sur un petit modèle elle
+ * est ignorée une fois sur deux, et le rapport se met à attribuer l'IP à un
+ * hébergeur et à une ville. Nommer explicitement les rubriques absentes change
+ * la nature de la tâche — le modèle n'a plus à deviner ce qui manque, il lit
+ * la liste. C'est la seule partie du dispositif qui agit *avant* la génération.
+ */
+function describeAbsentData(graphData: { nodes: any[]; edges: any[] }): string[] {
+  const blob = graphData.nodes
+    .map((node) =>
+      [
+        node.data?.label,
+        node.data?.entityType,
+        node.data?.fields ? Object.keys(node.data.fields).join(' ') : '',
+        node.data?.fields ? Object.values(node.data.fields).join(' ') : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    )
+    .join(' ')
+    .toLowerCase();
+
+  const categories: Array<{ label: string; pattern: RegExp }> = [
+    { label: 'ASN / hébergeur / opérateur réseau', pattern: /asn|hosting|h[ée]berg|host(?:er|name)?\b|\bisp\b|op[ée]rateur|organisation|organization|company|soci[ée]t[ée]|provider/ },
+    { label: 'Géolocalisation (pays, ville, coordonnées)', pattern: /pays|country|ville|\bcity\b|r[ée]gion|localisation|location|\bgeo\b|adresse|address|coord/ },
+    { label: 'WHOIS / enregistrement du domaine', pattern: /whois|registrar|registre|cr[ée]ation|creation|expir|owner|propri[ée]taire/ },
+    { label: 'Certificat TLS', pattern: /\bssl\b|\btls\b|cert|issuer|[ée]metteur/ },
+    { label: 'DNS / messagerie (MX, SPF, DMARC)', pattern: /\bdns\b|\bmx\b|nameserver|\bspf\b|dmarc/ },
+  ];
+
+  return categories.filter((category) => !category.pattern.test(blob)).map((category) => category.label);
+}
+
 function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName?: string): string {
   const analyst = analystName?.trim() || 'Analyste';
   const nodeLines = graphData.nodes
@@ -276,16 +359,9 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName
     .filter(Boolean)
     .join(' | ');
 
-  return `Tu es un enquêteur OSINT senior. Tu travailles le dossier de ${analyst}.
+  const absent = describeAbsentData(graphData);
 
-Ta spécialité : partir de quelques identifiants et reconstruire l'infrastructure, les comptes et les personnes derrière. Tu penses en PIVOTS — chaque donnée doit ouvrir la suivante.
-
-Ce que tu ne fais jamais :
-- inventer un fait. Tu sépares toujours ce que les données ÉTABLISSENT, ce que tu en DÉDUIS, et ce qui reste À VÉRIFIER.
-- citer une information que tu ne peux pas relier aux entités fournies.
-- répéter ce que le graphe montre déjà : l'analyste le voit.
-
-DOSSIER — ENTITÉS :
+  return `DOSSIER — ENTITÉS :
 ${nodeLines || '(aucune)'}
 
 LIENS :
@@ -293,22 +369,31 @@ ${edgeLines || '(aucun)'}
 
 VALEURS DÉJÀ PRÉSENTES (ne pas reproposer) :
 ${existingValues || '(aucune)'}
+${
+  absent.length > 0
+    ? `
+DONNÉES ABSENTES DU DOSSIER (tu ne les inventes sous aucun prétexte) :
+${absent.map((item) => `- ${item}`).join('\n')}
 
+Pour chaque rubrique ci-dessus, écris « non renseigné ». Ne cite AUCUN nom d'hébergeur, de CDN, d'ASN, de pays ni de ville : ils ne figurent pas dans le dossier, les nommer serait une invention, pas une déduction.
+`
+    : ''
+}
 ===
 
 Tu produis trois sections, dans cet ordre, sans rien d'autre.
 
 === ANALYSE ===
-Un rapport de 4 à 8 phrases adressé à ${analyst}. Commence par ce que le dossier établit. Enchaîne sur ce que cela implique — infrastructure, opérateur, cohérence ou contradiction. Termine par la vérification la plus rentable à faire maintenant, et pourquoi.
-Si une donnée manque pour conclure, dis-le. Une hypothèse se présente comme une hypothèse, jamais glissée comme un fait.
+Un rapport de 4 à 8 phrases adressé à ${analyst}, en français technique.
+1. Ce que les données établissent : les faits vérifiables, valeurs citées.
+2. Ce qu'elles permettent de déduire, et sur quelle donnée précise repose la déduction.
+3. Ce qui reste inconnu et empêche de conclure.
+4. La vérification la plus rentable à faire maintenant, et pourquoi.
+Une déduction qui ne s'appuie sur aucune donnée du dossier n'a pas sa place ici.
 
 === NOUVELLES ENTITÉS ===
-RÈGLE D'EXHAUSTIVITÉ — la plus importante :
-tout identifiant concret que tu écris dans le rapport ci-dessus doit aussi figurer dans cette liste. Adresse e-mail, numéro de téléphone, pseudo, domaine, URL, adresse IP, ASN, certificat, portefeuille crypto, IBAN, nom de personne ou d'organisation, ville, date de naissance : tout. Un identifiant cité dans le texte mais absent de cette liste est une faute grave — l'analyste ne pourra pas l'exploiter.
-
-Un e-mail cité dans une phrase EST une entité EMAIL. Un pseudo cité EST une entité PSEUDO. Chaque identifiant distinct donne une ligne distincte : quatre adresses différentes font quatre entités, jamais une seule.
-
 Ne liste QUE les entités nouvelles ou déduites : n'inclus jamais une entité de départ.
+Un e-mail cité dans une phrase EST une entité EMAIL. Un pseudo cité EST une entité PSEUDO. Chaque identifiant distinct donne une ligne distincte : quatre adresses différentes font quatre entités, jamais une seule.
 
 RÈGLES STRICTES POUR LA VALEUR (VALUE) :
 1. La valeur est EXCLUSIVEMENT la donnée brute, exacte, sans description ni parenthèses.
@@ -323,7 +408,7 @@ RÈGLES STRICTES POUR LA VALEUR (VALUE) :
 Format strict, 4 lignes par entité :
 - TYPE: [type]
 - VALUE: [valeur brute exacte]
-- NOTES: [contexte court, et si c'est une déduction, écris « déduit : »]
+- NOTES: [contexte court ; si c'est une supposition, commence par « Hypothèse à vérifier : »]
 - ---
 
 Types valides (recopie exactement l'un de ces mots) : PSEUDO, EMAIL, TELEPHONE, PERSONNE, ORGANISATION, URL, DOMAINE, HOSTNAME, IP, ASN, HASH, SSL_CERT, TTP, LOCALISATION, COMPTE_SOCIAL, PHOTO, IBAN, CRYPTO, NOTE
@@ -394,7 +479,7 @@ function normalizeEntityType(raw: string): string {
  * adresses e-mail et une seule entité injectable. Ici, ce qui est écrit dans le
  * texte est relevé mécaniquement, donc rien ne se perd.
  */
-function extractMentionedIdentifiers(text: string): { type: string; value: string }[] {
+function scanIdentifiers(text: string): { found: { type: string; value: string }[]; residual: string } {
   const found: { type: string; value: string }[] = [];
   let rest = text;
 
@@ -419,6 +504,118 @@ function extractMentionedIdentifiers(text: string): { type: string; value: strin
     'domain'
   );
   take(/(?:^|[\s(])@([A-Za-z0-9_]{3,32})\b/g, 'username', (value) => value.replace(/^[\s(]+/, ''));
+
+  return { found, residual: rest };
+}
+
+function extractMentionedIdentifiers(text: string): { type: string; value: string }[] {
+  return scanIdentifiers(text).found;
+}
+
+/**
+ * Vocabulaire d'infrastructure qu'un modèle invente le plus volontiers.
+ *
+ * Un nom d'hébergeur, un CDN, un pays ne ressemblent à aucun identifiant : les
+ * expressions régulières ci-dessus ne les voient pas. C'est exactement par là
+ * que passait le mensonge le plus coûteux — un rapport qui attribue une IP à
+ * « l'ASN Cloudflare » ou à « Hetzner, Nuremberg » alors que le dossier ne
+ * contient aucune donnée d'hébergement. Cette liste n'est pas une source de
+ * vérité : elle sert de filet, et un nom qu'elle trouve est confronté au
+ * dossier avant d'être signalé.
+ */
+const INFRA_VENDORS = [
+  'cloudflare', 'akamai', 'fastly', 'stackpath', 'bunnycdn', 'bunny cdn', 'sucuri', 'imperva',
+  'amazon', 'amazon web services', 'aws', 'google cloud', 'azure', 'microsoft azure',
+  'oracle cloud', 'alibaba cloud', 'alicloud', 'tencent cloud', 'hetzner', 'hostinger',
+  'ovhcloud', 'scaleway', 'online.net', 'digitalocean', 'digital ocean', 'linode',
+  'vultr', 'contabo', 'ionos', '1&1', 'namecheap', 'godaddy', 'gandi', 'reg.ru', 'timeweb',
+  'selectel', 'beget', 'hostgator', 'bluehost', 'siteground', 'dreamhost', 'leaseweb',
+  'serverius', 'psychz', 'colocrossing', 'quadranet', 'm247', 'frantech', 'buyvm',
+  'hostwinds', 'racknerd', 'sharktech', 'koddos', 'flokinet', 'abelohost', 'prq',
+  'bahnhof', 'worldstream', 'serverion', 'nforce', 'cherryservers', 'hostkey', 'aeza',
+  'the.hosting', 'cloudzy', 'kamatera', 'hostens', 'hostpapa', 'ipower', 'a2 hosting',
+];
+
+/** Pays et villes d'hébergement : mêmes dégâts quand ils sont inventés. */
+const GEO_NAMES = [
+  'allemagne', 'germany', 'autriche', 'austria', 'belgique', 'belgium', 'brésil', 'brazil',
+  'bulgarie', 'bulgaria', 'canada', 'chine', 'china', 'chypre', 'cyprus', 'colombie',
+  'colombia', 'corée du sud', 'south korea', 'croatie', 'croatia', 'danemark', 'denmark',
+  'égypte', 'egypt', 'émirats arabes unis', 'united arab emirates', 'espagne', 'spain',
+  'estonie', 'estonia', 'états-unis', 'united states', 'finlande', 'finland', 'france',
+  'grèce', 'greece', 'hongrie', 'hungary', 'inde', 'india', 'indonésie', 'indonesia',
+  'iran', 'irlande', 'ireland', 'islande', 'iceland', 'israël', 'israel', 'italie',
+  'italy', 'japon', 'japan', 'kazakhstan', 'lettonie', 'latvia', 'lituanie', 'lithuania',
+  'luxembourg', 'malaisie', 'malaysia', 'malte', 'malta', 'maroc', 'morocco', 'mexique',
+  'mexico', 'moldavie', 'moldova', 'nigeria', 'norvège', 'norway', 'nouvelle-zélande',
+  'new zealand', 'pakistan', 'panama', 'pays-bas', 'netherlands', 'pérou', 'peru',
+  'philippines', 'pologne', 'poland', 'portugal', 'république tchèque', 'czech republic',
+  'czechia', 'roumanie', 'romania', 'royaume-uni', 'united kingdom', 'russie', 'russia',
+  'arabie saoudite', 'saudi arabia', 'serbie', 'serbia', 'singapour', 'singapore',
+  'slovaquie', 'slovakia', 'slovénie', 'slovenia', 'afrique du sud', 'south africa',
+  'suède', 'sweden', 'suisse', 'switzerland', 'thaïlande', 'thailand', 'turquie',
+  'turkey', 'ukraine', 'vietnam', 'seychelles', 'belize', 'costa rica', 'géorgie',
+  'arménie', 'armenia', 'azerbaïdjan', 'azerbaijan', 'biélorussie', 'belarus', 'kosovo',
+  'monténégro', 'montenegro', 'bosnie', 'albanie', 'albania', 'moldavie', 'malaisie',
+  'nuremberg', 'francfort', 'frankfurt', 'amsterdam', 'paris', 'roubaix', 'gravelines',
+  'strasbourg', 'marseille', 'lyon', 'londres', 'london', 'manchester', 'dublin',
+  'new york', 'los angeles', 'dallas', 'chicago', 'seattle', 'miami', 'ashburn',
+  'san francisco', 'tokyo', 'moscou', 'moscow', 'saint-pétersbourg', 'kyiv', 'kiev',
+  'varsovie', 'warsaw', 'prague', 'vienne', 'vienna', 'zurich', 'genève', 'geneva',
+  'milan', 'madrid', 'barcelone', 'barcelona', 'lisbonne', 'lisbon', 'bucarest',
+  'bucharest', 'sofia', 'istanbul', 'dubaï', 'dubai', 'mumbai', 'sydney', 'toronto',
+  'montréal', 'montreal', 'são paulo', 'sao paulo', 'riga', 'tallinn', 'vilnius',
+];
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Vrai si `token` apparaît comme mot entier dans `haystack`.
+ *
+ * `String.includes()` ne convient pas : « usage » contient « usa » et
+ * « pukka » contient « uk ». Les frontières explicites évitent ces faux
+ * positifs, qui rendraient l'alerte elle-même suspecte.
+ */
+function hasToken(haystack: string, token: string): boolean {
+  const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(token)}($|[^\\p{L}\\p{N}])`, 'iu');
+  return pattern.test(haystack);
+}
+
+/**
+ * Le nom cité est-il étayé par le dossier ?
+ *
+ * On accepte un nom de famille plus long : « Hostinger » est étayé par
+ * « Hostinger International Ltd », « OVHcloud » par « OVH ». Ce relâchement est
+ * réservé aux noms d'au moins quatre lettres, sans quoi « usa » serait reconnu
+ * dans « usage » et l'alerte perdrait toute crédibilité.
+ */
+function mentionsKnown(knownBlob: string, name: string): boolean {
+  if (hasToken(knownBlob, name)) return true;
+  if (name.length < 4) return false;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(name)}`, 'iu').test(knownBlob);
+}
+
+/**
+ * Relève les noms d'infrastructure et de géographie cités dans le rapport.
+ *
+ * On travaille sur le texte *résiduel* — celui dont les identifiants ont été
+ * retirés — pour ne pas signaler « hostinger » dans `contact@hostinger.fr`,
+ * qui est une donnée réelle du dossier et non une invention.
+ */
+function extractNamedTechnicalValues(text: string): string[] {
+  const residual = scanIdentifiers(text).residual;
+  const found: string[] = [];
+
+  // ASN : « AS13335 », « AS-13335 », « HETZNER-AS ».
+  for (const match of residual.matchAll(/\b(?:AS-?\d{2,7}|[A-Z][A-Z0-9]{1,}-AS)\b/g)) {
+    found.push(match[0]);
+  }
+
+  for (const name of [...INFRA_VENDORS, ...GEO_NAMES]) {
+    if (hasToken(residual, name)) found.push(name);
+  }
 
   return found;
 }
@@ -511,6 +708,92 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
   return { entities, relations, summary };
 }
 
+/**
+ * Confronte le rapport au dossier.
+ *
+ * Une consigne ne suffit pas : sur un 9 B, la règle « n'affirme que ce que les
+ * données contiennent » est ignorée une fois sur deux, et le rapport se met à
+ * citer un ASN ou un hébergeur sortis de nulle part. L'app peut, elle, faire la
+ * vérification mécaniquement.
+ *
+ * Deux familles de valeurs sont contrôlées :
+ *  - les identifiants (e-mail, IP, domaine…), qui sont de toute façon rattrapés
+ *    comme entités — ce contrôle ne sert plus que de garde-fou ;
+ *  - les noms d'infrastructure et de géographie, qui ne ressemblent à aucun
+ *    identifiant et passaient donc sous tous les radars. C'est par là que
+ *    fuyait le mensonge le plus coûteux : « l'ASN Cloudflare », « Hetzner,
+ *    Nuremberg » sur un dossier qui ne contient aucune donnée d'hébergement.
+ *
+ * Un nom non étayé n'est pas seulement signalé : il est remplacé dans le texte
+ * par « [non renseigné] ». Signaler sans corriger laisse le lecteur croire ce
+ * qu'il lit — et c'est justement ce qu'on cherche à empêcher. Les hypothèses
+ * explicitement annoncées (« Hypothèse à vérifier : … ») sont conservées
+ * telles quelles : elles sont signalées, pas effacées, car une hypothèse
+ * nommée n'est pas une affirmation déguisée.
+ */
+const UNSUPPORTED_MARKER = '[non renseigné]';
+const HYPOTHESIS_MARKER = /hypoth[èe]se/i;
+
+function sanitizeNamedClaims(summary: string, knownBlob: string, unsupported: Set<string>): string {
+  // Découpage en phrases : la décision « hypothèse ou affirmation » se prend à
+  // cette échelle, pas sur le rapport entier. On insère un séparateur après la
+  // ponctuation finale plutôt que d'utiliser une assertion arrière — Vite cible
+  // Safari 14, qui ne les connaît pas, et le build échouerait.
+  const sentences = summary.replace(/([.!?…])\s+/g, '$1\u0000').split(/\u0000|\n+/);
+  const cleaned = sentences.map((sentence) => {
+    const names = extractNamedTechnicalValues(sentence).filter((name) => !mentionsKnown(knownBlob, name));
+    if (names.length === 0) return sentence;
+
+    names.forEach((name) => unsupported.add(name));
+    if (HYPOTHESIS_MARKER.test(sentence)) return sentence;
+
+    let next = sentence;
+    for (const name of names) {
+      // Le caractère de gauche est capturé puis restitué : sans assertion
+      // arrière, c'est la seule façon de respecter la frontière de mot.
+      next = next.replace(
+        new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(name)}(?![\\p{L}\\p{N}])`, 'giu'),
+        `$1${UNSUPPORTED_MARKER}`
+      );
+    }
+    return next;
+  });
+
+  return cleaned.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+/** Exporté pour les tests : c'est ici que se joue la différence entre un
+ *  rapport honnête et un rapport qui invente un hébergeur. */
+export function flagUnsupportedClaims(
+  discovery: HermesDiscovery,
+  graphData: { nodes: any[]; edges: any[] }
+): HermesDiscovery {
+  const known = new Set<string>();
+  const add = (value: unknown) => {
+    const text = String(value ?? '').trim().toLowerCase();
+    if (text) known.add(text);
+  };
+
+  for (const node of graphData.nodes) {
+    add(node.data?.label);
+    if (node.data?.fields) Object.values(node.data.fields).forEach(add);
+  }
+  // Ce que le modèle propose EST le résultat : une valeur qu'il cite et qu'il
+  // liste n'est pas une invention, c'est sa découverte.
+  discovery.entities.forEach((entity) => add(entity.label));
+
+  const unsupported = new Set<string>();
+
+  for (const mention of extractMentionedIdentifiers(discovery.summary)) {
+    if (!known.has(mention.value.trim().toLowerCase())) unsupported.add(mention.value);
+  }
+
+  const knownBlob = Array.from(known).join(' | ');
+  const summary = sanitizeNamedClaims(discovery.summary, knownBlob, unsupported);
+
+  return { ...discovery, summary, unsupported: Array.from(unsupported) };
+}
+
 async function runLocalAnalysis(
   graphData: { nodes: any[]; edges: any[] },
   analystName?: string,
@@ -520,10 +803,19 @@ async function runLocalAnalysis(
   if (!model) {
     throw new Error('Aucun modèle Ollama sélectionné. Choisis un modèle dans le menu de configuration avant de lancer l\'analyse.');
   }
+  const analyst = analystName?.trim() || 'Analyste';
   const base = {
     model,
+    // Le cadrage part en message système : c'est là que les modèles
+    // d'instruction accordent le plus de poids aux interdits.
+    system: buildAnalysisSystemPrompt(analyst),
     prompt: buildGraphPrompt(graphData, analystName),
-    options: { num_predict: OLLAMA_MAX_TOKENS },
+    options: {
+      num_predict: OLLAMA_MAX_TOKENS,
+      // Une température basse réduit la dérive narrative. À 0 le modèle est
+      // déterministe, ce qui convient à de l'extraction factuelle.
+      temperature: 0.2,
+    },
   };
 
   let text: string;
@@ -540,7 +832,7 @@ async function runLocalAnalysis(
   }
 
   if (!text.trim()) throw new Error('Ollama a renvoyé une réponse vide.');
-  return parseOllamaTextToDiscovery(text);
+  return flagUnsupportedClaims(parseOllamaTextToDiscovery(text), graphData);
 }
 
 // ── FreeLLMAPI backend (OpenAI-compatible gateway) ───────────────────────────
@@ -884,10 +1176,20 @@ function getFreeLlmApiKey(): string {
 async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, analystName?: string): Promise<HermesDiscovery> {
   const apiKey = getFreeLlmApiKey();
   const url = getFreeLlmChatUrl();
+  const analyst = analystName?.trim() || 'Analyste';
   const messages = [
+    // Le cadrage en message système, pas noyé dans le message utilisateur :
+    // c'est ce qui distingue une consigne qu'on suit d'une consigne qu'on lit.
+    { role: 'system', content: buildAnalysisSystemPrompt(analyst) },
     { role: 'user', content: buildGraphPrompt(graphData, analystName) },
   ];
-  const payload = buildFreeLlmPayload(messages);
+  const payload = buildFreeLlmPayload(messages, {
+    // Sans ces deux champs, le routeur applique les défauts du fournisseur :
+    // température créative et sortie non bornée, d'où les rapports qui
+    // inventaient une IP, un hébergeur et une ville.
+    temperature: 0.2,
+    max_tokens: OLLAMA_MAX_TOKENS,
+  });
 
   let response: Response;
   try {
@@ -955,7 +1257,7 @@ async function runFreeLlmAnalysis(graphData: { nodes: any[]; edges: any[] }, ana
   const data = await parseJsonResponse(response, url, 'FreeLLMAPI');
   const text: string = data?.choices?.[0]?.message?.content ?? '';
   if (!text) throw new Error('FreeLLMAPI a renvoyé une réponse vide.');
-  return parseOllamaTextToDiscovery(text);
+  return flagUnsupportedClaims(parseOllamaTextToDiscovery(text), graphData);
 }
 
 export async function runAnalysis(
