@@ -565,6 +565,18 @@ const GEO_NAMES = [
   'milan', 'madrid', 'barcelone', 'barcelona', 'lisbonne', 'lisbon', 'bucarest',
   'bucharest', 'sofia', 'istanbul', 'dubaï', 'dubai', 'mumbai', 'sydney', 'toronto',
   'montréal', 'montreal', 'são paulo', 'sao paulo', 'riga', 'tallinn', 'vilnius',
+  // Adjectifs de nationalité : « une colocation néerlandaise » est une
+  // localisation affirmée, pas un détail de style.
+  'néerlandais', 'neerlandais', 'hollandais', 'allemand', 'autrichien', 'belge',
+  'français', 'francais', 'britannique', 'irlandais', 'espagnol', 'italien',
+  'portugais', 'suisse', 'suédois', 'norvégien', 'norvegien', 'danois', 'finlandais',
+  'polonais', 'tchèque', 'tcheque', 'slovaque', 'hongrois', 'roumain', 'bulgare',
+  'grec', 'turc', 'russe', 'ukrainien', 'biélorusse', 'bielorusse', 'américain',
+  'americain', 'canadien', 'brésilien', 'bresilien', 'mexicain', 'argentin',
+  'chinois', 'japonais', 'coréen', 'coreen', 'indien', 'indonésien', 'iranien',
+  'israélien', 'israelien', 'émirati', 'saoudien', 'sud-africain', 'australien',
+  'néo-zélandais', 'singapourien', 'luxembourgeois', 'estonien', 'letton',
+  'lituanien', 'géorgien', 'arménien', 'armenien', 'azerbaïdjanais', 'kazakh',
 ];
 
 function escapeRegex(value: string): string {
@@ -620,55 +632,130 @@ function extractNamedTechnicalValues(text: string): string[] {
   return found;
 }
 
+/**
+ * Repère les en-têtes de section, tolérants à la ponctuation.
+ *
+ * ⚠️ La première version exigeait `=== ANALYSE ===` **avec** le `===` final.
+ * Un 9 B a rendu `=== ANALYSE` tout court : les trois expressions de découpage
+ * ont échoué d'un coup, le résumé est retombé sur `text.slice(0, 2000)` — qui
+ * contient la liste d'entités — et le rattrapage d'identifiants y a pêché
+ * `ns1.hetzner.com` / `ns2.hetzner.com` pour en faire deux entités DOMAIN.
+ * Un modèle qui oublie trois caractères ne doit pas tout faire dérailler : on
+ * compare donc la ligne **dépouillée** de sa ponctuation.
+ */
+interface SectionMark {
+  key: 'analyse' | 'entites' | 'liens';
+  headerStart: number;
+  contentStart: number;
+}
+
+function findSections(text: string): SectionMark[] {
+  const marks: SectionMark[] = [];
+  let offset = 0;
+
+  for (const line of text.split('\n')) {
+    const bare = line.replace(/[=*#>\s_—–-]/g, '').toUpperCase();
+    let key: SectionMark['key'] | null = null;
+
+    if (/^ANALYSE(?:TECHNIQUE)?$/.test(bare)) key = 'analyse';
+    else if (/^(?:NOUVELLES?)?ENTIT[ÉE]S?$/.test(bare)) key = 'entites';
+    else if (/^LIENS?(?:SUGG[ÉE]R[ÉE]S?)?$/.test(bare)) key = 'liens';
+
+    if (key) marks.push({ key, headerStart: offset, contentStart: offset + line.length + 1 });
+    offset += line.length + 1;
+  }
+
+  return marks;
+}
+
+/**
+ * Un triplet TYPE / VALUE / NOTES, séparateurs tolérés.
+ *
+ * On avance ligne à ligne au lieu de découper sur un séparateur : le modèle
+ * écrit tantôt `---`, tantôt `- ---`, tantôt rien du tout entre deux entités.
+ * Ici, un nouveau `TYPE:` clôt de lui-même l'entité précédente.
+ */
+function parseEntityBlocks(block: string): HermesEntity[] {
+  const out: HermesEntity[] = [];
+  let type: string | null = null;
+  let value: string | null = null;
+  let notes: string[] = [];
+
+  const flush = () => {
+    const label = value?.trim();
+    if (type && label) {
+      const note = notes.join(' ').replace(/\s+/g, ' ').trim();
+      out.push({ type: normalizeEntityType(type), label, properties: note ? { notes: note } : undefined });
+    }
+    type = null;
+    value = null;
+    notes = [];
+  };
+
+  for (const raw of block.split('\n')) {
+    const line = raw.replace(/^\s*[-*•]\s*/, '').trim();
+    if (!line) continue;
+    if (/^[-–—_=]{3,}$/.test(line)) {
+      flush();
+      continue;
+    }
+
+    const typeMatch = /^TYPE\s*[:=]\s*(.+)$/i.exec(line);
+    if (typeMatch) {
+      flush();
+      type = typeMatch[1].trim();
+      continue;
+    }
+    const valueMatch = /^VALUE\s*[:=]\s*(.+)$/i.exec(line);
+    if (valueMatch) {
+      value = valueMatch[1].trim();
+      continue;
+    }
+    const notesMatch = /^NOTES?\s*[:=]\s*(.+)$/i.exec(line);
+    if (notesMatch) {
+      notes.push(notesMatch[1].trim());
+      continue;
+    }
+    // Suite d'une note sur la ligne suivante.
+    if (type && notes.length > 0) notes.push(line);
+  }
+  flush();
+
+  return out;
+}
+
 /** Exporté pour les tests : la lecture de la réponse du modèle est le point
  *  où se joue la différence entre un rapport lisible et des pivots exploitables. */
 export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
-  const analyseMatch = text.match(/===\s*ANALYSE\s*===\s*\n([\s\S]*?)(?:===\s*NOUVELLES ENTIT[ÉE]S?\s*===|$)/i);
-  const entitesMatch = text.match(
-    /===\s*NOUVELLES ENTIT[ÉE]S?\s*===\s*\n([\s\S]*?)(?:===\s*LIENS|$)/i
-  );
-  const liensMatch = text.match(/===\s*LIENS[^=\n]*===\s*\n([\s\S]*?)$/i);
+  const marks = findSections(text);
+  const pick = (key: SectionMark['key']): string => {
+    const index = marks.findIndex((mark) => mark.key === key);
+    if (index < 0) return '';
+    const end = marks[index + 1]?.headerStart ?? text.length;
+    return text.slice(marks[index].contentStart, end).trim();
+  };
 
-  let summary = '';
   const entities: HermesEntity[] = [];
   const relations: HermesRelation[] = [];
 
-  summary = analyseMatch ? analyseMatch[1].trim() : '';
+  const entitesBlock = pick('entites');
+  if (entitesBlock) entities.push(...parseEntityBlocks(entitesBlock));
 
-  if (entitesMatch) {
-    const block = entitesMatch[1];
-    // Parse blocks: TYPE / VALUE / NOTES (optional) separated by --- lines
-    const entityBlocks = block.split(/^\s*-{3,}\s*$/m).map((b) => b.trim()).filter(Boolean);
-    for (const eb of entityBlocks) {
-      const typeMatch = eb.match(/TYPE\s*:\s*([A-Z_]+)/i);
-      const valueMatch = eb.match(/VALUE\s*:\s*(.+)/i);
-      const notesMatch = eb.match(/NOTES\s*:\s*([\s\S]*?)(?:\n[-*]\s*(?:TYPE|VALUE|NOTES)|$)/i);
-      if (typeMatch && valueMatch) {
-        const t = typeMatch[1].trim().toUpperCase();
-        const v = valueMatch[1].trim();
-        const notes = notesMatch ? notesMatch[1].trim() : '';
-        if (t && v) {
-          entities.push({ type: normalizeEntityType(t), label: v, properties: notes ? { notes } : undefined });
-        }
-      }
-    }
-
-    // Fallback: legacy TYPE|VALUE pipe format (in case the model uses old style)
-    if (entities.length === 0) {
-      for (const line of block.split('\n')) {
-        const trimmed = line.replace(/^[-*]\s*/, '').trim();
-        const sep = trimmed.indexOf('|');
-        if (sep > 0) {
-          const type = trimmed.slice(0, sep).trim().toUpperCase();
-          const label = trimmed.slice(sep + 1).trim();
-          if (type && label) entities.push({ type: normalizeEntityType(type), label });
-        }
+  // Repli : ancien format « TYPE|VALUE », au cas où le modèle l'utiliserait.
+  if (entities.length === 0 && entitesBlock) {
+    for (const line of entitesBlock.split('\n')) {
+      const trimmed = line.replace(/^[-*]\s*/, '').trim();
+      const sep = trimmed.indexOf('|');
+      if (sep > 0) {
+        const type = trimmed.slice(0, sep).trim().toUpperCase();
+        const label = trimmed.slice(sep + 1).trim();
+        if (type && label) entities.push({ type: normalizeEntityType(type), label });
       }
     }
   }
 
-  // Last resort: fall back to anything that looks like TYPE|VALUE in the full text
-  if (entities.length === 0) {
+  // Repli : plus aucune section reconnue → le format pipe dans tout le texte.
+  if (entities.length === 0 && !entitesBlock) {
     for (const line of text.split('\n')) {
       const trimmed = line.trim();
       const sep = trimmed.indexOf('|');
@@ -680,8 +767,9 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
     }
   }
 
-  if (liensMatch) {
-    for (const line of liensMatch[1].split('\n')) {
+  const liensBlock = pick('liens');
+  if (liensBlock) {
+    for (const line of liensBlock.split('\n')) {
       const cleaned = line.replace(/^[-*]\s*/, '').trim();
       if (!cleaned || /^\(aucun/i.test(cleaned)) continue;
       const parts = cleaned.split(/\s*(?:→|->|=>|\|)\s*/);
@@ -692,7 +780,14 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
     }
   }
 
-  if (!summary) summary = text.slice(0, 2000).trim();
+  // ⚠️ Ne JAMAIS retomber sur `text.slice(0, 2000)` : ce repli avalait la liste
+  // d'entités et le rattrapage la transformait en entités fantômes. On s'arrête
+  // au premier en-tête de section.
+  let summary = pick('analyse');
+  if (!summary) {
+    const stop = marks.length > 0 ? marks[0].headerStart : Math.min(text.length, 2000);
+    summary = text.slice(0, stop).trim();
+  }
 
   // Rattrapage : tout identifiant écrit dans le rapport mais absent de la liste
   // devient une entité. Sans cela, un rapport qui parle de quatre adresses
@@ -734,32 +829,158 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
 const UNSUPPORTED_MARKER = '[non renseigné]';
 const HYPOTHESIS_MARKER = /hypoth[èe]se/i;
 
+/**
+ * Vocabulaire que la spécification interdit explicitement.
+ *
+ * Ces termes ne sont pas des données, ce sont des mises en scène : « profil
+ * shadow IT », « darknet », « rotation des identités ». Un 9 B les emploie
+ * quand même — la consigne est ignorée une fois sur deux. On ne les remplace
+ * pas mot à mot (le genre et les prépositions françaises rendraient la phrase
+ * bancale) : on **retire la phrase** qui les affirme, et on la signale.
+ */
+const DRAMATIC_TERMS = [
+  'camouflage opératoire',
+  'infrastructure éphémère',
+  'infrastructure ephemere',
+  'nœud tor',
+  'noeud tor',
+  'dark web',
+  'darknet',
+  'opérateur insaisissable',
+  'rotation des identités',
+  "rotation d'identités",
+  'shadow it',
+  'insaisissable',
+  'clandestin',
+  'occulte',
+  'jeu du chat',
+];
+
+/** Marqueurs d'une phrase qui refuse de conclure : la mise en scène y est
+ *  encadrée, donc légitime. « ce qui empêche de distinguer … » n'affirme rien. */
+const AGNOSTIC_MARKERS = [
+  'absent',
+  'inconnu',
+  'non renseigné',
+  'non documenté',
+  'empêche',
+  'impossible',
+  'ne permet',
+  'hypothèse',
+  'pourrait',
+  'serait',
+  'à vérifier',
+  'indéterminé',
+  'sans donnée',
+  'aucune donnée',
+  'faute de',
+  'à confirmer',
+];
+
+function isAgnostic(sentence: string): boolean {
+  const lower = sentence.toLowerCase();
+  return AGNOSTIC_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/** Les modèles écrivent « identites » aussi souvent que « identités ». On
+ *  compare donc sur une copie sans diacritiques, plutôt que de doubler chaque
+ *  entrée du lexique. */
+function stripAccents(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 function sanitizeNamedClaims(summary: string, knownBlob: string, unsupported: Set<string>): string {
   // Découpage en phrases : la décision « hypothèse ou affirmation » se prend à
   // cette échelle, pas sur le rapport entier. On insère un séparateur après la
   // ponctuation finale plutôt que d'utiliser une assertion arrière — Vite cible
   // Safari 14, qui ne les connaît pas, et le build échouerait.
   const sentences = summary.replace(/([.!?…])\s+/g, '$1\u0000').split(/\u0000|\n+/);
-  const cleaned = sentences.map((sentence) => {
+
+  const kept: string[] = [];
+  // Version de secours : phrases conservées, valeurs neutralisées seulement.
+  // Si tout le rapport est en mise en scène, un rapport blanc n'aiderait
+  // personne — on préfère une prose sobre à une carte vide.
+  const fallback: string[] = [];
+
+  for (const sentence of sentences) {
+    const flat = stripAccents(sentence);
+
     const names = extractNamedTechnicalValues(sentence).filter((name) => !mentionsKnown(knownBlob, name));
-    if (names.length === 0) return sentence;
+    // Un terme que le dossier emploie lui-même n'est plus une mise en scène :
+    // une enquête sur un marché « darknet » doit pouvoir le nommer.
+    const dramatic = DRAMATIC_TERMS.filter(
+      (term) => flat.includes(stripAccents(term)) && !mentionsKnown(knownBlob, term.toLowerCase())
+    );
 
     names.forEach((name) => unsupported.add(name));
-    if (HYPOTHESIS_MARKER.test(sentence)) return sentence;
+    dramatic.forEach((term) => unsupported.add(term));
 
-    let next = sentence;
-    for (const name of names) {
-      // Le caractère de gauche est capturé puis restitué : sans assertion
-      // arrière, c'est la seule façon de respecter la frontière de mot.
-      next = next.replace(
-        new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(name)}(?![\\p{L}\\p{N}])`, 'giu'),
-        `$1${UNSUPPORTED_MARKER}`
-      );
+    let neutralised = sentence;
+    if (names.length > 0 && !HYPOTHESIS_MARKER.test(sentence)) {
+      for (const name of names) {
+        // Le caractère de gauche est capturé puis restitué : sans assertion
+        // arrière, c'est la seule façon de respecter la frontière de mot.
+        neutralised = neutralised.replace(
+          new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(name)}(?![\\p{L}\\p{N}])`, 'giu'),
+          `$1${UNSUPPORTED_MARKER}`
+        );
+      }
     }
-    return next;
-  });
+    fallback.push(neutralised);
 
-  return cleaned.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
+    // Mise en scène affirmée : la phrase entière tombe. Signaler un mot en le
+    // laissant en place revient à publier la conclusion qu'il suggère.
+    if (dramatic.length > 0 && !isAgnostic(sentence)) continue;
+    kept.push(neutralised);
+  }
+
+  const assemble = (list: string[]) =>
+    list
+      .filter((sentence) => sentence.trim().length > 0)
+      .join(' ')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+
+  const result = assemble(kept);
+  return result || assemble(fallback);
+}
+
+/**
+ * Types dont la valeur ne peut venir que du dossier, jamais d'une déduction.
+ *
+ * Un ASN, une localisation, un certificat : rien de tout cela ne se déduit
+ * d'un nom de domaine. Un modèle qui en propose un l'a inventé.
+ */
+const GROUNDED_ONLY_TYPES = new Set(['asn', 'location', 'sslcert']);
+
+/** Le libellé contient-il un nom d'hébergeur, de CDN, de pays ou de ville ? */
+function isVendorDerived(label: string): boolean {
+  const lower = label.toLowerCase();
+  return [...INFRA_VENDORS, ...GEO_NAMES].some((name) => hasToken(lower, name));
+}
+
+/**
+ * L'entité proposée est-elle recevable ?
+ *
+ * ⚠️ Le défaut le plus coûteux était ici : `flagUnsupportedClaims` ajoutait
+ * **toutes** les entités proposées à son ensemble de référence. Le modèle
+ * produisait `ns1.hetzner.com`, ce qui rendait « Hetzner » légitime, ce qui
+ * blanchissait la phrase « l'ASN 24940 (Hetzner Online GmbH), Nuremberg ».
+ * Le garde-fou se validait par sa propre invention. La référence est désormais
+ * le **dossier seul**.
+ */
+function isUnsupportedEntity(entity: HermesEntity, groundedBlob: string): boolean {
+  const label = String(entity.label ?? '').trim();
+  if (!label) return true;
+  // Étayée par le dossier : on garde, quel que soit son type.
+  if (mentionsKnown(groundedBlob, label.toLowerCase())) return false;
+
+  if (GROUNDED_ONLY_TYPES.has(entity.type)) return true;
+  if (/^AS-?\d{2,7}$/i.test(label)) return true;
+  // `ns1.hetzner.com` : un hôte chez un hébergeur que le dossier ne mentionne pas.
+  if (isVendorDerived(label)) return true;
+
+  return false;
 }
 
 /** Exporté pour les tests : c'est ici que se joue la différence entre un
@@ -768,30 +989,46 @@ export function flagUnsupportedClaims(
   discovery: HermesDiscovery,
   graphData: { nodes: any[]; edges: any[] }
 ): HermesDiscovery {
-  const known = new Set<string>();
-  const add = (value: unknown) => {
+  // Référence : uniquement ce que le dossier contient réellement.
+  const grounded = new Set<string>();
+  const addGrounded = (value: unknown) => {
     const text = String(value ?? '').trim().toLowerCase();
-    if (text) known.add(text);
+    if (text) grounded.add(text);
   };
 
   for (const node of graphData.nodes) {
-    add(node.data?.label);
-    if (node.data?.fields) Object.values(node.data.fields).forEach(add);
+    addGrounded(node.data?.label);
+    if (node.data?.fields) Object.values(node.data.fields).forEach(addGrounded);
   }
-  // Ce que le modèle propose EST le résultat : une valeur qu'il cite et qu'il
-  // liste n'est pas une invention, c'est sa découverte.
-  discovery.entities.forEach((entity) => add(entity.label));
+  const groundedBlob = Array.from(grounded).join(' | ');
 
   const unsupported = new Set<string>();
-
-  for (const mention of extractMentionedIdentifiers(discovery.summary)) {
-    if (!known.has(mention.value.trim().toLowerCase())) unsupported.add(mention.value);
+  const accepted: HermesEntity[] = [];
+  for (const entity of discovery.entities) {
+    if (isUnsupportedEntity(entity, groundedBlob)) unsupported.add(String(entity.label).trim());
+    else accepted.push(entity);
   }
 
-  const knownBlob = Array.from(known).join(' | ');
+  // Le rapport ne peut s'appuyer que sur le dossier et sur les entités retenues.
+  const knownBlob = [groundedBlob, accepted.map((entity) => String(entity.label)).join(' | ')]
+    .filter(Boolean)
+    .join(' | ');
+
+  for (const mention of extractMentionedIdentifiers(discovery.summary)) {
+    if (!mentionsKnown(knownBlob, mention.value.toLowerCase())) unsupported.add(mention.value);
+  }
+
   const summary = sanitizeNamedClaims(discovery.summary, knownBlob, unsupported);
 
-  return { ...discovery, summary, unsupported: Array.from(unsupported) };
+  // Un lien dont une extrémité n'existe pas ne mène nulle part : le panneau
+  // affichait « nom d'utilisateur → email 1 », deux libellés fictifs.
+  const relations = discovery.relations.filter(
+    (relation) =>
+      mentionsKnown(knownBlob, String(relation.source).toLowerCase()) &&
+      mentionsKnown(knownBlob, String(relation.target).toLowerCase())
+  );
+
+  return { ...discovery, summary, entities: accepted, relations, unsupported: Array.from(unsupported) };
 }
 
 async function runLocalAnalysis(
