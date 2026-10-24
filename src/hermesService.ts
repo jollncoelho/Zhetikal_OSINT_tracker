@@ -153,8 +153,18 @@ async function ollamaGenerate(
       });
     } catch (error) {
       if (stalled || expired) throw explainAbort();
+      // Un `TypeError: Failed to fetch` recouvre deux causes opposées : le
+      // serveur est éteint, ou le navigateur refuse d'atteindre la boucle
+      // locale. La sonde `no-cors` ne les distingue pas de façon fiable (un
+      // refus d'accès au réseau local la fait échouer aussi), donc on nomme
+      // les deux pistes au lieu d'en affirmer une à tort.
       throw new Error(
-        'Ollama est injoignable (connexion refusée sur le port 11434). Vérifie qu\'Ollama tourne bien en arrière-plan.'
+        'Impossible de joindre Ollama depuis cette page. Deux causes possibles :\n\n' +
+          '1. Ollama n\'est pas démarré — lance-le, puis vérifie avec `ollama list`.\n' +
+          '2. Le navigateur bloque l\'accès au réseau local. Chrome 138+ et ses dérivés exigent ' +
+          'une autorisation pour joindre 127.0.0.1 depuis un site en https, et n\'affichent pas ' +
+          'toujours l\'invite. Ouvre Paramètres → Confidentialité et sécurité → Accès au réseau local, ' +
+          'et autorise ce site — ou lance le tracker en local (http://localhost).'
       );
     }
 
