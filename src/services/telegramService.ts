@@ -84,8 +84,36 @@ export interface TelegramPost {
   url: string;
   text: string;
   views: string | null;
+  /** Vues converties en nombre quand Telegram les publie (« 12,3 K » → 12300). */
+  viewsCount: number | null;
   /** Horodatage ISO quand Telegram le publie. */
   time: string | null;
+  /**
+   * `null` si le message n'est pas un transfert. Chaîne vide quand Telegram
+   * signale un transfert sans nommer la source — cas fréquent sur les
+   * transferts depuis un compte privé.
+   */
+  forwardedFrom: string | null;
+}
+
+/**
+ * Activité mesurable sur l'échantillon public.
+ *
+ * Ces chiffres se calculent sur les messages que Telegram sert déjà dans
+ * `t.me/s/<canal>` : aucun compte, aucune session, aucun appel
+ * supplémentaire. C'est la partie utile d'un « Telegram OSINT » qui ne coûte
+ * rien — le reste (messages de groupe, historique profond) exige un compte.
+ */
+export interface TelegramPostStats {
+  sample: number;
+  forwarded: number;
+  /** Part de messages transférés, entre 0 et 1. `null` si l'échantillon est vide. */
+  forwardedRatio: number | null;
+  avgViews: number | null;
+  firstAt: string | null;
+  lastAt: string | null;
+  /** Étendue couverte par l'échantillon, en jours. */
+  spanDays: number | null;
 }
 
 export type TelegramErrorCode =
@@ -645,16 +673,85 @@ export function parsePostsHtml(html: string, handle: string, limit = 24): Telegr
     const views = clean(node.querySelector('.tgme_widget_message_views')?.textContent) || null;
     const datetime = node.querySelector('.tgme_widget_message_date time')?.getAttribute('datetime');
 
+    // Le bloc « Forwarded from » n'existe que sur un transfert. Telegram le
+    // laisse parfois sans nom (source privée) : la présence du bloc suffit à
+    // compter le transfert, même quand le nom manque.
+    const forwardNode = node.querySelector('.tgme_widget_message_forwarded_from');
+    const forwardedFrom = forwardNode
+      ? clean(forwardNode.querySelector('.tgme_widget_message_forwarded_from_name')?.textContent) || ''
+      : null;
+
     posts.push({
       id,
       url: `https://t.me/${handle}/${id}`,
       text: text.length > 420 ? `${text.slice(0, 417)}…` : text,
       views,
+      viewsCount: parseViewsLabel(views),
       time: datetime ?? null,
+      forwardedFrom,
     });
   }
 
   return posts;
+}
+
+/**
+ * « 12,3 K » → 12300, « 1.2M » → 1200000, « 874 » → 874.
+ *
+ * Telegram écrit les vues dans la langue de l'interface : virgule décimale en
+ * français, point en anglais. Les deux sont acceptés ; en cas de doute on
+ * renvoie `null` plutôt qu'un ordre de grandeur faux — une moyenne de vues
+ * fausse orienterait l'analyse de l'audience.
+ */
+export function parseViewsLabel(label: string | null): number | null {
+  if (!label) return null;
+  const compact = label.replace(/[\s\u00a0\u202f]/g, '');
+  const match = compact.match(/^([\d.,]+)([KMB])?/i);
+  if (!match) return null;
+
+  const numeric = Number.parseFloat(match[1].replace(',', '.'));
+  if (!Number.isFinite(numeric)) return null;
+
+  const scale = { K: 1e3, M: 1e6, B: 1e9 }[(match[2] ?? '').toUpperCase() as 'K' | 'M' | 'B'] ?? 1;
+  return Math.round(numeric * scale);
+}
+
+/** Agrège l'activité visible dans l'échantillon public. */
+export function computePostStats(posts: TelegramPost[]): TelegramPostStats {
+  if (posts.length === 0) {
+    return {
+      sample: 0,
+      forwarded: 0,
+      forwardedRatio: null,
+      avgViews: null,
+      firstAt: null,
+      lastAt: null,
+      spanDays: null,
+    };
+  }
+
+  const forwarded = posts.filter((post) => post.forwardedFrom !== null).length;
+
+  const counts = posts.map((post) => post.viewsCount).filter((value): value is number => value !== null);
+  const avgViews = counts.length > 0 ? Math.round(counts.reduce((sum, value) => sum + value, 0) / counts.length) : null;
+
+  const stamps = posts
+    .map((post) => (post.time ? Date.parse(post.time) : Number.NaN))
+    .filter((value) => Number.isFinite(value));
+  const firstAt = stamps.length > 0 ? new Date(Math.min(...stamps)).toISOString() : null;
+  const lastAt = stamps.length > 0 ? new Date(Math.max(...stamps)).toISOString() : null;
+  const spanDays =
+    stamps.length > 0 ? Math.max(0, Math.round((Math.max(...stamps) - Math.min(...stamps)) / 86_400_000)) : null;
+
+  return {
+    sample: posts.length,
+    forwarded,
+    forwardedRatio: forwarded / posts.length,
+    avgViews,
+    firstAt,
+    lastAt,
+    spanDays,
+  };
 }
 
 /* ------------------------------------------------------------------ *

@@ -13,6 +13,7 @@ import { ENTITY_COLORS } from '../types';
 import type { EntityType } from '../types';
 import {
   TelegramError,
+  computePostStats,
   entityTypeFor,
   fetchPosts,
   getReaderKey,
@@ -197,6 +198,10 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
   const [errorCode, setErrorCode] = useState<TelegramErrorCode | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [keyValue, setKeyValue] = useState(() => getReaderKey());
+
+  /* Activité de l'échantillon public — calculée sur les messages déjà lus,
+     donc sans requête ni compte supplémentaires. */
+  const postStats = useMemo(() => computePostStats(posts), [posts]);
 
   /** Identifiants déjà injectés, pour éviter les doublons involontaires. */
   const [injected, setInjected] = useState<Record<string, boolean>>({});
@@ -545,9 +550,37 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
           )}
 
           {tab === 'posts' && posts.length > 0 && (
-            <p className="text-[10px] text-cyber-text-dim">
-              {t('telegram.postsCount').replace('{n}', String(posts.length))}
-            </p>
+            <div className="rounded-xl border border-cyber-border bg-cyber-panel/60 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-cyber-cyan">
+                {t('telegram.statsTitle')}
+              </p>
+              <p className="mt-1 font-mono text-[10px] leading-relaxed text-cyber-text/80">
+                {[
+                  t('telegram.statsSample').replace('{n}', String(postStats.sample)),
+                  postStats.forwarded > 0
+                    ? (postStats.forwarded === 1
+                        ? t('telegram.statsForwardOne')
+                        : t('telegram.statsForwards')
+                      )
+                        .replace('{n}', String(postStats.forwarded))
+                        .replace('{p}', String(Math.round((postStats.forwardedRatio ?? 0) * 100)))
+                    : t('telegram.statsNoForwards'),
+                  postStats.avgViews !== null
+                    ? t('telegram.statsViews').replace('{n}', postStats.avgViews.toLocaleString('fr-FR'))
+                    : null,
+                  postStats.firstAt && postStats.lastAt
+                    ? t('telegram.statsSpan')
+                        .replace('{from}', formatPostDate(postStats.firstAt))
+                        .replace('{to}', formatPostDate(postStats.lastAt))
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+              <p className="mt-1 text-[9px] leading-relaxed text-cyber-text-dim">
+                {t('telegram.statsNote')}
+              </p>
+            </div>
           )}
 
           {tab === 'posts' &&
@@ -560,6 +593,11 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
                       #{post.id}
                       {post.views ? ` · ${post.views}` : ''}
                       {post.time ? ` · ${formatPostDate(post.time)}` : ''}
+                      {post.forwardedFrom !== null && (
+                        <span className="text-cyber-orange">
+                          {` · ↗ ${post.forwardedFrom || t('telegram.forwardedHidden')}`}
+                        </span>
+                      )}
                     </span>
                     <div className="flex items-center gap-1.5">
                       <button
