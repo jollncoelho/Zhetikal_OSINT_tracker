@@ -190,10 +190,14 @@ export default function SnapshotsPanel({ isOpen, onClose, caseData, onRestore }:
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
+                      {/* Le libellé d'abord : « Avant restauration » dit
+                          quelque chose, « automatique » seul ne dit rien. La
+                          mention automatique vient en complément. */}
                       <p className="font-mono text-[11px] text-cyber-text">
                         {formatStamp(snapshot.at, lang)}
                         <span className="ml-2 text-[9px] uppercase tracking-wide text-cyber-text-dim">
-                          {snapshot.auto ? t('snapshots.autoLabel') : snapshot.label}
+                          {snapshot.label}
+                          {snapshot.auto ? ` · ${t('snapshots.autoLabel')}` : ''}
                         </span>
                       </p>
                       <p className="mt-0.5 text-[10px] text-cyber-text-dim">
