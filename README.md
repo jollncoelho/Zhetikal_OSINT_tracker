@@ -8,7 +8,8 @@ Ghostint Tracker est une application web d'investigation et de cartographie OSIN
 
 ---<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/b48e8882-5c77-4733-afcc-e19ec9385e4d" />
 
-<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/4e016523-26c7-4712-ab1e-b7fad19176e4" />
+<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/6a9e108d-e526-43f7-85c7-6880e2a98a8a" />
+
 
 ## ⚡ Caractéristiques Principales
 
