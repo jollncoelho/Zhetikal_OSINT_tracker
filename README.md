@@ -59,7 +59,10 @@ Le bouton **Capture d'écran** de la barre supérieure ouvre une sélection de z
 
 Dans le détail d'une preuve, les onglets **Aperçu / Texte / HTML / Liens / Métadonnées** donnent accès à tout ce qui a été collecté. Le bouton **Relancer la capture** réinterroge la cible et rafraîchit le HTML, le texte, les liens et les images sans perdre l'historique ni l'empreinte d'origine. Le bouton **Joindre une image** ajoute une capture manuelle.
 
----
+<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/7140568a-2a19-490f-9442-a6844108db53" />
+
+<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/64964228-fe9f-4fff-81b1-5c1e701ed4ea" />
+
 
 ## 🧠 Mode Hybride IA : Choisissez votre OPSEC
 
@@ -179,7 +182,8 @@ Pour que cela fonctionne, l'application FreeLLMAPI doit avoir au moins une clé 
 
 Seule l'**application de bureau FreeLLMAPI** doit tourner en arrière-plan : c'est elle qui héberge le routeur (`http://127.0.0.1:31415/v1`). **Hermes n'est pas nécessaire** — c'est un simple client parmi ceux que l'app sait configurer (comme Cursor ou Crush), pas un composant du routeur. Ollama n'est requis que pour le mode « Local ».
 
-> 🔒 **OPSEC — à lire avant de traiter un dossier sensible**>   
+> 🔒 **OPSEC — à lire avant de traiter un dossier sensible**
+>   
 > Le mode Avancé **n'est pas local**. Le routeur tourne bien sur votre machine, mais il **transmet vos entités d'enquête par Internet** aux fournisseurs gratuits qu'il agrège (Google, Groq, NVIDIA, OpenRouter, DeepSeek…). Seul le mode **Local (Ollama)** garantit qu'aucune donnée ne quitte votre poste.
 >
 > Le stockage (cas, graphe, preuves) reste local dans tous les cas. Un avertissement permanent s'affiche dans la barre d'analyse et dans le panneau de configuration dès que le mode Avancé est actif.
