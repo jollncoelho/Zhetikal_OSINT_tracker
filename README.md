@@ -62,8 +62,6 @@ Le bouton **Capture d'écran** de la barre supérieure ouvre une sélection de z
 
 Dans le détail d'une preuve, les onglets **Aperçu / Texte / HTML / Liens / Métadonnées** donnent accès à tout ce qui a été collecté. Le bouton **Relancer la capture** réinterroge la cible et rafraîchit le HTML, le texte, les liens et les images sans perdre l'historique ni l'empreinte d'origine. Le bouton **Joindre une image** ajoute une capture manuelle.
 
-<img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/7140568a-2a19-490f-9442-a6844108db53" />
-
 <img width="1920" height="963" alt="image" src="https://github.com/user-attachments/assets/64964228-fe9f-4fff-81b1-5c1e701ed4ea" />
 
 
