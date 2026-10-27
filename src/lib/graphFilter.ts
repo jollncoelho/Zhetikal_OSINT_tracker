@@ -1,4 +1,5 @@
 import type { EntityData } from '../types';
+import { admiraltyCode, readAdmiralty } from '../types';
 
 /** Minuscules + suppression des accents, pour une recherche tolérante. */
 export function normalize(value: string): string {
@@ -8,14 +9,21 @@ export function normalize(value: string): string {
     .toLowerCase();
 }
 
-/** Texte indexé pour un nœud : libellé, type, notes et champs personnalisés. */
+/**
+ * Texte indexé pour un nœud : libellé, type, notes et champs personnalisés.
+ * La cote amirauté y entre aussi, pour que taper « B2 » ou « c3 » isole
+ * directement les entités faiblement sourcées — c'est un usage courant en
+ * relecture de dossier.
+ */
 export function nodeHaystack(data: EntityData): string {
   const fields = data.fields
     ? Object.values(data.fields)
         .map((value) => String(value ?? ''))
         .join(' ')
     : '';
-  return normalize(`${data.label} ${data.entityType} ${data.notes ?? ''} ${fields}`);
+  const grade = readAdmiralty(data.admiralty);
+  const admiralty = grade ? `${admiraltyCode(grade)} admiralty ${grade.source}${grade.credibility}` : '';
+  return normalize(`${data.label} ${data.entityType} ${data.notes ?? ''} ${fields} ${admiralty}`);
 }
 
 /**

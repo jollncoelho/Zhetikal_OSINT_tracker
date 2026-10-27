@@ -21,6 +21,14 @@ export type EntityType =
   | 'social'
   | 'ttp'
   | 'photo'
+  /* Trois natures qui manquaient à la taxonomie et qui reviennent sans arrêt
+     sur une enquête de terrain : un véhicule (plaque), un appareil (MAC, IMEI,
+     SSID) et un événement daté (incident, transaction, déplacement). Les ranger
+     dans « note » ou « fichier » perdait la plaque et la date, c'est-à-dire
+     exactement ce qu'on vient y chercher. */
+  | 'vehicle'
+  | 'device'
+  | 'event'
   /* Telegram — trois natures distinctes plutôt qu'un seul type « social » :
      un canal, un groupe et un compte n'ont ni les mêmes métadonnées ni la même
      valeur d'enquête. Les séparer permet de les filtrer et de les colorer
@@ -38,6 +46,83 @@ export const SOCIAL_PLATFORMS: { id: SocialPlatform; label: string; color: strin
   { id: 'x',         label: 'X',         color: '#e7e9ea' },
 ];
 
+/* ------------------------------------------------------------------ *
+ * Cotation amirauté (OTAN) — fiabilité de la source × crédibilité de
+ * l'information.
+ *
+ * Deux axes indépendants, notés par l'**analyste** :
+ *   - la source (A à F) dit d'où vient l'information ;
+ *   - l'information (1 à 6) dit à quel point elle est corroborée.
+ *
+ * C'est un standard du renseignement, et il ne se calcule pas : deux analystes
+ * peuvent noter différemment la même source. Le tracker avait déjà une
+ * « fiabilité de preuve » **calculée** (checksum, horodatage, cohérence) — les
+ * deux ne disent pas la même chose et ne doivent pas être confondus : l'une
+ * juge le fichier, l'autre juge le renseignement.
+ * ------------------------------------------------------------------ */
+
+export type AdmiraltySource = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+export type AdmiraltyCredibility = 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface AdmiraltyGrade {
+  source: AdmiraltySource;
+  credibility: AdmiraltyCredibility;
+}
+
+export const ADMIRALTY_SOURCES: AdmiraltySource[] = ['A', 'B', 'C', 'D', 'E', 'F'];
+export const ADMIRALTY_CREDIBILITY: AdmiraltyCredibility[] = [1, 2, 3, 4, 5, 6];
+
+/** Clé i18n de la description d'une lettre de source. */
+export function admiraltySourceKey(source: AdmiraltySource): string {
+  return `admiralty.source${source}`;
+}
+
+/** Clé i18n de la description d'un niveau de crédibilité. */
+export function admiraltyCredibilityKey(credibility: AdmiraltyCredibility): string {
+  return `admiralty.cred${credibility}`;
+}
+
+/**
+ * Valide une cote venue du stockage (dossiers importés, anciennes versions).
+ * Toute valeur douteuse est écartée plutôt que réparée en silence : une cote
+ * fausse orienterait la confiance accordée à une entité.
+ */
+export function readAdmiralty(value: unknown): AdmiraltyGrade | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<AdmiraltyGrade>;
+  const source = typeof raw.source === 'string' ? raw.source.toUpperCase() : '';
+  const credibility = Number(raw.credibility);
+  if (!ADMIRALTY_SOURCES.includes(source as AdmiraltySource)) return null;
+  if (!ADMIRALTY_CREDIBILITY.includes(credibility as AdmiraltyCredibility)) return null;
+  return { source: source as AdmiraltySource, credibility: credibility as AdmiraltyCredibility };
+}
+
+/** Code affiché sur la carte : « B2 ». */
+export function admiraltyCode(grade: AdmiraltyGrade): string {
+  return `${grade.source}${grade.credibility}`;
+}
+
+/**
+ * Note de 0 à 1, pour colorer le badge. Les deux axes pèsent pareil : A=6 … F=1
+ * et 1=6 … 6=1, moyenne, puis ramenée sur 0–1. Le décalage de 2 est nécessaire :
+ * sans lui le pire cas (F6) tombait à 0,167 au lieu de 0, et toute l'échelle
+ * restait comprimée dans le haut. Sert uniquement à l'affichage — ce n'est pas
+ * un jugement, seulement une réduction d'une échelle à deux dimensions.
+ */
+export function admiraltyWeight(grade: AdmiraltyGrade): number {
+  const sourceWeight = 7 - (ADMIRALTY_SOURCES.indexOf(grade.source) + 1);
+  const credibilityWeight = 7 - grade.credibility;
+  return (sourceWeight + credibilityWeight - 2) / 10;
+}
+
+/** Couleur de légende du badge, assombrie à l'affichage via `entityTone`. */
+export function admiraltyColor(grade: AdmiraltyGrade): string {
+  const weight = admiraltyWeight(grade);
+  if (weight >= 0.75) return '#22c55e';
+  if (weight >= 0.5) return '#f59e0b';
+  return '#ef4444';
+}
+
 export interface EntityData extends Record<string, unknown> {
   label: string;
   entityType: EntityType;
@@ -48,6 +133,8 @@ export interface EntityData extends Record<string, unknown> {
   fields?: Record<string, unknown>;
   customIconId?: string | null;
   photoUrl?: string;
+  /** Cotation de l'analyste (code amirauté). Absente = non cotée. */
+  admiralty?: AdmiraltyGrade | null;
 }
 
 export interface EntityNode extends Node {
@@ -113,6 +200,9 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   social: 'Social Media',
   ttp: 'TTP',
   photo: 'Photo',
+  vehicle: 'Vehicle',
+  device: 'Device',
+  event: 'Event',
   telegram_channel: 'Telegram Channel',
   telegram_group: 'Telegram Group',
   telegram_user: 'Telegram User',
@@ -139,6 +229,9 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   social: '#1877f2',
   ttp: '#f472b6',
   photo: '#f43f5e',
+  vehicle: '#fbbf24',
+  device: '#94a3b8',
+  event: '#a78bfa',
   /* Famille bleue Telegram. Les trois teintes restent assez éloignées pour
      qu'on distingue un canal d'un groupe d'un compte sans lire l'étiquette. */
   telegram_channel: '#229ed9',
@@ -167,6 +260,9 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   social: 'Share2',
   ttp: 'Crosshair',
   photo: 'Camera',
+  vehicle: 'Car',
+  device: 'Cpu',
+  event: 'CalendarClock',
   telegram_channel: 'Megaphone',
   telegram_group: 'Users',
   telegram_user: 'UserRound',
@@ -261,6 +357,31 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'bio',       label: 'Bio',       type: 'text' },
   ],
   photo: [],
+  /* Ordre volontaire, comme pour Telegram : la carte ne montre que les trois
+     premiers champs renseignés. Plaque → modèle → couleur donne une fiche
+     lisible d'un coup d'œil ; VIN reste en bas, c'est une valeur de recoupement. */
+  vehicle: [
+    { key: 'plate', label: 'Plate',  type: 'text' },
+    { key: 'make',  label: 'Make',   type: 'text' },
+    { key: 'model', label: 'Model',  type: 'text' },
+    { key: 'color', label: 'Colour', type: 'text' },
+    { key: 'vin',   label: 'VIN',    type: 'text' },
+  ],
+  /* Même logique : l'adresse réseau d'abord, le matériel ensuite. */
+  device: [
+    { key: 'mac',    label: 'MAC',    type: 'text' },
+    { key: 'imei',   label: 'IMEI',   type: 'text' },
+    { key: 'serial', label: 'Serial', type: 'text' },
+    { key: 'ssid',   label: 'SSID',   type: 'text' },
+    { key: 'os',     label: 'OS',     type: 'text' },
+  ],
+  event: [
+    { key: 'date',     label: 'Date',         type: 'text' },
+    { key: 'place',    label: 'Place',        type: 'text' },
+    { key: 'kind',     label: 'Kind',         type: 'text' },
+    { key: 'people',   label: 'Participants', type: 'text' },
+    { key: 'source',   label: 'Source',       type: 'text' },
+  ],
   asn: [
     { key: 'number',   label: 'AS Number',  type: 'text' },
     { key: 'holder',   label: 'AS Holder',  type: 'text' },

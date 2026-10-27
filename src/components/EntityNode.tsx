@@ -6,10 +6,12 @@ import {
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
   Trash2, X, Check, NotebookPen,
   ExternalLink, SlidersHorizontal, Search, Satellite,
-  Megaphone, Users, UserRound, Send
+  Megaphone, Users, UserRound, Send,
+  Car, Cpu, CalendarClock
 } from 'lucide-react';
 import type { EntityData } from '../types';
-import { ENTITY_FIELDS } from '../types';
+import { ENTITY_FIELDS, admiraltyCode, admiraltyColor, readAdmiralty,
+  admiraltySourceKey, admiraltyCredibilityKey } from '../types';
 import { loadIcons } from './IconPicker';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -21,6 +23,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText, Link, Bitcoin, StickyNote, Share2, Camera,
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
   Megaphone, Users, UserRound,
+  Car, Cpu, CalendarClock,
 };
 
 const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp', 'telegram_channel', 'telegram_group', 'telegram_user'];
@@ -133,6 +136,10 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const filter = useGraphFilter();
   // Teinte de l'entité, assombrie si le thème a un fond clair (lisibilité).
   const tone = entityTone(data.color);
+  /* Cote amirauté : lue à travers `readAdmiralty` pour qu'un dossier importé
+     avec une cote invalide n'affiche pas un badge trompeur. */
+  const grade = readAdmiralty(data.admiralty);
+  const gradeTone = grade ? entityTone(admiraltyColor(grade)) : null;
   // Estompe le nœud quand un filtre est actif et qu'il n'y correspond pas.
   const dimmed = filter.trim().length > 0 && !matchesQuery(data, filter);
   const [renamingLabel, setRenamingLabel] = useState(false);
@@ -296,6 +303,20 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <span className={`flex-1 text-xs font-bold truncate font-mono ${TECH_TYPES.includes(data.entityType) ? 'font-tech' : ''}`} style={{ color: tone }} onDoubleClick={handleLabelDoubleClick} title={t('node.rename')}>
               {data.label}
             </span>
+            {/* Cote amirauté — deux caractères, colorés par la note combinée.
+                Le titre porte le détail : la carte n'a pas la place pour les
+                libellés complets, mais on ne doit pas avoir à ouvrir l'éditeur
+                pour savoir ce que « C3 » veut dire. */}
+            {grade && gradeTone && (
+              <span
+                data-testid="admiralty-badge"
+                title={`${t('admiralty.title')} ${admiraltyCode(grade)} — ${t(admiraltySourceKey(grade.source))} · ${t(admiraltyCredibilityKey(grade.credibility))}`}
+                className="flex-shrink-0 rounded px-1 py-[1px] font-mono text-[9px] font-bold leading-none"
+                style={{ color: gradeTone, background: `${gradeTone}1f`, border: `1px solid ${gradeTone}55` }}
+              >
+                {admiraltyCode(grade)}
+              </span>
+            )}
             {data.entityType === 'url' && openUrl && (
               <a
                 href={data.label}

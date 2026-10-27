@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, SlidersHorizontal, Satellite } from 'lucide-react';
-import type { EntityData, EntityType } from '../types';
-import { ENTITY_FIELDS, ENTITY_LABELS, ENTITY_COLORS } from '../types';
+import type { AdmiraltyCredibility, AdmiraltyGrade, AdmiraltySource, EntityData, EntityType } from '../types';
+import {
+  ADMIRALTY_CREDIBILITY, ADMIRALTY_SOURCES, ENTITY_FIELDS, ENTITY_LABELS, ENTITY_COLORS,
+  admiraltyCode, admiraltyColor, admiraltyCredibilityKey, admiraltySourceKey, readAdmiralty,
+} from '../types';
 import { useTheme } from '../theme/ThemeContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import IconPicker from './IconPicker';
 
 const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
@@ -19,6 +23,19 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
   const [fields, setFields] = useState<Record<string, unknown>>(data.fields ?? {});
   const [showIconPicker, setShowIconPicker] = useState(false);
   const { entityTone } = useTheme();
+  const { t } = useLanguage();
+
+  /* Cote amirauté : les deux axes sont tenus séparément tant qu'ils ne sont pas
+     tous les deux choisis. Choisir une source ne doit pas inventer une
+     crédibilité — c'est un jugement d'analyste, pas une valeur par défaut. */
+  const initialGrade = readAdmiralty(data.admiralty);
+  const [sourceSel, setSourceSel] = useState<AdmiraltySource | ''>(initialGrade?.source ?? '');
+  const [credSel, setCredSel] = useState<AdmiraltyCredibility | ''>(initialGrade?.credibility ?? '');
+
+  const grade: AdmiraltyGrade | null =
+    sourceSel !== '' && credSel !== '' ? { source: sourceSel, credibility: credSel } : null;
+  const gradeTone = grade ? entityTone(admiraltyColor(grade)) : null;
+
   const fieldDefs = ENTITY_FIELDS[data.entityType as EntityType] ?? [];
   // Couleur d'entité = légende : teinte conservée, assombrie en thème clair.
   const accent = entityTone(ENTITY_COLORS[data.entityType as EntityType] ?? '#94a3b8');
@@ -28,7 +45,7 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
   };
 
   const handleSave = () => {
-    onUpdate(nodeId, { fields });
+    onUpdate(nodeId, { fields, admiralty: grade });
     onClose();
   };
 
@@ -44,6 +61,7 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        data-testid="identifier-modal"
         className="relative bg-cyber-dark border border-cyber-border rounded-2xl shadow-2xl w-[400px] max-h-[80vh] flex flex-col"
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -74,6 +92,78 @@ export default function IdentifierModal({ nodeId, data, onUpdate, onClose }: Pro
 
         {/* Fields */}
         <div className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar">
+          {/* Cotation amirauté — le jugement de l'analyste sur la source et sur
+              l'information. Placée avant les champs : c'est ce qui qualifie
+              tout le reste de la fiche. */}
+          <div data-testid="admiralty-editor" className="mb-4 rounded-lg border border-cyber-border bg-cyber-panel/60 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-cyber-text-dim">
+                {t('admiralty.title')}
+              </span>
+              {(sourceSel !== '' || credSel !== '') && (
+                <button
+                  onClick={() => { setSourceSel(''); setCredSel(''); }}
+                  className="text-[10px] text-cyber-text-dim transition-colors hover:text-cyber-red"
+                >
+                  {t('admiralty.clear')}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-cyber-text-dim/80">{t('admiralty.source')}</span>
+                <select
+                  data-testid="admiralty-source"
+                  value={sourceSel}
+                  onChange={(event) => setSourceSel(event.target.value as AdmiraltySource | '')}
+                  className="w-full rounded-lg border border-cyber-border bg-cyber-dark px-2 py-1.5 font-mono text-[11px] text-cyber-text outline-none focus:border-cyber-cyan"
+                >
+                  <option value="">{t('admiralty.none')}</option>
+                  {ADMIRALTY_SOURCES.map((source) => (
+                    <option key={source} value={source}>
+                      {source} — {t(admiraltySourceKey(source))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-cyber-text-dim/80">{t('admiralty.credibility')}</span>
+                <select
+                  data-testid="admiralty-credibility"
+                  value={credSel}
+                  onChange={(event) =>
+                    setCredSel(event.target.value === '' ? '' : (Number(event.target.value) as AdmiraltyCredibility))
+                  }
+                  className="w-full rounded-lg border border-cyber-border bg-cyber-dark px-2 py-1.5 font-mono text-[11px] text-cyber-text outline-none focus:border-cyber-cyan"
+                >
+                  <option value="">{t('admiralty.none')}</option>
+                  {ADMIRALTY_CREDIBILITY.map((level) => (
+                    <option key={level} value={level}>
+                      {level} — {t(admiraltyCredibilityKey(level))}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {grade && gradeTone ? (
+              <p className="mt-2 text-[10px] leading-relaxed text-cyber-text-dim">
+                <span
+                  data-testid="admiralty-code"
+                  className="rounded px-1 py-[1px] font-mono text-[10px] font-bold"
+                  style={{ color: gradeTone, background: `${gradeTone}1f`, border: `1px solid ${gradeTone}55` }}
+                >
+                  {admiraltyCode(grade)}
+                </span>{' '}
+                {t(admiraltySourceKey(grade.source))} · {t(admiraltyCredibilityKey(grade.credibility))}
+              </p>
+            ) : (
+              <p className="mt-2 text-[10px] leading-relaxed text-cyber-text-dim/70">{t('admiralty.hint')}</p>
+            )}
+          </div>
+
           {fieldDefs.length === 0 ? (
             <p className="text-xs text-cyber-text-dim/50 text-center py-8 italic">
               Aucun champ disponible pour ce type

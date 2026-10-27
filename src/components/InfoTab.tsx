@@ -19,6 +19,7 @@ import {
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import type { CaseData, EntityData, EntityNode, RelationData } from '../types';
+import { admiraltyCode, readAdmiralty } from '../types';
 import NotePanel from './NotePanel';
 import EntityNodeComponent from './EntityNode';
 import SocialNodeComponent from './SocialNode';
@@ -226,6 +227,23 @@ function FlowExporter({
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'bold');
+
+        /* Légende de cotation, uniquement si le dossier contient au moins une
+           entité cotée : un rapport qui affiche « B2 » sans dire ce que cela
+           veut dire ne sert à personne. */
+        const gradedNodes = nodes.filter((node) => readAdmiralty((node.data as EntityData).admiralty));
+        if (gradedNodes.length > 0) {
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text(
+            `Cote amirauté (entre crochets) : fiabilité de la source A (fiable) à F (non évaluable) x crédibilité de l'information 1 (confirmée) à 6 (non évaluable). ${gradedNodes.length} entité(s) cotée(s).`,
+            margin,
+            y
+          );
+          y += 6;
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'bold');
+        }
         
         // Grouper les entités par type
         const entitiesByType: Record<string, EntityNode[]> = {};
@@ -265,8 +283,9 @@ function FlowExporter({
             }
             
             const data = node.data as EntityData;
+            const grade = readAdmiralty(data.admiralty);
             pdf.setFont('helvetica', 'bold');
-            pdf.text(`• ${data.label}`, margin + 5, y);
+            pdf.text(`• ${data.label}${grade ? `   [${admiraltyCode(grade)}]` : ''}`, margin + 5, y);
             y += 4;
             
             pdf.setFont('helvetica', 'normal');

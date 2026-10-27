@@ -31,6 +31,17 @@ interface AppState {
   onEdgesChange: (changes: any) => void;
 
   clearCanvas: () => void;
+  /**
+   * Remplace d'un bloc le contenu du dossier actif (entités, liens, points de
+   * carte). Utilisé par la restauration d'un point de restauration : les
+   * mutateurs habituels ajoutent ou modifient, aucun ne sait réécrire l'état.
+   */
+  replaceCaseContent: (content: {
+    nodes: EntityNode[];
+    edges: Edge[];
+    locations?: MapPin[];
+    pinLinks?: PinLink[];
+  }) => void;
   saveProgress: () => void;
   exportCase: () => string;
   importCase: (json: string) => boolean;
@@ -305,6 +316,29 @@ export const useStore = create<AppState>()(
               ),
             }));
           }
+        },
+
+        replaceCaseContent: (content) => {
+          const activeCaseId = get().activeCaseId;
+          if (!activeCaseId) return;
+          const nodes = content.nodes ?? [];
+          const edges = content.edges ?? [];
+          set((state) => ({
+            nodes,
+            edges,
+            cases: state.cases.map((c) =>
+              c.id === activeCaseId
+                ? {
+                    ...c,
+                    nodes,
+                    edges,
+                    locations: content.locations ?? c.locations ?? [],
+                    pinLinks: content.pinLinks ?? c.pinLinks ?? [],
+                    updatedAt: new Date().toISOString(),
+                  }
+                : c
+            ),
+          }));
         },
 
         saveProgress: () => {

@@ -1,4 +1,5 @@
 import type { AnalysisMode, HermesDiscovery, HermesEntity, HermesRelation } from './types/hermes';
+import { admiraltyCode, readAdmiralty } from './types';
 
 // ── Legacy chat interface (kept for backward compatibility) ──────────────────
 
@@ -342,7 +343,11 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName
       const type = n.data?.entityType ?? n.type ?? 'unknown';
       const label = n.data?.label ?? n.id;
       const fields = n.data?.fields ? Object.entries(n.data.fields).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join(', ') : '';
-      return `- [${type}] ${label}${fields ? ` (${fields})` : ''}`;
+      /* La cote amirauté accompagne l'entité : sans elle le modèle traite une
+         rumeur de forum et un WHOIS comme la même qualité de preuve. */
+      const grade = readAdmiralty(n.data?.admiralty);
+      const gradeTag = grade ? ` {cote ${admiraltyCode(grade)}}` : '';
+      return `- [${type}] ${label}${gradeTag}${fields ? ` (${fields})` : ''}`;
     })
     .join('\n');
   const edgeLines = graphData.edges
@@ -360,6 +365,9 @@ function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName
     .join(' | ');
 
   const absent = describeAbsentData(graphData);
+  /* Nombre d'entités cotées : détermine si la consigne de cotation a un sens.
+     Sur un dossier sans aucune cote, le prompt reste identique à avant. */
+  const gradedCount = graphData.nodes.filter((n) => readAdmiralty(n.data?.admiralty)).length;
 
   return `DOSSIER — ENTITÉS :
 ${nodeLines || '(aucune)'}
@@ -369,6 +377,16 @@ ${edgeLines || '(aucun)'}
 
 VALEURS DÉJÀ PRÉSENTES (ne pas reproposer) :
 ${existingValues || '(aucune)'}
+${
+  gradedCount > 0
+    ? `
+COTATION DES SOURCES (code amirauté, posé par l'analyste) :
+Chaque {cote} combine la fiabilité de la source (A à F) et la crédibilité de l'information (1 à 6).
+- Une entité cotée D, E ou F est un indice à corroborer, jamais un fait établi.
+- Ne présente aucune conclusion reposant uniquement sur une entité cotée D, E ou F comme acquise : formule-la comme une piste à vérifier.
+`
+    : ''
+}
 ${
   absent.length > 0
     ? `
@@ -461,7 +479,14 @@ const ENTITY_TYPE_MAP: Record<string, string> = {
   CRYPTO: 'crypto',
   FICHIER: 'file',
   FILE: 'file',
-  VEHICULE: 'note',
+  /* Ces trois-là tombaient dans « note » : un véhicule cité par le modèle
+     arrivait sur le graphe comme une simple fiche texte, plaque perdue. */
+  VEHICULE: 'vehicle',
+  VEHICLE: 'vehicle',
+  APPAREIL: 'device',
+  DEVICE: 'device',
+  EVENEMENT: 'event',
+  EVENT: 'event',
   NOTE: 'note',
 };
 

@@ -3,13 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
-  Activity, Briefcase, FileJson, FileText, Ghost, Home, Image as ImageIcon,
+  Activity, Briefcase, FileJson, FileText, Ghost, History, Home, Image as ImageIcon,
   Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Send, Star, X,
 } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
 import TelegramSearch from './components/TelegramSearch';
+import SnapshotsPanel from './components/SnapshotsPanel';
+import { addSnapshot, type CaseSnapshot } from './lib/snapshots';
 import DisclaimerModal from './components/DisclaimerModal';
 import InfoTab from './components/InfoTab';
 import MapTab from './components/MapTab';
@@ -53,6 +55,7 @@ function AppInner() {
     deleteEdge,
     updateEdgeData,
     clearCanvas,
+    replaceCaseContent,
     saveProgress,
     exportCase,
     importCase,
@@ -76,10 +79,33 @@ function AppInner() {
   const { themeId, themes, setTheme } = useTheme();
   const toast = useToast();
 
+  /**
+   * Restauration d'un point de restauration.
+   *
+   * L'état courant est photographié **avant** d'être écrasé : sans cela, une
+   * restauration serait elle-même irréversible — c'est-à-dire exactement le
+   * risque qu'un point de restauration est censé couvrir.
+   */
+  const handleRestoreSnapshot = useCallback(
+    async (snapshot: CaseSnapshot) => {
+      if (!activeCase) return;
+      await addSnapshot(activeCase, t('snapshots.beforeRestore'), true);
+      replaceCaseContent({
+        nodes: snapshot.data.nodes ?? [],
+        edges: snapshot.data.edges ?? [],
+        locations: snapshot.data.locations ?? [],
+        pinLinks: snapshot.data.pinLinks ?? [],
+      });
+      toast.success(t('snapshots.restoredToast'), activeCase.name);
+    },
+    [activeCase, replaceCaseContent, t, toast]
+  );
+
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(
@@ -272,6 +298,7 @@ function AppInner() {
       { id: 'view-investigation', label: t('header.cases'), group: navGroup, icon: Briefcase, keywords: 'dossiers enquetes preuves', run: () => setView('investigation') },
       { id: 'open-tools', label: t('header.tools'), group: navGroup, icon: Ghost, keywords: 'outils toolkit ghostint', run: () => setToolkitOpen(true) },
       { id: 'open-telegram', label: t('telegram.title'), group: navGroup, icon: Send, keywords: 'telegram canal groupe osint handle', run: () => setTelegramOpen(true) },
+      { id: 'open-snapshots', label: t('snapshots.title'), group: navGroup, icon: History, keywords: 'restauration point sauvegarde version historique retour arriere', run: () => setSnapshotsOpen(true) },
       { id: 'toggle-stats', label: t('stats.title'), group: navGroup, icon: Activity, keywords: 'statistiques compteurs', run: () => setStatsOpen((value) => !value) },
       { id: 'new-case', label: t('sidebar.newCase'), group: caseGroup, icon: Plus, keywords: 'creer nouveau dossier', run: () => handleCreateCase(`${t('sidebar.newCase')} ${cases.length + 1}`, '') },
     ];
@@ -403,6 +430,13 @@ function AppInner() {
       icon: Activity,
       active: statsOpen,
       onClick: () => setStatsOpen((value) => !value),
+    },
+    {
+      id: 'snapshots',
+      label: t('snapshots.title'),
+      icon: History,
+      active: snapshotsOpen,
+      onClick: () => setSnapshotsOpen((value) => !value),
     },
     {
       id: 'star',
@@ -722,6 +756,13 @@ function AppInner() {
       </div>
 
       <TelegramSearch isOpen={telegramOpen} onClose={() => setTelegramOpen(false)} />
+
+      <SnapshotsPanel
+        isOpen={snapshotsOpen}
+        onClose={() => setSnapshotsOpen(false)}
+        caseData={activeCase}
+        onRestore={handleRestoreSnapshot}
+      />
 
       {photoViewer && (
         <div
