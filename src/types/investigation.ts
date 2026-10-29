@@ -60,5 +60,11 @@ export interface EvidenceArtifact {
   extracted_assets?: string[];
   notes: string;
   created_at: string;
+  /**
+   * Le fichier importé depuis le poste est conservé octet pour octet dans le
+   * magasin `blobs`. `sha512` porte alors sur ces octets d'origine, et non sur
+   * la prévisualisation réduite affichée à l'écran.
+   */
+  has_original?: boolean;
 }
 

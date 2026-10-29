@@ -9,6 +9,12 @@ export type EntityType =
   | 'phone'
   | 'asn'
   | 'location'
+  /* Un point géographique saisi comme coordonnées, et non comme adresse.
+     « Adresse » suppose un texte postal qu'il faut géocoder ; une coordonnée
+     est déjà exploitable — elle ouvre God's Eye directement et se place sur la
+     carte sans passer par un service de géocodage. Confondre les deux obligeait
+     à écrire « 48.85, 2.35 » dans un champ d'adresse. */
+  | 'coordinates'
   | 'organization'
   | 'person'
   | 'file'
@@ -188,6 +194,7 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
   phone: 'Phone',
   asn: 'ASN',
   location: 'Adresse',
+  coordinates: 'GPS Coordinates',
   organization: 'Organization',
   person: 'Person',
   file: 'File',
@@ -217,6 +224,9 @@ export const ENTITY_COLORS: Record<EntityType, string> = {
   phone: '#8b5cf6',
   asn: '#fb7185',
   location: '#10b981',
+  /* Teal plutôt qu'émeraude : à côté de « Adresse », il faut pouvoir
+     distinguer les deux au premier coup d'œil sans lire l'étiquette. */
+  coordinates: '#14b8a6',
   organization: '#0ea5e9',
   person: '#f59e0b',
   file: '#94a3b8',
@@ -248,6 +258,7 @@ export const ENTITY_ICON_NAMES: Record<EntityType, string> = {
   phone: 'Phone',
   asn: 'Network',
   location: 'MapPin',
+  coordinates: 'LocateFixed',
   organization: 'Building2',
   person: 'User',
   file: 'FileText',
@@ -307,6 +318,15 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'lng',     label: 'Longitude', type: 'text' },
     { key: 'country', label: 'Country',   type: 'text' },
     { key: 'city',    label: 'City',      type: 'text' },
+  ],
+  /* Les clés `lat`/`lng` sont celles qu'attend `extractCoords()` dans
+     `EntityNode` : les nommer autrement casserait le bouton God's Eye. */
+  coordinates: [
+    { key: 'lat',      label: 'Latitude',        type: 'text' },
+    { key: 'lng',      label: 'Longitude',       type: 'text' },
+    { key: 'accuracy', label: 'Accuracy (m)',    type: 'text' },
+    { key: 'address',  label: 'Address',         type: 'text' },
+    { key: 'source',   label: 'Coordinate source', type: 'text' },
   ],
   organization: [
     { key: 'industry',  label: 'Industry',   type: 'text' },

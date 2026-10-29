@@ -8,8 +8,9 @@ import { useLanguage } from '../i18n/LanguageContext';
 import type { EvidenceArtifact, MetadataResponse } from '../types/investigation';
 import {
   buildArtifact, formatRawContent, isHtmlContent, isProtectedTarget, parseHtmlDocument,
-  persistArtifact, readFileAsText, requestPageCapture, sanitizePreviewHtml,
+  readFileAsText, requestPageCapture, sanitizePreviewHtml,
 } from '../lib/capture';
+import { saveArtifact } from '../lib/evidenceStore';
 
 interface Props {
   caseId: string;
@@ -160,7 +161,7 @@ export default function CaseBrowser({ caseId, onArtifactAdded }: Props) {
       artifact.screenshot_previews = [screenShot];
       artifact.artifact_type = 'screenshot';
     }
-    persistArtifact(artifact);
+    await saveArtifact(artifact);
     onArtifactAdded(artifact);
     window.dispatchEvent(new CustomEvent('investigation-artifact-added', { detail: { caseId, artifact } }));
     setSaved(true);

@@ -461,6 +461,10 @@ export default function InfoTab({
             edgeTypes={edgeTypes}
             connectionMode={ConnectionMode.Loose}
             connectionLineType={ConnectionLineType.Bezier}
+            /* Rayon d'accroche de la cible : 36 px autour de la poignée, au
+               lieu des 20 px par défaut. Relâcher « à peu près » sur la bonne
+               poignée suffit, ce qui était le principal grief du geste. */
+            connectionRadius={36}
             defaultEdgeOptions={{ type: 'custom' }}
             proOptions={{ hideAttribution: true }}
             /* React Flow plafonne le dézoom à 0,5 par défaut : un dossier étalé

@@ -7,7 +7,7 @@ import {
   Trash2, X, Check, NotebookPen,
   ExternalLink, SlidersHorizontal, Search, Satellite,
   Megaphone, Users, UserRound, Send,
-  Car, Cpu, CalendarClock
+  Car, Cpu, CalendarClock, LocateFixed
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { ENTITY_FIELDS, admiraltyCode, admiraltyColor, readAdmiralty,
@@ -23,7 +23,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText, Link, Bitcoin, StickyNote, Share2, Camera,
   Server, Network, Fingerprint, ShieldCheck, Crosshair,
   Megaphone, Users, UserRound,
-  Car, Cpu, CalendarClock,
+  Car, Cpu, CalendarClock, LocateFixed,
 };
 
 const TECH_TYPES = ['ip', 'domain', 'hostname', 'url', 'email', 'crypto', 'phone', 'username', 'asn', 'hash', 'sslcert', 'ttp', 'telegram_channel', 'telegram_group', 'telegram_user'];
@@ -32,6 +32,45 @@ const LINK_TYPES = ['url', 'domain', 'hostname'];
 const TELEGRAM_TYPES = ['telegram_channel', 'telegram_group', 'telegram_user'];
 
 const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.query-intel.com';
+
+/**
+ * Poignées de connexion.
+ *
+ * Il y en avait **deux par côté** — une `source` et une `target` — posées au
+ * même pixel. La cible étant rendue après la source, elle la recouvrait : on
+ * tirait donc toujours depuis une poignée *cible*. En mode `Loose`, React Flow
+ * accepte ce départ, enregistre l'arête avec `sourceHandle: 'left-in'`, puis
+ * échoue à lui trouver une position de départ — une poignée cible n'en fournit
+ * pas. L'arête finissait bien dans le dossier, mais n'était jamais dessinée :
+ * c'est exactement le geste « je tire, je relâche, il ne se passe rien ».
+ *
+ * En mode `Loose`, une poignée unique sert de départ comme d'arrivée. Une seule
+ * par côté supprime l'ambiguïté et rend les quatre côtés utilisables.
+ */
+const HANDLE_SIZE = 12;
+
+function handleStyle(tone: string, side: 'left' | 'right' | 'top' | 'bottom'): React.CSSProperties {
+  const base: React.CSSProperties = {
+    width: HANDLE_SIZE,
+    height: HANDLE_SIZE,
+    background: 'var(--cyber-black)',
+    border: `2px solid ${tone}`,
+    borderRadius: 999,
+    cursor: 'crosshair',
+    zIndex: 5,
+    transition: 'background 0.12s ease, box-shadow 0.12s ease',
+  };
+  switch (side) {
+    case 'left':
+      return { ...base, left: -6, top: '50%', transform: 'translateY(-50%)' };
+    case 'right':
+      return { ...base, right: -6, top: '50%', transform: 'translateY(-50%)' };
+    case 'top':
+      return { ...base, top: -6, left: '50%', transform: 'translateX(-50%)' };
+    default:
+      return { ...base, bottom: -6, left: '50%', transform: 'translateX(-50%)' };
+  }
+}
 
 function extractCoords(data: EntityData): { lat: number; lon: number } | null {
   const f = data.fields;
@@ -252,14 +291,11 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         className="absolute inset-y-0 left-0 w-[3px] rounded-l-xl"
         style={{ background: tone }}
       />
-      <Handle type="source" position={Position.Left} id="left" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Left} id="left-in" style={{ width: 12, height: 12, left: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Right} id="right-in" style={{ width: 12, height: 12, right: -6, top: '50%', transform: 'translateY(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Top} id="top" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Top} id="top-in" style={{ width: 12, height: 12, top: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-green)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-in" style={{ width: 12, height: 12, bottom: -6, left: '50%', transform: 'translateX(-50%)', background: 'var(--cyber-red)', border: '2px solid var(--cyber-black)', cursor: 'crosshair', zIndex: 100 }} />
+      {/* Une seule poignée par côté — voir la note de `handleStyle`. */}
+      <Handle type="source" position={Position.Left} id="left" style={handleStyle(tone, 'left')} />
+      <Handle type="source" position={Position.Right} id="right" style={handleStyle(tone, 'right')} />
+      <Handle type="source" position={Position.Top} id="top" style={handleStyle(tone, 'top')} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle(tone, 'bottom')} />
 
       {/* Contenu : occupe 100% de l'espace, aucune interférence */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">

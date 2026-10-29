@@ -391,9 +391,7 @@ export async function buildArtifact(caseId: string, draft: CaptureDraft, metadat
   };
 }
 
-/** Persist a freshly built artifact at the head of the local evidence store. */
-export function persistArtifact(artifact: EvidenceArtifact): EvidenceArtifact[] {
-  const next = [artifact, ...readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY)];
-  writeLocalList(LOCAL_ARTIFACTS_KEY, next);
-  return next;
-}
+/* La persistance des preuves a quitté ce fichier : elle vit dans
+   `evidenceStore.ts`, qui écrit en IndexedDB. `localStorage` plafonne autour de
+   5 Mo pour l'origine entière, et une seule capture d'écran en `data:` URL
+   suffisait à faire échouer l'écriture suivante — silencieusement. */

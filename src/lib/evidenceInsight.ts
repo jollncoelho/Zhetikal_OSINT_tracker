@@ -11,6 +11,13 @@ export interface ReliabilityCheck {
   /** Clé i18n du libellé (`reliability.check.<id>`). */
   labelKey: string;
   ok: boolean;
+  /**
+   * `false` quand le critère n'a pas de sens pour cette pièce. Un fichier
+   * importé depuis le poste n'a ni statut HTTP ni transport HTTPS : les
+   * compter comme des échecs le faisait noter « Faible » alors qu'il est la
+   * seule pièce dont on conserve les octets d'origine. Non applicable ≠ raté.
+   */
+  applicable?: boolean;
 }
 
 export interface ReliabilityReport {
@@ -20,11 +27,18 @@ export interface ReliabilityReport {
 }
 
 /**
- * Évalue la solidité d'une preuve sur sept critères objectifs.
+ * Évalue la solidité d'une preuve sur des critères objectifs.
  *
  * L'idée : une capture n'a de valeur probante que si l'on peut à la fois
  * prouver qu'elle n'a pas été modifiée (empreinte), qu'elle contient bien le
  * contenu observé, et qu'elle est horodatée.
+ *
+ * Deux origines, deux jeux de critères. Une capture web se juge sur la réponse
+ * HTTP et le transport ; un fichier importé se juge sur la conservation de ses
+ * octets. Les critères sans objet sont écartés du calcul au lieu d'être
+ * comptés comme des manques — et la provenance reste exigée dans les deux cas,
+ * ce qui interdit à un fichier déposé à la main d'atteindre « vérifiée » : on
+ * sait que ses octets n'ont pas bougé depuis l'import, pas d'où il vient.
  */
 export function assessReliability(artifact: EvidenceArtifact): ReliabilityReport {
   const hasImage = Boolean(
@@ -33,25 +47,38 @@ export function assessReliability(artifact: EvidenceArtifact): ReliabilityReport
   const status = artifact.http_status ?? 0;
   const capturedAt = Date.parse(artifact.captured_at);
   const finalUrl = artifact.final_url || artifact.target_url || '';
+  const isLocalImport = artifact.browser_metadata?.source === 'local-file-import';
+  const hasText = (artifact.extracted_text ?? []).length > 0;
+  const hasContent = (artifact.raw_html || '').trim().length > 0;
 
   const checks: ReliabilityCheck[] = [
     { id: 'hash', labelKey: 'reliability.check.hash', ok: /^[a-f0-9]{128}$/i.test(artifact.sha512 || '') },
-    { id: 'content', labelKey: 'reliability.check.content', ok: (artifact.raw_html || '').trim().length > 0 },
-    { id: 'text', labelKey: 'reliability.check.text', ok: (artifact.extracted_text ?? []).length > 0 },
+    /* Un fichier importé peut porter du texte (HTML, note) : le critère reste
+       alors applicable. Une photo n'en a pas, ce n'est pas un défaut. */
+    { id: 'content', labelKey: 'reliability.check.content', ok: hasContent, applicable: !isLocalImport || hasContent },
+    { id: 'text', labelKey: 'reliability.check.text', ok: hasText, applicable: !isLocalImport || hasText },
     { id: 'preview', labelKey: 'reliability.check.preview', ok: hasImage },
-    { id: 'status', labelKey: 'reliability.check.status', ok: status >= 200 && status < 400 },
-    { id: 'secure', labelKey: 'reliability.check.secure', ok: finalUrl.startsWith('https://') },
+    { id: 'status', labelKey: 'reliability.check.status', ok: status >= 200 && status < 400, applicable: !isLocalImport },
+    { id: 'secure', labelKey: 'reliability.check.secure', ok: finalUrl.startsWith('https://'), applicable: !isLocalImport },
     { id: 'timestamp', labelKey: 'reliability.check.timestamp', ok: Number.isFinite(capturedAt) && capturedAt > 0 },
+    /* Le fichier tel qu'il a été choisi est conservé octet pour octet. */
+    { id: 'original', labelKey: 'reliability.check.original', ok: artifact.has_original === true, applicable: isLocalImport },
+    /* D'où vient la pièce. Sans cela, tout le reste ne prouve qu'une chose :
+       que le fichier n'a pas changé depuis qu'il est arrivé ici. */
+    { id: 'provenance', labelKey: 'reliability.check.provenance', ok: /^https?:\/\//i.test(finalUrl) && status >= 200 && status < 400 },
   ];
 
-  // Les trois premiers critères pèsent le plus lourd : ce sont eux qui font
-  // la valeur probante. Le reste affine.
+  // Les critères qui font la valeur probante pèsent le plus lourd ; le reste
+  // affine. `provenance` pèse autant qu'une empreinte : une pièce intacte dont
+  // on ignore l'origine n'est pas une pièce établie.
   const weights: Record<string, number> = {
-    hash: 22, content: 22, text: 14, preview: 12, status: 12, secure: 8, timestamp: 10,
+    hash: 22, content: 22, text: 14, preview: 12, status: 12, secure: 8,
+    timestamp: 10, original: 14, provenance: 30,
   };
-  const total = checks.reduce((sum, check) => sum + (weights[check.id] ?? 0), 0);
-  const earned = checks.reduce((sum, check) => sum + (check.ok ? weights[check.id] ?? 0 : 0), 0);
-  const score = Math.round((earned / total) * 100);
+  const counted = checks.filter((check) => check.applicable !== false);
+  const total = counted.reduce((sum, check) => sum + (weights[check.id] ?? 0), 0);
+  const earned = counted.reduce((sum, check) => sum + (check.ok ? weights[check.id] ?? 0 : 0), 0);
+  const score = total > 0 ? Math.round((earned / total) * 100) : 0;
 
   const level: ReliabilityLevel = score >= 78 ? 'verified' : score >= 48 ? 'partial' : 'weak';
   return { level, score, checks };

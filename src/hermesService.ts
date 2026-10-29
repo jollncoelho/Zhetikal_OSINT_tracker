@@ -474,6 +474,13 @@ const ENTITY_TYPE_MAP: Record<string, string> = {
   TTP: 'ttp',
   LOCALISATION: 'location',
   LOCATION: 'location',
+  /* Une coordonnée n'est pas une adresse : la ranger dans « location » laissait
+     latitude et longitude hors des champs que l'affichage et God's Eye lisent. */
+  COORDONNEES: 'coordinates',
+  COORDONNEES_GPS: 'coordinates',
+  COORDINATES: 'coordinates',
+  GPS: 'coordinates',
+  LATLNG: 'coordinates',
   PHOTO: 'photo',
   IBAN: 'iban',
   CRYPTO: 'crypto',

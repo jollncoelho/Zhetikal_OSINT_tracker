@@ -344,10 +344,13 @@ export async function exportEvidencePack({
       const row = Math.floor(checkIndex / 2);
       const x = MARGIN + column * (half + 6);
       const cy = y + row * 5;
-      pdf.setTextColor(check.ok ? 16 : 190, check.ok ? 150 : 45, check.ok ? 105 : 45);
-      pdf.text(check.ok ? 'OK' : '—', x, cy);
+      // Un critère sans objet n'est ni vert ni rouge : il est gris, et marqué
+      // « n/a ». Le compter comme un manque fausserait le rapport papier.
+      const skipped = check.applicable === false;
+      pdf.setTextColor(skipped ? 140 : check.ok ? 16 : 190, skipped ? 145 : check.ok ? 150 : 45, skipped ? 150 : check.ok ? 105 : 45);
+      pdf.text(skipped ? 'n/a' : check.ok ? 'OK' : '—', x, cy);
       pdf.setTextColor(70, 80, 95);
-      pdf.text(t(check.labelKey), x + 7, cy);
+      pdf.text(t(check.labelKey), x + 9, cy);
     });
     y += Math.ceil(report.checks.length / 2) * 5 + 5;
 

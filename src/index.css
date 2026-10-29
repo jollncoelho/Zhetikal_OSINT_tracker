@@ -115,27 +115,33 @@ button, input, textarea, select {
   stroke-width: 2 !important;
 }
 
-/* Handles are full-border strips — let inline styles control size/appearance */
+/* Les poignées portent leur apparence en style inline (EntityNode, SocialNode).
+   Cette feuille ne doit donc pas la neutraliser : un `!important` sur le fond,
+   la bordure et le rayon effaçait chaque poignée, et le `transform: none` du
+   survol annulait leur centrage. Résultat : des points de connexion invisibles,
+   qu'on ne pouvait viser qu'au hasard. */
 .react-flow__handle {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  min-width: unset !important;
-  min-height: unset !important;
+  border-radius: 999px;
 }
 
-/* Show crosshair on the connection zone so users know they can drag a link */
+/* Zone de visée généreuse sans élargir le point visible : la boîte de
+   collision déborde de 5 px de chaque côté. */
+.react-flow__handle::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 999px;
+}
+
 .react-flow__handle:hover {
-  cursor: crosshair !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  transform: none !important;
+  cursor: crosshair;
+  box-shadow: 0 0 0 3px rgb(var(--cyber-cyan-rgb) / 0.28);
 }
 
-/* Highlight the border of the target node while dragging a connection onto it */
+/* Cible survolée pendant un glisser : on montre où le lien va se poser. */
 .react-flow__handle.connectingto,
 .react-flow__handle.valid {
-  background: transparent !important;
+  box-shadow: 0 0 0 4px rgb(var(--cyber-green-rgb) / 0.35);
 }
 
 .react-flow__attribution {

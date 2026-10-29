@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { Camera, Check, Loader, X, Crop, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { EvidenceArtifact } from '../types/investigation';
-import { LOCAL_CASES_KEY, persistArtifact, readLocalList, sha512 } from '../lib/capture';
+import { LOCAL_CASES_KEY, readLocalList, sha512 } from '../lib/capture';
+import { saveArtifact } from '../lib/evidenceStore';
 
 interface InvestigationCase {
   id: string;
@@ -186,7 +187,7 @@ export default function SnippingTool({ activeCaseId }: { activeCaseId: string | 
         created_at: capturedAt,
       } as EvidenceArtifact;
       // Local-first: nothing leaves this machine.
-      persistArtifact(record);
+      await saveArtifact(record);
       window.dispatchEvent(new CustomEvent('investigation-artifact-added', { detail: { caseId: activeCaseId, artifact: record } }));
       setPhase('done');
       setTimeout(() => reset(), 1800);

@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import React from 'react';
 import {
   AlertTriangle, Archive, ArrowLeft, Calendar, CheckCircle2, ChevronRight, Clipboard,
   Download, ExternalLink, FileCode2, FileSearch, FileText, Filter, Fingerprint,
-  Globe2, Hash, Loader, Pencil, Plus, Printer, RotateCw, Search, ShieldCheck,
-  Timer, Trash2, UserRound, X,
+  Globe2, Hash, Image as ImageIcon, Loader, Pencil, Plus, Printer, RotateCw, Search,
+  ShieldCheck, Timer, Trash2, Upload, UserRound, X,
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import {
-  LOCAL_ARTIFACTS_KEY, LOCAL_CASES_KEY, CaptureError, artifactImages, buildArtifact,
+  LOCAL_CASES_KEY, CaptureError, artifactImages, buildArtifact,
   emptyMetadata, escapeHtml, formatRawContent, isHtmlContent, isProtectedTarget,
-  parseHtmlDocument, persistArtifact, readFileAsDataUrl, readFileAsText, readLocalList,
+  parseHtmlDocument, readFileAsDataUrl, readFileAsText, readLocalList,
   requestPageCapture, safeImageSource, sanitizePreviewHtml, writeLocalList,
 } from '../lib/capture';
+import {
+  listArtifactsOfCase, migrateLegacyArtifacts, readOriginal,
+  removeArtifact, removeArtifactsOfCase, saveArtifact, updateArtifact,
+} from '../lib/evidenceStore';
+import { buildArtifactFromFile, type ImportFailure } from '../lib/evidenceImport';
 import CaseBrowser from './CaseBrowser';
 import EvidenceReader from './EvidenceReader';
 import EvidenceTimeline from './EvidenceTimeline';
@@ -88,17 +93,18 @@ export default function InvestigationModule({ onClose }: Props) {
     }
   };
 
-  const loadArtifacts = (caseId: string) => {
-    const data = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY)
-      .filter((artifact) => artifact.case_id === caseId)
-      .sort((a, b) => b.captured_at.localeCompare(a.captured_at));
+  const loadArtifacts = async (caseId: string) => {
+    const data = await listArtifactsOfCase(caseId);
     setArtifacts(data);
   };
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await loadCases();
+      // Reprise des preuves écrites par l'ancienne version dans `localStorage`.
+      // Sans elle, les dossiers existants paraîtraient vides.
+      await migrateLegacyArtifacts();
+      loadCases();
       setLoading(false);
     };
     void load();
@@ -228,10 +234,11 @@ export default function InvestigationModule({ onClose }: Props) {
       }
 
       const artifact = await buildArtifact(selectedCase.id, { targetUrl: targetUrl || metadata.finalUrl, notes, imageFile }, metadata, source);
-      persistArtifact(artifact);
+      const stored = await saveArtifact(artifact);
       setArtifacts((current) => [artifact, ...current]);
       setShowCapture(false);
-      if (source === 'manual-record-no-content') setError(t('investigation.capturePartial'));
+      if (!stored) setError(t('investigation.storageFull'));
+      else if (source === 'manual-record-no-content') setError(t('investigation.capturePartial'));
     } catch (cause) {
       setError(t('investigation.captureError'));
       console.error(cause);
@@ -267,9 +274,8 @@ export default function InvestigationModule({ onClose }: Props) {
         extracted_assets: metadata.assets && metadata.assets.length > 0 ? metadata.assets : artifact.extracted_assets,
       };
       const updatedArtifact = { ...artifact, ...updates } as EvidenceArtifact;
-      const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).map((item) => item.id === artifact.id ? updatedArtifact : item);
-      writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
-      setArtifacts((current) => current.map((item) => item.id === artifact.id ? updatedArtifact : item));
+      const stored = await updateArtifact(artifact.id, updates);
+      setArtifacts((current) => current.map((item) => item.id === artifact.id ? (stored ?? updatedArtifact) : item));
     } catch (cause) {
       setError(t('investigation.captureError'));
       console.error(cause);
@@ -279,9 +285,8 @@ export default function InvestigationModule({ onClose }: Props) {
   const handleDeleteCase = async (investigationCase: InvestigationCase) => {
     if (!window.confirm(`${t('investigation.deleteConfirm')}\n\n${investigationCase.case_name}`)) return;
     const nextCases = readLocalList<InvestigationCase>(LOCAL_CASES_KEY).filter((item) => item.id !== investigationCase.id);
-    const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).filter((artifact) => artifact.case_id !== investigationCase.id);
     writeLocalList(LOCAL_CASES_KEY, nextCases);
-    writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
+    await removeArtifactsOfCase(investigationCase.id);
     setCases(nextCases);
     if (selectedCase?.id === investigationCase.id) {
       setSelectedCase(null);
@@ -292,21 +297,19 @@ export default function InvestigationModule({ onClose }: Props) {
 
   const handleDeleteArtifact = async (artifactId: string) => {
     if (!window.confirm(t('investigation.deleteArtifactConfirm'))) return;
-    const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).filter((artifact) => artifact.id !== artifactId);
-    writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
+    await removeArtifact(artifactId);
     setArtifacts((current) => current.filter((artifact) => artifact.id !== artifactId));
   };
 
   const handleUpdateArtifactNotes = async (artifactId: string, notes: string) => {
-    const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).map((artifact) => artifact.id === artifactId ? { ...artifact, notes } : artifact);
-    writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
-    setArtifacts((current) => current.map((artifact) => artifact.id === artifactId ? { ...artifact, notes } : artifact));
+    const stored = await updateArtifact(artifactId, { notes });
+    setArtifacts((current) => current.map((artifact) => artifact.id === artifactId ? (stored ?? { ...artifact, notes }) : artifact));
   };
 
   const handleUpdateArtifactPreview = async (artifactId: string, screenshotPreviews: string[]) => {
-    const nextArtifacts = readLocalList<EvidenceArtifact>(LOCAL_ARTIFACTS_KEY).map((artifact) => artifact.id === artifactId ? { ...artifact, screenshot_preview: screenshotPreviews[0] ?? '', screenshot_previews: screenshotPreviews } : artifact);
-    writeLocalList(LOCAL_ARTIFACTS_KEY, nextArtifacts);
-    setArtifacts((current) => current.map((artifact) => artifact.id === artifactId ? { ...artifact, screenshot_preview: screenshotPreviews[0] ?? '', screenshot_previews: screenshotPreviews } : artifact));
+    const patch = { screenshot_preview: screenshotPreviews[0] ?? '', screenshot_previews: screenshotPreviews };
+    const stored = await updateArtifact(artifactId, patch);
+    setArtifacts((current) => current.map((artifact) => artifact.id === artifactId ? (stored ?? { ...artifact, ...patch }) : artifact));
   };
 
   if (showReport && selectedCase) {
@@ -465,6 +468,42 @@ function CaseWorkspace({
   const toast = useToast();
   const [view, setView] = useState<'evidence' | 'browser' | 'timeline' | 'reader'>('evidence');
   const [packLoading, setPackLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
+
+  /**
+   * Import de fichiers depuis le poste.
+   *
+   * Traité fichier par fichier : sur un lot de vingt photos, une seule
+   * illisible ne doit pas faire perdre les dix-neuf autres. Le compte rendu
+   * distingue ce qui est entré de ce qui a été refusé, et pourquoi.
+   */
+  const handleImportFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setImporting(true);
+    setImportFailures([]);
+    const failures: ImportFailure[] = [];
+    let added = 0;
+    for (const file of Array.from(files)) {
+      const { artifact, failure } = await buildArtifactFromFile(investigationCase.id, file);
+      if (!artifact) {
+        if (failure) failures.push(failure);
+        continue;
+      }
+      if (!(await saveArtifact(artifact))) {
+        failures.push({ name: file.name, reason: 'storage' });
+        continue;
+      }
+      onArtifactAdded(artifact);
+      added += 1;
+    }
+    setImporting(false);
+    setImportFailures(failures);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (added > 0) toast.success(t('investigation.importDone'), String(added));
+    if (failures.length > 0) toast.error(t('investigation.importFailed'), String(failures.length));
+  };
 
   /** Libellés des entités du dossier graphique actif, pour le surlignage. */
   const entityTerms = useStore((state) => {
@@ -581,7 +620,37 @@ function CaseWorkspace({
         >
           <FileSearch size={13} /> {t('investigation.viewReader')}
         </button>
+
+        {/* Import depuis le poste : photos, captures, HTML sauvegardé, texte. */}
+        <div className="ml-auto flex items-center gap-2 pl-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            data-testid="evidence-file-input"
+            accept="image/*,.pdf,.html,.htm,.txt,.md,.csv,.json,.xml,.log"
+            onChange={(event) => void handleImportFiles(event.target.files)}
+          />
+          <button
+            type="button"
+            data-testid="evidence-import-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="flex items-center gap-2 rounded-md border border-cyber-cyan/30 bg-cyber-cyan/10 px-3 py-1.5 text-xs font-semibold text-cyber-cyan transition hover:bg-cyber-cyan/20 disabled:cursor-wait disabled:opacity-60"
+          >
+            {importing ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
+            {importing ? t('investigation.importing') : t('investigation.importFiles')}
+          </button>
+        </div>
       </div>
+
+      {importFailures.length > 0 && (
+        <div className="mt-2 rounded-lg border border-cyber-orange/40 bg-cyber-orange/10 px-3 py-2 text-xs text-cyber-orange" data-testid="evidence-import-failures">
+          {t('investigation.importRejected')}{' '}
+          {importFailures.map((failure) => `${failure.name} (${failure.reason})`).join(' · ')}
+        </div>
+      )}
 
       {view === 'browser' ? (
         <CaseBrowser caseId={investigationCase.id} onArtifactAdded={onArtifactAdded} />
@@ -658,6 +727,24 @@ function CaseWorkspace({
   );
 }
 
+/**
+ * Rend le fichier d'origine tel qu'il a été importé.
+ *
+ * C'est la pièce à présenter si l'authenticité est contestée : l'aperçu
+ * affiché peut être une version réduite, l'original non.
+ */
+async function downloadOriginal(artifact: EvidenceArtifact): Promise<void> {
+  const blob = await readOriginal(artifact.id);
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = String(artifact.browser_metadata?.originalName ?? artifact.title ?? 'original');
+  link.rel = 'noopener';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 function ArtifactRow({
   artifact,
   onCaptureModal,
@@ -686,7 +773,11 @@ function ArtifactRow({
             className="flex items-center gap-2 text-sm text-cyber-text hover:text-cyber-cyan"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-md border border-cyber-cyan/25 bg-cyber-cyan/10 text-cyber-cyan">
-              <FileCode2 size={14} />
+              {/* L'icône suit la nature de la pièce : une photo annoncée par une
+                  icône de code se lit mal dans une liste de preuves. */}
+              {artifact.artifact_type === 'screenshot' ? <ImageIcon size={14} />
+                : artifact.artifact_type === 'text_note' ? <FileText size={14} />
+                : <FileCode2 size={14} />}
             </div>
             <span>
               <span className="block font-semibold">{artifact.title || artifactTypeLabel(t, artifact.artifact_type)}</span>
@@ -708,7 +799,7 @@ function ArtifactRow({
           <span
             className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold ${reliabilityStyle.border} ${reliabilityStyle.bg} ${reliabilityStyle.text}`}
             title={reliability.checks
-              .map((check) => `${check.ok ? 'OK' : '—'} ${t(check.labelKey)}`)
+              .map((check) => `${check.applicable === false ? 'n/a' : check.ok ? 'OK' : '—'} ${t(check.labelKey)}`)
               .join('\n')}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${reliabilityStyle.dot}`} />
@@ -717,6 +808,15 @@ function ArtifactRow({
         </td>
         <td className="whitespace-nowrap px-4 py-3 text-xs text-cyber-text-dim">{formatDate(artifact.captured_at)}</td>
         <td className="px-4 py-3 text-right">
+          {artifact.has_original && (
+            <button
+              onClick={() => void downloadOriginal(artifact)}
+              className="rounded-md p-1.5 text-cyber-text-dim opacity-0 transition group-hover:opacity-100 hover:bg-cyber-cyan/10 hover:text-cyber-cyan"
+              title={t('investigation.downloadOriginal')}
+            >
+              <Download size={14} />
+            </button>
+          )}
           <button
             onClick={onDelete}
             className="rounded-md p-1.5 text-cyber-text-dim opacity-0 transition group-hover:opacity-100 hover:bg-red-500/10 hover:text-cyber-red"
