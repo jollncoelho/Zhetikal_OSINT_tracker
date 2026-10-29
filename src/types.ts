@@ -418,6 +418,7 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
      renseignés, donc handle → audience → description donne une fiche lisible
      d'un coup d'œil. */
   telegram_channel: [
+    { key: 'telegramId',  label: 'Telegram ID', type: 'text' },
     { key: 'handle',      label: 'Handle',      type: 'text' },
     { key: 'subscribers', label: 'Subscribers', type: 'text' },
     { key: 'description', label: 'Description', type: 'text' },
@@ -425,6 +426,7 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'url',         label: 'Channel URL', type: 'text' },
   ],
   telegram_group: [
+    { key: 'telegramId',  label: 'Telegram ID', type: 'text' },
     { key: 'handle',      label: 'Handle',      type: 'text' },
     { key: 'members',     label: 'Members',     type: 'text' },
     { key: 'description', label: 'Description', type: 'text' },
@@ -432,6 +434,8 @@ export const ENTITY_FIELDS: Record<EntityType, { key: string; label: string; typ
     { key: 'url',         label: 'Invite URL',  type: 'text' },
   ],
   telegram_user: [
+    { key: 'telegramId',  label: 'Telegram ID', type: 'text' },
+    { key: 'displayName', label: 'Display name', type: 'text' },
     { key: 'handle',   label: 'Handle',   type: 'text' },
     { key: 'verified', label: 'Verified', type: 'text' },
     { key: 'bio',      label: 'Bio',      type: 'text' },

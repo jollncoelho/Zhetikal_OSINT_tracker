@@ -44,17 +44,38 @@
  * ------------------------------------------------------------------ */
 
 /** Nature d'un identifiant saisi par l'analyste. */
-export type TelegramTargetKind = 'handle' | 'invite';
+export type TelegramTargetKind = 'handle' | 'invite' | 'id';
 
 /** Cible normalisée extraite d'une saisie libre. */
 export interface TelegramTarget {
   kind: TelegramTargetKind;
-  /** Handle sans `@`, en minuscules. Chaîne vide pour une invitation. */
+  /** Handle sans `@`, en minuscules. Chaîne vide pour une invitation ou un ID. */
   handle: string;
-  /** URL canonique `https://t.me/…`. */
+  /** URL canonique `https://t.me/…`, ou lien profond `tg://…` pour un ID. */
   url: string;
   /** Jeton d'invitation pour un lien `t.me/+…`. */
   invite?: string;
+  /**
+   * Identifiant numérique, signé comme Telegram l'affiche : positif pour un
+   * compte ou un bot, négatif (`-100…`) pour un canal ou un supergroupe.
+   */
+  userId?: number;
+  /** Nature déduite de l'identifiant. Absente pour un handle ou une invitation. */
+  idKind?: 'user' | 'channel';
+  /** Partie utilisable dans `t.me/c/…` — canaux uniquement. */
+  internalId?: number | null;
+}
+
+/**
+ * Un identifiant numérique n'est **pas** un pseudo : Telegram interdit les
+ * pseudos entièrement numériques, et `t.me/6800433610` répond un 302 vers
+ * telegram.org sans rien chercher. Le reconnaître évite une requête vouée à
+ * l'échec et permet de dire à l'analyste ce qui est réellement possible.
+ */
+export interface TelegramNumericId {
+  id: number;
+  kind: 'user' | 'channel';
+  internalId: number | null;
 }
 
 /** Nature de l'entité Telegram résolue. */
@@ -194,11 +215,117 @@ export function setReaderKey(key: string): void {
 
 const HANDLE_RE = /^[A-Za-z0-9_]{3,64}$/;
 
+/* ------------------------------------------------------------------ *
+ * Identifiants numériques
+ * ------------------------------------------------------------------ */
+
+/**
+ * Un compte ou un bot : suite de chiffres, sans signe. Pas de zéro initial —
+ * les identifiants Telegram sont des entiers, jamais formatés, ce qui évite de
+ * confondre `0612345678` (téléphone) avec un identifiant.
+ */
+const ID_USER_RE = /^([1-9]\d{4,15})$/;
+/** Un canal ou supergroupe : `-100` suivi de l'identifiant interne. */
+const ID_CHANNEL_RE = /^-100([1-9]\d{4,14})$/;
+/** Lien profond vers un compte : `tg://user?id=…`. */
+const ID_USER_LINK_RE = /^tg:\/\/user\?(?:.*&)?id=([1-9]\d{4,15})(?:&.*)?$/i;
+/** Lien privé vers un canal : `t.me/c/<interne>/<post>`. */
+const ID_PRIVATE_LINK_RE = /^(?:https?:\/\/)?(?:www\.)?t\.me\/c\/([1-9]\d{4,14})(?:\/\d+)?\/?$/i;
+
+/**
+ * Reconnaît un identifiant numérique sous toutes ses écritures :
+ * `6800433610`, `@6800433610`, `tg://user?id=6800433610`,
+ * `-1001234567890`, `t.me/c/1234567890/45`.
+ *
+ * Renvoie `null` si la saisie n'est pas un identifiant — notamment pour un
+ * numéro de téléphone (`+336…`), qu'on ne veut surtout pas confondre avec un
+ * identifiant de compte.
+ */
+export function parseNumericId(raw: string): TelegramNumericId | null {
+  const value = (raw ?? '').trim().replace(/^@/, '');
+  if (!value) return null;
+
+  const userLink = ID_USER_LINK_RE.exec(value);
+  if (userLink) return { id: Number(userLink[1]), kind: 'user', internalId: null };
+
+  const privateLink = ID_PRIVATE_LINK_RE.exec(value);
+  if (privateLink) {
+    const internalId = Number(privateLink[1]);
+    return { id: -(1000000000000 + internalId), kind: 'channel', internalId };
+  }
+
+  const channel = ID_CHANNEL_RE.exec(value);
+  if (channel) {
+    const internalId = Number(channel[1]);
+    return { id: -(1000000000000 + internalId), kind: 'channel', internalId };
+  }
+
+  const user = ID_USER_RE.exec(value);
+  if (user) return { id: Number(user[1]), kind: 'user', internalId: null };
+
+  return null;
+}
+
+/** Lien qui résout réellement un identifiant : le client, pas le web. */
+export function deepLinkFor(id: number, kind: 'user' | 'channel', internalId?: number | null): string {
+  if (kind === 'channel' && internalId) return `https://t.me/c/${internalId}`;
+  return `tg://user?id=${id}`;
+}
+
+/** Une vérification proposée à l'analyste : un lien à ouvrir, jamais une requête. */
+export interface TelegramIdCheck {
+  key: string;
+  /** Clé i18n du libellé — le service ne connaît pas la langue. */
+  labelKey: string;
+  url: string;
+}
+
+/**
+ * Ce qu'on peut honnêtement tenter avec un identifiant, dans l'ordre.
+ *
+ * Aucune de ces entrées n'interroge Telegram : la résolution d'un ID exige un
+ * `access_hash` que seul un client authentifié possède. Le tracker prépare les
+ * liens, l'analyste les ouvre.
+ */
+export function buildIdChecks(target: TelegramTarget): TelegramIdCheck[] {
+  if (target.kind !== 'id' || !target.userId) return [];
+  const id = target.userId;
+  const kind = target.idKind ?? 'user';
+  const checks: TelegramIdCheck[] = [
+    {
+      key: 'client',
+      labelKey: 'telegram.idCheckClient',
+      url: deepLinkFor(id, kind, target.internalId),
+    },
+  ];
+
+  // Les identifiants circulent : collés dans un forum, recopiés par un bot,
+  // publiés dans une capture. C'est la seule piste qui survive au web.
+  const bare = encodeURIComponent(`"${id}"`);
+  checks.push({
+    key: 'google-id',
+    labelKey: 'telegram.idCheckGoogleId',
+    url: `https://www.google.com/search?q=${bare}+telegram`,
+  });
+
+  if (kind === 'user') {
+    const deep = encodeURIComponent(`"tg://user?id=${id}"`);
+    checks.push({
+      key: 'google-deep',
+      labelKey: 'telegram.idCheckGoogleDeep',
+      url: `https://www.google.com/search?q=${deep}`,
+    });
+  }
+
+  return checks;
+}
+
 /**
  * Extrait une cible d'une saisie libre. Accepte, entre autres :
  * `@durov`, `durov`, `t.me/durov`, `https://t.me/s/durov`,
  * `https://t.me/durov/123` (lien de post), `tg://resolve?domain=durov`,
- * `https://t.me/+AbCdEf` (invitation).
+ * `https://t.me/+AbCdEf` (invitation), et les identifiants numériques
+ * (`6800433610`, `-1001234567890`, `tg://user?id=…`, `t.me/c/…`).
  *
  * Renvoie `null` si la chaîne n'a rien d'un identifiant Telegram — on préfère
  * le silence à une requête vouée à l'échec.
@@ -206,6 +333,20 @@ const HANDLE_RE = /^[A-Za-z0-9_]{3,64}$/;
 export function parseTarget(raw: string): TelegramTarget | null {
   let value = (raw ?? '').trim();
   if (!value) return null;
+
+  // Un identifiant numérique passe avant tout le reste : sans cela il serait
+  // pris pour un pseudo, et `t.me/6800433610` ne répond rien.
+  const numeric = parseNumericId(value);
+  if (numeric) {
+    return {
+      kind: 'id',
+      handle: '',
+      url: deepLinkFor(numeric.id, numeric.kind, numeric.internalId),
+      userId: numeric.id,
+      idKind: numeric.kind,
+      internalId: numeric.internalId,
+    };
+  }
 
   // `tg://resolve?domain=x` et `tg://join?invite=y`
   const tgScheme = /^tg:\/\/resolve\?domain=([A-Za-z0-9_]+)/i.exec(value);
@@ -261,7 +402,13 @@ export function parseTargets(input: string): TelegramTarget[] {
   for (const chunk of (input ?? '').split(/[\s,;]+/)) {
     const target = parseTarget(chunk);
     if (!target) continue;
-    const key = `${target.kind}:${target.handle || target.invite}`;
+    // Un identifiant se distingue par sa valeur : sans cela, `handle` étant
+    // vide, deux IDs différents partageraient la même clé et le second serait
+    // silencieusement perdu.
+    const key =
+      target.kind === 'id'
+        ? `id:${target.userId}`
+        : `${target.kind}:${target.handle || target.invite}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(target);
@@ -933,6 +1080,10 @@ export async function resolveMany(
 
   for (const target of targets) {
     if (signal?.aborted) break;
+    // Un identifiant numérique n'a pas de page publique : le lire renverrait un
+    // 302 vers telegram.org, donc un échec trompeur (« profil introuvable »
+    // alors que le compte existe). Il est traité hors réseau, par l'interface.
+    if (target.kind === 'id') continue;
     try {
       results.push(await fetchProfile(target, signal));
     } catch (error) {

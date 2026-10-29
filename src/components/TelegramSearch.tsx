@@ -13,6 +13,7 @@ import { ENTITY_COLORS } from '../types';
 import type { EntityType } from '../types';
 import {
   TelegramError,
+  buildIdChecks,
   computePostStats,
   entityTypeFor,
   fetchPosts,
@@ -24,6 +25,7 @@ import {
   type TelegramErrorCode,
   type TelegramPost,
   type TelegramProfile,
+  type TelegramTarget,
 } from '../services/telegramService';
 
 /* ------------------------------------------------------------------ *
@@ -173,6 +175,154 @@ function ProfileCard({
 }
 
 /* ------------------------------------------------------------------ *
+ * Carte d'identifiant numérique
+ * ------------------------------------------------------------------ */
+
+/**
+ * Un identifiant ne se lit pas : il se résout. Telegram ne publie aucune page
+ * pour un ID (`t.me/6800433610` répond un 302 vers telegram.org), parce que la
+ * résolution exige un `access_hash` que seul un client authentifié détient.
+ *
+ * Cette carte ne prétend donc pas trouver le compte. Elle rend l'identifiant
+ * exploitable : un lien qui l'ouvre réellement dans le client, les recherches
+ * qui ont une chance d'aboutir, et l'entrée dans le graphe pour que la piste
+ * ne se perde pas.
+ */
+function IdTargetCard({
+  target,
+  name,
+  onName,
+  channelQuery,
+  onChannelQuery,
+  injected,
+  canInject,
+  busy,
+  onInject,
+  onSearchInChannel,
+}: {
+  target: TelegramTarget;
+  name: string;
+  onName: (value: string) => void;
+  channelQuery: string;
+  onChannelQuery: (value: string) => void;
+  injected: boolean;
+  canInject: boolean;
+  busy: boolean;
+  onInject: (target: TelegramTarget) => void;
+  onSearchInChannel: (target: TelegramTarget, channel: string) => void;
+}) {
+  const { t } = useLanguage();
+  const { entityTone } = useTheme();
+  const tone = entityTone(ENTITY_COLORS.telegram_user);
+  const checks = buildIdChecks(target);
+  const isChannel = target.idKind === 'channel';
+
+  return (
+    <div
+      data-testid="telegram-id-card"
+      className="rounded-xl border bg-cyber-panel p-3"
+      style={{ borderColor: `${tone}33` }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-sm font-bold" style={{ color: tone }}>
+          {target.userId}
+        </span>
+        <span
+          className="rounded-full border px-2 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wide"
+          style={{ color: tone, borderColor: `${tone}55`, background: `${tone}14` }}
+        >
+          {isChannel ? t('telegram.idChannel') : t('telegram.idUser')}
+        </span>
+      </div>
+
+      <p className="mt-1.5 text-[11px] leading-relaxed text-cyber-text/80">
+        {t('telegram.idExplain')}
+      </p>
+
+      {/* Le nom vu dans le client : c'est l'analyste qui l'apporte, pas nous.
+          Il sert d'étiquette lisible ; l'identifiant reste la clé. */}
+      <input
+        data-testid="telegram-id-name"
+        value={name}
+        onChange={(event) => onName(event.target.value)}
+        placeholder={t('telegram.idNamePlaceholder')}
+        spellCheck={false}
+        className="mt-2 w-full rounded-lg border border-cyber-border bg-cyber-dark px-3 py-1.5 text-xs text-cyber-text outline-none transition-colors placeholder:text-cyber-text-dim/60 focus:border-cyber-cyan"
+      />
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => onInject(target)}
+          disabled={injected || !canInject}
+          title={!canInject ? t('telegram.needCase') : undefined}
+          className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            color: injected ? 'var(--cyber-green)' : tone,
+            borderColor: injected ? 'var(--cyber-green)' : `${tone}66`,
+            background: injected ? 'rgb(var(--cyber-green-rgb) / 0.12)' : `${tone}12`,
+          }}
+        >
+          {injected ? <Check size={10} /> : <Plus size={10} />}
+          {injected ? t('telegram.added') : t('telegram.addToGraph')}
+        </button>
+
+        {checks.map((check) => {
+          // Un lien `tg://` ouvert dans un nouvel onglet laisse une page blanche :
+          // le schéma doit être remis au système dans l'onglet courant.
+          const isAppLink = check.url.startsWith('tg://');
+          return (
+            <a
+              key={check.key}
+              data-testid={`telegram-id-check-${check.key}`}
+              href={check.url}
+              {...(isAppLink ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+              className="flex items-center gap-1 rounded-lg border border-cyber-border px-2 py-1 text-[10px] font-semibold text-cyber-text-dim transition-colors hover:border-cyber-cyan/40 hover:text-cyber-cyan"
+            >
+              <ExternalLink size={10} />
+              {t(check.labelKey)}
+            </a>
+          );
+        })}
+      </div>
+
+      {/* Le seul chemin qui retrouve un identifiant cité : le texte des messages
+          publics. Telegram indexe ce texte côté serveur, donc la recherche
+          porte sur l'historique du canal et pas sur les vingt derniers posts. */}
+      <div className="mt-2 border-t border-cyber-border pt-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            data-testid="telegram-id-channel"
+            value={channelQuery}
+            onChange={(event) => onChannelQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && channelQuery.trim()) {
+                event.preventDefault();
+                onSearchInChannel(target, channelQuery);
+              }
+            }}
+            placeholder={t('telegram.idChannelPlaceholder')}
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-lg border border-cyber-border bg-cyber-dark px-3 py-1.5 font-mono text-[11px] text-cyber-text outline-none transition-colors placeholder:text-cyber-text-dim/60 focus:border-cyber-cyan"
+          />
+          <button
+            data-testid="telegram-id-search-channel"
+            onClick={() => onSearchInChannel(target, channelQuery)}
+            disabled={busy || !channelQuery.trim()}
+            className="flex items-center gap-1 rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/10 px-2 py-1 text-[10px] font-semibold text-cyber-cyan transition-colors hover:bg-cyber-cyan/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? <Loader size={10} className="animate-spin" /> : <Search size={10} />}
+            {t('telegram.idSearchChannel')}
+          </button>
+        </div>
+        <p className="mt-1 text-[10px] leading-relaxed text-cyber-text-dim">
+          {t('telegram.idSearchHint')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Composant principal
  * ------------------------------------------------------------------ */
 
@@ -223,6 +373,14 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
 
   const targetCount = useMemo(() => parseTargets(input).length, [input]);
 
+  /** Identifiants numériques de la saisie : traités hors réseau, en local. */
+  const idTargets = useMemo(() => parseTargets(input).filter((t) => t.kind === 'id'), [input]);
+
+  /** Nom affiché saisi par l'analyste, par identifiant. */
+  const [idNames, setIdNames] = useState<Record<string, string>>({});
+  /** Canal dans lequel chercher l'identifiant, par identifiant. */
+  const [idChannels, setIdChannels] = useState<Record<string, string>>({});
+
   /**
    * Le lecteur a refusé au moins une requête (blocage anonyme, quota, clé
    * invalide). Les échecs par cible ne remontent pas dans `error` : ils vivent
@@ -244,7 +402,9 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
       const { results, failures: failed } = await resolveMany(input, controller.signal);
       setProfiles(results);
       setFailures(failed);
-      if (results.length === 0 && failed.length === 0) {
+      // Les identifiants s'affichent en direct, sans requête : une saisie qui
+      // n'en contient pas moins n'est pas une saisie vide.
+      if (results.length === 0 && failed.length === 0 && idTargets.length === 0) {
         setError(t('telegram.noTarget'));
       }
     } catch (err) {
@@ -254,10 +414,12 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
       setLoading(false);
       abortRef.current = null;
     }
-  }, [input, loading, t]);
+  }, [input, loading, t, idTargets.length]);
 
-  const runPosts = useCallback(async () => {
-    if (!channel.trim() || loading) return;
+  const runPosts = useCallback(async (overrideChannel?: string, overrideKeyword?: string) => {
+    const chan = (overrideChannel ?? channel).trim();
+    const needle = overrideKeyword ?? keyword;
+    if (!chan || loading) return;
     setLoading(true);
     setError(null);
     setErrorCode(null);
@@ -265,7 +427,7 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const result = await fetchPosts(channel, keyword, controller.signal);
+      const result = await fetchPosts(chan, needle, controller.signal);
       setPosts(result);
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
@@ -308,6 +470,57 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
       toast.success(t('telegram.injected'), profile.title);
     },
     [activeCaseId, addEntity, t, toast]
+  );
+
+  /**
+   * Fait entrer un identifiant dans le graphe.
+   *
+   * L'identifiant devient la clé et le nom affiché reste une déclaration :
+   * deux comptes nommés « KAKU » ne se confondent plus, et le dossier dit
+   * clairement ce qui est vérifiable et ce qui vient du client de l'analyste.
+   */
+  const injectId = useCallback(
+    (target: TelegramTarget) => {
+      if (!activeCaseId) {
+        toast.warning(t('telegram.needCase'));
+        return;
+      }
+      if (!target.userId) return;
+      const name = (idNames[String(target.userId)] ?? '').trim();
+      const isChannel = target.idKind === 'channel';
+      const type = isChannel ? 'telegram_channel' : 'telegram_user';
+      addEntity(type, name || String(target.userId), {
+        notes: t('telegram.idNote'),
+        fields: {
+          telegramId: String(target.userId),
+          ...(name ? { displayName: name } : {}),
+          url: target.url,
+        },
+      });
+      setInjected((prev) => ({ ...prev, [`id:${target.userId}`]: true }));
+      toast.success(t('telegram.injected'), name || String(target.userId));
+    },
+    [activeCaseId, addEntity, idNames, t, toast]
+  );
+
+  /**
+   * Cherche l'identifiant dans le texte des messages publics d'un canal.
+   *
+   * C'est le seul chemin qui retrouve réellement une personne à partir d'un ID :
+   * Telegram indexe le texte côté serveur, donc la recherche couvre l'historique
+   * et pas seulement les derniers messages affichés.
+   */
+  const searchIdInChannel = useCallback(
+    (target: TelegramTarget, channelValue: string) => {
+      const chan = channelValue.trim();
+      if (!chan || !target.userId) return;
+      const needle = String(target.userId);
+      setTab('posts');
+      setChannel(chan);
+      setKeyword(needle);
+      void runPosts(chan, needle);
+    },
+    [runPosts]
   );
 
   const injectPost = useCallback(
@@ -430,7 +643,7 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
                   }
                 }}
                 rows={3}
-                placeholder={'@durov\nt.me/telegram\nhttps://t.me/+AbCdEfGhIjK'}
+                placeholder={'@durov\nt.me/telegram\nhttps://t.me/+AbCdEfGhIjK\n123456789'}
                 spellCheck={false}
                 className="w-full resize-none rounded-lg border border-cyber-border bg-cyber-panel px-3 py-2 font-mono text-xs text-cyber-text outline-none transition-colors placeholder:text-cyber-text-dim/60 focus:border-cyber-cyan"
               />
@@ -513,9 +726,35 @@ export default function TelegramSearch({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {tab === 'profiles' && profiles.length === 0 && failures.length === 0 && !error && !loading && (
-            <p className="py-8 text-center text-xs text-cyber-text-dim">{t('telegram.emptyProfiles')}</p>
-          )}
+          {tab === 'profiles' &&
+            idTargets.map((target) => (
+              <IdTargetCard
+                key={`id:${target.userId}`}
+                target={target}
+                name={idNames[String(target.userId)] ?? ''}
+                onName={(value) =>
+                  setIdNames((prev) => ({ ...prev, [String(target.userId)]: value }))
+                }
+                channelQuery={idChannels[String(target.userId)] ?? ''}
+                onChannelQuery={(value) =>
+                  setIdChannels((prev) => ({ ...prev, [String(target.userId)]: value }))
+                }
+                injected={!!injected[`id:${target.userId}`]}
+                canInject={canInject}
+                busy={loading}
+                onInject={injectId}
+                onSearchInChannel={searchIdInChannel}
+              />
+            ))}
+
+          {tab === 'profiles' &&
+            profiles.length === 0 &&
+            failures.length === 0 &&
+            idTargets.length === 0 &&
+            !error &&
+            !loading && (
+              <p className="py-8 text-center text-xs text-cyber-text-dim">{t('telegram.emptyProfiles')}</p>
+            )}
 
           {tab === 'profiles' &&
             profiles.map((profile) => (
