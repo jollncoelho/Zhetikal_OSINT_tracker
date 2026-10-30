@@ -125,12 +125,34 @@ button, input, textarea, select {
 }
 
 /* Zone de visée généreuse sans élargir le point visible : la boîte de
-   collision déborde de 5 px de chaque côté. */
+   collision déborde de 10 px de chaque côté, soit ~26 px de côté pour une
+   pastille de 6 px. C'est ce qui permet de viser au passage sans que le
+   graphe soit constellé de boutons. */
 .react-flow__handle::after {
   content: '';
   position: absolute;
-  inset: -5px;
+  inset: -10px;
   border-radius: 999px;
+}
+
+/* Pastilles d'EntityNode : effacées au repos, révélées au survol du nœud.
+   Sans cela, 28 entités × 4 côtés = 112 points colorés en permanence, qui
+   se lisent comme autant de boutons et masquent la forme du graphe. */
+.react-flow__handle.ghost-handle {
+  opacity: 0.22;
+  transition: opacity 0.14s ease, box-shadow 0.14s ease;
+}
+
+.react-flow__node:hover .react-flow__handle.ghost-handle,
+.react-flow__handle.ghost-handle:hover {
+  opacity: 1;
+}
+
+/* Pendant un glisser, toutes les pastilles redeviennent visibles : c'est le
+   moment où l'on a besoin de voir où poser le lien. `:has()` non reconnu
+   laisse simplement la règle inerte, rien ne casse. */
+.react-flow:has(.react-flow__connection) .react-flow__handle.ghost-handle {
+  opacity: 1;
 }
 
 .react-flow__handle:hover {
@@ -141,6 +163,7 @@ button, input, textarea, select {
 /* Cible survolée pendant un glisser : on montre où le lien va se poser. */
 .react-flow__handle.connectingto,
 .react-flow__handle.valid {
+  opacity: 1;
   box-shadow: 0 0 0 4px rgb(var(--cyber-green-rgb) / 0.35);
 }
 

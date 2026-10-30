@@ -47,28 +47,34 @@ const GODSEYE_BASE = import.meta.env.VITE_GODSEYE_URL || 'https://osintgodseye.q
  * En mode `Loose`, une poignée unique sert de départ comme d'arrivée. Une seule
  * par côté supprime l'ambiguïté et rend les quatre côtés utilisables.
  */
-const HANDLE_SIZE = 12;
+/**
+ * Taille **visible** de la pastille. 6 px : à 50 % de zoom c'est un point de
+ * 3 px, donc une présence discrète plutôt qu'un bouton. La zone réellement
+ * cliquable ne rétrécit pas pour autant — elle est portée par le `::after`
+ * de `.ghost-handle` dans `index.css`, qui déborde de 10 px de chaque côté.
+ */
+const HANDLE_SIZE = 6;
+const HANDLE_HALF = HANDLE_SIZE / 2;
 
 function handleStyle(tone: string, side: 'left' | 'right' | 'top' | 'bottom'): React.CSSProperties {
   const base: React.CSSProperties = {
     width: HANDLE_SIZE,
     height: HANDLE_SIZE,
     background: 'var(--cyber-black)',
-    border: `2px solid ${tone}`,
+    border: `1.5px solid ${tone}`,
     borderRadius: 999,
     cursor: 'crosshair',
     zIndex: 5,
-    transition: 'background 0.12s ease, box-shadow 0.12s ease',
   };
   switch (side) {
     case 'left':
-      return { ...base, left: -6, top: '50%', transform: 'translateY(-50%)' };
+      return { ...base, left: -HANDLE_HALF, top: '50%', transform: 'translateY(-50%)' };
     case 'right':
-      return { ...base, right: -6, top: '50%', transform: 'translateY(-50%)' };
+      return { ...base, right: -HANDLE_HALF, top: '50%', transform: 'translateY(-50%)' };
     case 'top':
-      return { ...base, top: -6, left: '50%', transform: 'translateX(-50%)' };
+      return { ...base, top: -HANDLE_HALF, left: '50%', transform: 'translateX(-50%)' };
     default:
-      return { ...base, bottom: -6, left: '50%', transform: 'translateX(-50%)' };
+      return { ...base, bottom: -HANDLE_HALF, left: '50%', transform: 'translateX(-50%)' };
   }
 }
 
@@ -291,11 +297,13 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
         className="absolute inset-y-0 left-0 w-[3px] rounded-l-xl"
         style={{ background: tone }}
       />
-      {/* Une seule poignée par côté — voir la note de `handleStyle`. */}
-      <Handle type="source" position={Position.Left} id="left" style={handleStyle(tone, 'left')} />
-      <Handle type="source" position={Position.Right} id="right" style={handleStyle(tone, 'right')} />
-      <Handle type="source" position={Position.Top} id="top" style={handleStyle(tone, 'top')} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle(tone, 'bottom')} />
+      {/* Une seule poignée par côté — voir la note de `handleStyle`.
+          `ghost-handle` : la pastille reste effacée tant qu'on ne survole pas
+          le nœud, pour ne pas hérisser le graphe de points colorés. */}
+      <Handle type="source" position={Position.Left} id="left" className="ghost-handle" style={handleStyle(tone, 'left')} />
+      <Handle type="source" position={Position.Right} id="right" className="ghost-handle" style={handleStyle(tone, 'right')} />
+      <Handle type="source" position={Position.Top} id="top" className="ghost-handle" style={handleStyle(tone, 'top')} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="ghost-handle" style={handleStyle(tone, 'bottom')} />
 
       {/* Contenu : occupe 100% de l'espace, aucune interférence */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
