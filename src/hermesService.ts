@@ -1034,10 +1034,23 @@ export function flagUnsupportedClaims(
   const groundedBlob = Array.from(grounded).join(' | ');
 
   const unsupported = new Set<string>();
+  /**
+   * Parmi les valeurs écartées, celles qui ont la forme d'un identifiant et
+   * qu'on peut donc proposer à l'analyste comme piste à ajouter. Un nom
+   * d'hébergeur, un terme d'ambiance ou un libellé de mise en scène n'y
+   * entrent pas : les promouvoir en entité remplirait le graphe de mots.
+   */
+  const ADDABLE_IDENTIFIER_TYPES = new Set(['ip', 'email', 'domain', 'hostname', 'phone', 'username', 'url']);
+  const suggested = new Map<string, string>();
+
   const accepted: HermesEntity[] = [];
   for (const entity of discovery.entities) {
-    if (isUnsupportedEntity(entity, groundedBlob)) unsupported.add(String(entity.label).trim());
-    else accepted.push(entity);
+    const label = String(entity.label ?? '').trim();
+    if (isUnsupportedEntity(entity, groundedBlob)) {
+      unsupported.add(label);
+      const type = String(entity.type ?? '').toLowerCase();
+      if (label && ADDABLE_IDENTIFIER_TYPES.has(type)) suggested.set(label, type);
+    } else accepted.push(entity);
   }
 
   // Le rapport ne peut s'appuyer que sur le dossier et sur les entités retenues.
@@ -1048,10 +1061,14 @@ export function flagUnsupportedClaims(
   // Les identifiants que le dossier ne contient pas sont eux aussi écartés de
   // la prose : une adresse inventée citée dans le texte oriente autant qu'une
   // adresse inventée injectée dans le graphe.
-  const ungroundedIdentifiers = extractMentionedIdentifiers(discovery.summary)
-    .map((mention) => mention.value)
-    .filter((value) => !mentionsKnown(knownBlob, value.toLowerCase()));
+  const ungroundedMentions = extractMentionedIdentifiers(discovery.summary).filter(
+    (mention) => !mentionsKnown(knownBlob, mention.value.toLowerCase())
+  );
+  const ungroundedIdentifiers = ungroundedMentions.map((mention) => mention.value);
   ungroundedIdentifiers.forEach((value) => unsupported.add(value));
+  for (const mention of ungroundedMentions) {
+    if (ADDABLE_IDENTIFIER_TYPES.has(mention.type)) suggested.set(mention.value, mention.type);
+  }
 
   const summary = neutraliseTokens(
     sanitizeNamedClaims(discovery.summary, knownBlob, unsupported),
@@ -1066,7 +1083,14 @@ export function flagUnsupportedClaims(
       mentionsKnown(knownBlob, String(relation.target).toLowerCase())
   );
 
-  return { ...discovery, summary, entities: accepted, relations, unsupported: Array.from(unsupported) };
+  return {
+    ...discovery,
+    summary,
+    entities: accepted,
+    relations,
+    unsupported: Array.from(unsupported),
+    suggested: Array.from(suggested, ([value, type]) => ({ value, type })),
+  };
 }
 
 async function runLocalAnalysis(

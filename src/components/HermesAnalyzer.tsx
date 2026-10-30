@@ -287,6 +287,30 @@ export const HermesAnalyzer: React.FC = () => {
     ? discovery.entities.filter((e) => e.label && !existingLabels.has(e.label.trim().toLowerCase()))
     : [];
 
+  /** Type d'identifiant d'une valeur écartée (absent = simple mot, pas une piste). */
+  const suggestedTypes = useMemo(
+    () => new Map((discovery?.suggested ?? []).map((item) => [item.value, item.type])),
+    [discovery]
+  );
+
+  /**
+   * Promouvoir une valeur écartée en entité.
+   *
+   * Le modèle n'a ni réseau ni moteur : une adresse qu'il cite n'est pas une
+   * découverte, c'est une hypothèse. On l'ajoute donc cotée **F6** (« on ne
+   * peut rien juger ») avec une note qui le dit, pour qu'elle apparaisse comme
+   * une piste et jamais comme une preuve. `admiraltyWeight` la neutralise dans
+   * les analyses suivantes, qui ne la traiteront pas comme un fait établi.
+   */
+  const handleAddSuggestion = (value: string, type: string) => {
+    const key = value.trim().toLowerCase();
+    if (!key || existingLabels.has(key)) return;
+    addEntity(type, value.trim(), {
+      notes: t('analyzer.suggestedNote'),
+      admiralty: { source: 'F', credibility: 6 },
+    });
+  };
+
   /**
    * Pages publiques à ouvrir pour chaque domaine du dossier.
    *
@@ -439,9 +463,81 @@ export const HermesAnalyzer: React.FC = () => {
                     color: 'var(--cyber-orange)',
                   }}
                 >
-                  <b>{t('analyzer.unsupported')}</b>{' '}
-                  <span style={{ fontFamily: 'monospace' }}>{discovery.unsupported.join(' · ')}</span>
-                  <div style={{ color: 'var(--cyber-text-dim)', marginTop: 2 }}>{t('analyzer.unsupportedHint')}</div>
+                  <b>{t('analyzer.unsupported')}</b>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 4,
+                      marginTop: 4,
+                    }}
+                  >
+                    {discovery.unsupported.map((value) => {
+                      const type = suggestedTypes.get(value);
+                      // Un mot écarté (« Hetzner », « darknet ») reste du texte :
+                      // rien à en faire dans le graphe.
+                      if (!type) {
+                        return (
+                          <span key={value} style={{ fontFamily: 'monospace' }}>
+                            {value}
+                          </span>
+                        );
+                      }
+                      const already = existingLabels.has(value.trim().toLowerCase());
+                      return (
+                        <span
+                          key={value}
+                          data-testid="hermes-suggestion"
+                          data-entity-type={type}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '1px 2px 1px 6px',
+                            border: '1px solid rgb(var(--cyber-orange-rgb) / 0.45)',
+                            borderRadius: 999,
+                            background: 'rgb(var(--cyber-orange-rgb) / 0.1)',
+                          }}
+                        >
+                          <span style={{ fontFamily: 'monospace' }}>{value}</span>
+                          <button
+                            type="button"
+                            disabled={already}
+                            onClick={() => handleAddSuggestion(value, type)}
+                            title={already ? t('analyzer.suggestAdded') : t('analyzer.suggestAdd')}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '1px 6px',
+                              borderRadius: 999,
+                              border: '1px solid rgb(var(--cyber-orange-rgb) / 0.5)',
+                              background: already
+                                ? 'transparent'
+                                : 'rgb(var(--cyber-orange-rgb) / 0.2)',
+                              color: already ? 'var(--cyber-text-dim)' : 'var(--cyber-orange)',
+                              fontSize: 9,
+                              fontFamily: 'inherit',
+                              cursor: already ? 'default' : 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <PlusCircle size={9} />
+                            {already ? t('analyzer.suggestAdded') : t('analyzer.suggestAdd')}
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div style={{ color: 'var(--cyber-text-dim)', marginTop: 4 }}>
+                    {t('analyzer.unsupportedHint')}
+                  </div>
+                  {discovery.suggested?.length ? (
+                    <div style={{ color: 'var(--cyber-text-dim)', marginTop: 2 }}>
+                      {t('analyzer.suggestHint')}
+                    </div>
+                  ) : null}
                 </div>
               )}
 
