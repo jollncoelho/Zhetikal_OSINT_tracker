@@ -7,11 +7,13 @@ import {
   Trash2, X, Check, NotebookPen,
   ExternalLink, SlidersHorizontal, Search, Satellite,
   Megaphone, Users, UserRound, Send,
-  Car, Cpu, CalendarClock, LocateFixed
+  Car, Cpu, CalendarClock, LocateFixed, ShieldAlert
 } from 'lucide-react';
 import type { EntityData } from '../types';
 import { ENTITY_FIELDS, admiraltyCode, admiraltyColor, readAdmiralty,
   admiraltySourceKey, admiraltyCredibilityKey } from '../types';
+import { useStore } from '../store/useStore';
+import { checkTorExit, TorListUnavailable, TOR_FIELD, TOR_CHECKED_FIELD, TOR_PUBLISHED_FIELD } from '../lib/torExit';
 import { loadIcons } from './IconPicker';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -190,6 +192,8 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
   const [renamingLabel, setRenamingLabel] = useState(false);
   const [label, setLabel] = useState(data.label);
   const [addressInput, setAddressInput] = useState(data.label);
+  const [torChecking, setTorChecking] = useState(false);
+  const [torError, setTorError] = useState<string | null>(null);
   const labelRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLInputElement>(null);
   const icons = loadIcons();
@@ -216,6 +220,42 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
 
   const handleDelete = () => {
     window.dispatchEvent(new CustomEvent('entity-delete', { detail: { id } }));
+  };
+
+  /**
+   * Contrôle « sortie Tor ».
+   *
+   * Ce n'est pas un lien de plus : le bouton de pivot ouvre une recherche dans
+   * le navigateur et n'en garde rien. Ici on compare l'adresse à la liste
+   * publique du Project Tor et on écrit le constat — avec la date de la liste —
+   * dans les champs de l'entité. C'est ce constat daté qui pourra soutenir une
+   * phrase du rapport, et qui reste vrai même si la liste change demain.
+   */
+  const torFields = (data.fields ?? {}) as Record<string, unknown>;
+  const torVerdict = typeof torFields[TOR_FIELD] === 'string' ? String(torFields[TOR_FIELD]) : '';
+  const torCheckedAt = typeof torFields[TOR_CHECKED_FIELD] === 'string' ? String(torFields[TOR_CHECKED_FIELD]) : '';
+  const torPublished = typeof torFields[TOR_PUBLISHED_FIELD] === 'string' ? String(torFields[TOR_PUBLISHED_FIELD]) : '';
+
+  const handleTorCheck = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (torChecking) return;
+    setTorChecking(true);
+    setTorError(null);
+    try {
+      const result = await checkTorExit(data.label);
+      useStore.getState().updateNodeData(id, {
+        fields: {
+          ...(data.fields ?? {}),
+          [TOR_FIELD]: result.verdict,
+          [TOR_CHECKED_FIELD]: result.checkedAt,
+          [TOR_PUBLISHED_FIELD]: result.published,
+        },
+      });
+    } catch (cause) {
+      setTorError(cause instanceof TorListUnavailable ? t('node.torUnavailable') : t('node.torError'));
+    } finally {
+      setTorChecking(false);
+    }
   };
 
   const handleExpandNote = (e: React.MouseEvent) => {
@@ -361,6 +401,22 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
                 {admiraltyCode(grade)}
               </span>
             )}
+            {/* Le constat Tor est un fait daté sur l'adresse : il se voit sur la
+                carte, pas seulement dans un panneau qu'on oublie d'ouvrir. */}
+            {data.entityType === 'ip' && torVerdict === 'exit' && (
+              <span
+                data-testid="tor-badge"
+                title={`${t('node.torIsExit')}${torPublished ? ` — ${t('node.torListOf')} ${torPublished.slice(0, 10)}` : ''}`}
+                className="flex-shrink-0 rounded px-1 py-[1px] font-mono text-[9px] font-bold leading-none"
+                style={{
+                  color: 'var(--cyber-orange)',
+                  background: 'rgb(var(--cyber-orange-rgb) / 0.18)',
+                  border: '1px solid rgb(var(--cyber-orange-rgb) / 0.55)',
+                }}
+              >
+                TOR
+              </span>
+            )}
             {data.entityType === 'url' && openUrl && (
               <a
                 href={data.label}
@@ -390,6 +446,12 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {torError && (
+        <div data-testid="tor-error" className="px-3 pb-2 text-[9px] leading-tight" style={{ color: 'var(--cyber-red)' }}>
+          {torError}
         </div>
       )}
 
@@ -467,6 +529,39 @@ export default memo(function EntityNode({ id, data, selected }: EntityNodeProps)
             <a href={pivotOsintUrl} target="_blank" rel="noopener noreferrer" title={t('node.osint')} onClick={(e) => e.stopPropagation()} className="w-6 h-6 rounded flex items-center justify-center text-cyber-text-dim hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
               <ExternalLink size={12} />
             </a>
+          )}
+
+          {/* Contrôle Tor : uniquement sur une adresse IP. La couleur du
+              pictogramme porte le résultat — orange = sortie Tor, vert =
+              vérifiée et absente de la liste, gris = jamais contrôlée. */}
+          {data.entityType === 'ip' && (
+            <button
+              type="button"
+              data-testid="tor-check"
+              onClick={handleTorCheck}
+              disabled={torChecking}
+              title={
+                torChecking
+                  ? t('node.torChecking')
+                  : torVerdict === 'exit'
+                    ? `${t('node.torIsExit')}${torPublished ? ` — ${t('node.torListOf')} ${torPublished.slice(0, 10)}` : ''}`
+                    : torVerdict === 'not-listed'
+                      ? `${t('node.torNotListed')}${torCheckedAt ? ` — ${torCheckedAt.slice(0, 10)}` : ''}`
+                      : t('node.torCheck')
+              }
+              className="w-6 h-6 rounded flex items-center justify-center transition-colors disabled:opacity-50"
+              style={{
+                color:
+                  torVerdict === 'exit'
+                    ? 'var(--cyber-orange)'
+                    : torVerdict === 'not-listed'
+                      ? 'var(--cyber-green)'
+                      : 'var(--cyber-text-dim)',
+                background: torVerdict === 'exit' ? 'rgb(var(--cyber-orange-rgb) / 0.16)' : 'transparent',
+              }}
+            >
+              <ShieldAlert size={12} />
+            </button>
           )}
 
           {TELEGRAM_TYPES.includes(data.entityType) && (() => {
