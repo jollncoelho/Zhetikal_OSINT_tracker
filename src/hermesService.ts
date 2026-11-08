@@ -892,7 +892,7 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
     const key = mention.value.trim().toLowerCase();
     if (!key || known.has(key)) continue;
     known.add(key);
-    entities.push({ type: mention.type, label: mention.value, properties: { notes: 'Cité dans l'analyse.' } });
+    entities.push({ type: mention.type, label: mention.value, properties: { notes: 'Cité dans l\'analyse.' } });
   }
 
   const recommandationsBlock = pick('recommandations');
@@ -926,10 +926,6 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
  */
 const UNSUPPORTED_MARKER = '[non renseigné]';
 const HYPOTHESIS_MARKER = /hypoth[èe]se/i;
-
-/** Types d'identifiants dont la valeur doit être vérifiée de façon stricte :
- *  exact match ou token autonome dans la prose. */
-const IDENTIFIER_TYPES = new Set(['ip', 'email', 'domain', 'hostname', 'phone', 'username', 'url']);
 
 /**
  * Vocabulaire que la spécification interdit explicitement.

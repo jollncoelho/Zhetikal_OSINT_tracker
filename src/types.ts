@@ -487,6 +487,12 @@ export type RelationType =
   | 'resides'
   | 'works'
   | 'frequented'
+  /* Usage web : un site consulté occasionnellement par la cible (navigateur,
+     historique, traces de connexion) vs un site où la cible a une présence
+     active ou fonctionnelle (gestion, administration, communication principale).
+     La distinction permet de séparer ce qui est passif de ce qui est actif. */
+  | 'usesSite'
+  | 'functionalSite'
   /* Contrôle ≠ possession : un compte peut être détenu par une organisation et
      piloté par quelqu'un d'autre (prête-nom, compte partagé). */
   | 'controls'
@@ -529,6 +535,9 @@ export const RELATION_COLORS: Record<RelationType, string> = {
   resides: '#14b8a6',
   works: '#eab308',
   frequented: '#d946ef',
+  // ── Web usage ──
+  usesSite: '#38bdf8',
+  functionalSite: '#fb923c',
   // ── Technique ──
   communicates: '#8b5cf6',
   uses: '#a3e635',
@@ -551,9 +560,10 @@ export const RELATION_TYPES = Object.keys(RELATION_COLORS) as RelationType[];
  * (« c'est une personne ? un lieu ? une preuve ? ») qui divise la recherche par
  * quatre. Les clés servent de libellés i18n (`edge.group*`).
  */
-export const RELATION_GROUPS: { key: 'identity' | 'person' | 'infra' | 'trace'; types: RelationType[] }[] = [
+export const RELATION_GROUPS: { key: 'identity' | 'person' | 'web' | 'infra' | 'trace'; types: RelationType[] }[] = [
   { key: 'identity', types: ['related', 'alias', 'sameAs', 'owns', 'controls', 'member'] },
   { key: 'person', types: ['family', 'resides', 'works', 'frequented'] },
+  { key: 'web', types: ['usesSite', 'functionalSite'] },
   { key: 'infra', types: ['communicates', 'uses', 'operates', 'hosts', 'located'] },
   { key: 'trace', types: ['paid', 'mentioned', 'evidence'] },
 ];
