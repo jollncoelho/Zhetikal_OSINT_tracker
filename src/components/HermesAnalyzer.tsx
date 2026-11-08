@@ -267,6 +267,15 @@ export const HermesAnalyzer: React.FC = () => {
       lines.push('-'.repeat(40));
       for (const e of newEntities) lines.push(`[${e.type}] ${e.label}`);
     }
+    if (discovery?.recommendations && discovery.recommendations.length > 0) {
+      lines.push('');
+      lines.push('RECOMMANDATIONS');
+      lines.push('-'.repeat(40));
+      for (const r of discovery.recommendations) {
+        lines.push(`• ${r.action}${r.target ? ` — ${r.target}` : ''}`);
+        if (r.reason) lines.push(`  ${r.reason}`);
+      }
+    }
     if (error) {
       lines.push('');
       lines.push('ERREUR');
@@ -448,6 +457,54 @@ export const HermesAnalyzer: React.FC = () => {
               >
                 {discovery.summary}
               </div>
+
+              {/* Recommandations : actions concrètes classées par priorité. */}
+              {!!discovery.recommendations?.length && (
+                <div
+                  data-testid="hermes-recommendations"
+                  style={{
+                    padding: '10px 16px',
+                    borderBottom: '1px solid rgb(var(--cyber-cyan-rgb) / 0.2)',
+                    background: 'rgb(var(--cyber-green-rgb) / 0.06)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'var(--cyber-green)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {t('analyzer.recommendations')}
+                  </div>
+                  <ol
+                    style={{
+                      margin: 0,
+                      paddingLeft: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    {discovery.recommendations.map((rec, i) => (
+                      <li key={i} style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--cyber-text)' }}>
+                        <span style={{ fontWeight: 600 }}>{rec.action}</span>
+                        {rec.target && (
+                          <span style={{ color: 'var(--cyber-text-dim)' }}> — {rec.target}</span>
+                        )}
+                        {rec.reason && (
+                          <div style={{ fontSize: 10, color: 'var(--cyber-text-dim)', marginTop: 2 }}>
+                            {rec.reason}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
 
               {/* Valeurs citées par le modèle mais absentes du dossier : on les
                   montre au lieu de laisser passer une affirmation pour un fait. */}

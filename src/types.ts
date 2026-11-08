@@ -479,7 +479,22 @@ export type RelationType =
   | 'member'
   | 'alias'
   | 'located'
-  | 'evidence';
+  | 'evidence'
+  /* Famille humaine : distincte de `member` (appartenance à un groupe, un
+     compte, une organisation). Confondre les deux efface la seule information
+     qu'un lien de parenté apporte à une enquête — la proximité d'un tiers. */
+  | 'family'
+  | 'resides'
+  | 'works'
+  | 'frequented'
+  /* Contrôle ≠ possession : un compte peut être détenu par une organisation et
+     piloté par quelqu'un d'autre (prête-nom, compte partagé). */
+  | 'controls'
+  /* Résolution d'identité : deux fiches qui désignent la même personne. Sans
+     ce lien, un dossier fusionne à la main ou garde deux nœuds pour un homme. */
+  | 'sameAs'
+  | 'paid'
+  | 'mentioned';
 
 export interface RelationData {
   relation: RelationType;
@@ -494,21 +509,54 @@ export const DEFAULT_CONFIDENCE = 0.7;
  * Palette des relations. Comme `ENTITY_COLORS`, c'est une **légende** :
  * la teinte est stable d'un thème à l'autre (assombrie en thème clair
  * via `entityTone`).
+ *
+ * L'ordre **est** l'ordre d'affichage : les entrées sont rangées par famille
+ * (identité, personne, technique, trace) pour que le panneau se lise de haut
+ * en bas sans sauter d'un bout à l'autre du spectre. Chaque teinte occupe une
+ * plage de teinte distincte (~15° d'écart) : deux relations voisines ne se
+ * confondent pas sur un canevas où les traits font 1 à 4 px.
  */
 export const RELATION_COLORS: Record<RelationType, string> = {
+  // ── Identité ──
   related: '#64748b',
-  owns: '#f59e0b',
-  operates: '#0ea5e9',
-  communicates: '#8b5cf6',
-  hosts: '#22d3ee',
-  uses: '#a3e635',
-  member: '#f472b6',
   alias: '#fb7185',
+  sameAs: '#a855f7',
+  owns: '#f59e0b',
+  controls: '#6366f1',
+  member: '#f472b6',
+  // ── Personne ──
+  family: '#f97316',
+  resides: '#14b8a6',
+  works: '#eab308',
+  frequented: '#d946ef',
+  // ── Technique ──
+  communicates: '#8b5cf6',
+  uses: '#a3e635',
+  operates: '#0ea5e9',
+  hosts: '#22d3ee',
   located: '#10b981',
+  // ── Trace ──
+  paid: '#22c55e',
+  mentioned: '#94a3b8',
   evidence: '#ef4444',
 };
 
 export const RELATION_TYPES = Object.keys(RELATION_COLORS) as RelationType[];
+
+/**
+ * Regroupement du sélecteur de lien.
+ *
+ * Dix-huit relations à plat forment un mur : l'analyste lit trois lignes avant
+ * de trouver celle qu'il cherche. Les familles donnent un chemin de lecture
+ * (« c'est une personne ? un lieu ? une preuve ? ») qui divise la recherche par
+ * quatre. Les clés servent de libellés i18n (`edge.group*`).
+ */
+export const RELATION_GROUPS: { key: 'identity' | 'person' | 'infra' | 'trace'; types: RelationType[] }[] = [
+  { key: 'identity', types: ['related', 'alias', 'sameAs', 'owns', 'controls', 'member'] },
+  { key: 'person', types: ['family', 'resides', 'works', 'frequented'] },
+  { key: 'infra', types: ['communicates', 'uses', 'operates', 'hosts', 'located'] },
+  { key: 'trace', types: ['paid', 'mentioned', 'evidence'] },
+];
 
 /** Normalise `edge.data` en une relation complète et valide. */
 export function readRelation(data: unknown): RelationData {

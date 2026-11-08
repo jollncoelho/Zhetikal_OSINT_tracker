@@ -1,4 +1,4 @@
-import type { AnalysisMode, HermesDiscovery, HermesEntity, HermesRelation } from './types/hermes';
+import type { AnalysisMode, HermesDiscovery, HermesEntity, HermesRecommendation, HermesRelation } from './types/hermes';
 import { admiraltyCode, readAdmiralty } from './types';
 
 // ── Legacy chat interface (kept for backward compatibility) ──────────────────
@@ -298,6 +298,8 @@ RÈGLES IMPÉRATIVES
 
 5. EXHAUSTIVITÉ. Tout identifiant concret que tu écris dans le rapport doit aussi figurer dans la liste d'entités. Un identifiant cité dans le texte mais absent de la liste est une faute grave : l'analyste ne pourra pas l'exploiter.
 
+6. NE RELÈVE PAS LE GRAPHE. Une phrase qui énumère des **types** d'entité (téléphone, e-mail, IBAN, domaine, photo, localisation…) sans y adjoindre aucune valeur brute est un relevé du graphe : l'analyste le voit déjà, il n'y a rien à en déduire. Si ton analyse n'a rien à dire d'autre que le comptage des cases, dis-le simplement — « les données fournies ne permettent pas de dégager une hypothèse privilégiée ; la prochaine étape consiste à … » — et passe à la section suivante. Énumérer les entités par leur type n'est pas une analyse, c'est une copie de l'écran.
+
 Tu ne cites jamais une information que tu ne peux pas relier aux entités fournies, et tu ne répètes pas ce que le graphe montre déjà.`;
 }
 
@@ -336,8 +338,7 @@ function describeAbsentData(graphData: { nodes: any[]; edges: any[] }): string[]
   return categories.filter((category) => !category.pattern.test(blob)).map((category) => category.label);
 }
 
-function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, analystName?: string): string {
-  const analyst = analystName?.trim() || 'Analyste';
+function buildGraphPrompt(graphData: { nodes: any[]; edges: any[] }, _analystName?: string): string {
   const nodeLines = graphData.nodes
     .map((n) => {
       const type = n.data?.entityType ?? n.type ?? 'unknown';
@@ -402,15 +403,17 @@ Pour chaque rubrique ci-dessus, écris « non renseigné ». Ne cite AUCUN nom d
 Tu produis trois sections, dans cet ordre, sans rien d'autre.
 
 === ANALYSE ===
-Un rapport de 4 à 8 phrases adressé à ${analyst}, en français technique.
-1. Ce que les données établissent : les faits vérifiables, valeurs citées.
-2. Ce qu'elles permettent de déduire, et sur quelle donnée précise repose la déduction.
+Un rapport de 3 à 6 phrases, en français technique. NE résume PAS le graphe : l'analyste le voit déjà. Ne liste pas les entités ni les liens.
+Contenu obligatoire :
+1. L'inférence principale — ce que les données permettent de déduire, avec la donnée précise qui la soutient.
+2. Un écart, une contradiction ou un point de vigilance (par exemple : localisations multiples, identifiants partagés, éléments non reliés).
 3. Ce qui reste inconnu et empêche de conclure.
-4. La vérification la plus rentable à faire maintenant, et pourquoi.
+4. L'action de vérification la plus rentable, et pourquoi.
+Si tu ne peux rien déduire, dis-le en une phrase : « Les données fournies ne permettent pas de dégager une hypothèse privilégiée ; la prochaine étape consiste à … ».
 Une déduction qui ne s'appuie sur aucune donnée du dossier n'a pas sa place ici.
 
 === NOUVELLES ENTITÉS ===
-Ne liste QUE les entités nouvelles ou déduites : n'inclus jamais une entité de départ.
+Ne liste QUE les identifiants véritablement nouveaux et directement déduits des données. N'inclus jamais une entité de départ.
 Un e-mail cité dans une phrase EST une entité EMAIL. Un pseudo cité EST une entité PSEUDO. Chaque identifiant distinct donne une ligne distincte : quatre adresses différentes font quatre entités, jamais une seule.
 
 RÈGLES STRICTES POUR LA VALEUR (VALUE) :
@@ -421,7 +424,9 @@ RÈGLES STRICTES POUR LA VALEUR (VALUE) :
    - E-mail : "contact@k-digital.com" et JAMAIS "l'e-mail de contact"
 2. Le contexte et la justification vont dans NOTES, jamais dans VALUE.
 3. DÉDUPLICATION : ne propose jamais une valeur déjà présente dans « VALEURS DÉJÀ PRÉSENTES ».
-4. Maximum 12 entités. Choisis les pivots les plus utiles.
+4. PAS DE FRAGMENT : ne découpe pas une valeur existante en morceaux (ex: si "biz-edu-france.net" est présent, ne propose pas "france.net").
+5. N'invente aucun identifiant : une adresse, un téléphone ou une IP proposée doit être citée dans les entités ou déduite d'une valeur présente.
+6. Maximum 8 entités. Choisis les pivots techniques (IP, domaine, e-mail, téléphone) qui relieraient plusieurs artefacts.
 
 Format strict, 4 lignes par entité :
 - TYPE: [type]
@@ -435,7 +440,16 @@ Si aucune nouvelle entité, écris : (aucune nouvelle entité)
 === LIENS SUGGÉRÉS ===
 Une relation par ligne, au format exact : SOURCE → CIBLE
 Utilise EXACTEMENT la valeur brute, telle qu'écrite dans VALUE ou déjà présente dans le dossier. Aucune phrase, aucune ponctuation autour.
-Si aucun lien, écris : (aucun lien)`;
+Si aucun lien, écris : (aucun lien)
+
+=== RECOMMANDATIONS ===
+2 à 4 actions concrètes de vérification, classées par rentabilité décroissante.
+Ne répète pas l'analyse : chaque ligne doit être une tâche que l'analyste peut exécuter.
+Format strict, 3 lignes par recommandation :
+- ACTION: [quoi faire, impératif court]
+- CIBLE: [entité ou identifiant concerné]
+- POURQUOI: [en quoi ça fait avancer l'enquête, en une phrase]
+Si aucune recommandation, écris : (aucune recommandation)`;
 }
 
 /**
@@ -676,7 +690,7 @@ function extractNamedTechnicalValues(text: string): string[] {
  * compare donc la ligne **dépouillée** de sa ponctuation.
  */
 interface SectionMark {
-  key: 'analyse' | 'entites' | 'liens';
+  key: 'analyse' | 'entites' | 'liens' | 'recommandations';
   headerStart: number;
   contentStart: number;
 }
@@ -692,6 +706,7 @@ function findSections(text: string): SectionMark[] {
     if (/^ANALYSE(?:TECHNIQUE)?$/.test(bare)) key = 'analyse';
     else if (/^(?:NOUVELLES?)?ENTIT[ÉE]S?$/.test(bare)) key = 'entites';
     else if (/^LIENS?(?:SUGG[ÉE]R[ÉE]S?)?$/.test(bare)) key = 'liens';
+    else if (/^RECOMMANDATIONS?$/.test(bare)) key = 'recommandations';
 
     if (key) marks.push({ key, headerStart: offset, contentStart: offset + line.length + 1 });
     offset += line.length + 1;
@@ -750,6 +765,54 @@ function parseEntityBlocks(block: string): HermesEntity[] {
     }
     // Suite d'une note sur la ligne suivante.
     if (type && notes.length > 0) notes.push(line);
+  }
+  flush();
+
+  return out;
+}
+
+function parseRecommendationBlocks(block: string): HermesRecommendation[] {
+  const out: HermesRecommendation[] = [];
+  let action = '';
+  let target = '';
+  let reason = '';
+
+  const flush = () => {
+    const a = action.trim();
+    const t = target.trim();
+    const r = reason.trim();
+    if (a || t || r) {
+      out.push({ action: a || t || r, target: t, reason: r });
+    }
+    action = '';
+    target = '';
+    reason = '';
+  };
+
+  for (const raw of block.split('\n')) {
+    const line = raw.replace(/^\s*[-*•]\s*/, '').trim();
+    if (!line) continue;
+    if (/^[-–—_=]{3,}$/.test(line)) {
+      flush();
+      continue;
+    }
+
+    const actionMatch = /^ACTION\s*[:=]\s*(.+)$/i.exec(line);
+    if (actionMatch) {
+      flush();
+      action = actionMatch[1].trim();
+      continue;
+    }
+    const targetMatch = /^CIBLE\s*[:=]\s*(.+)$/i.exec(line);
+    if (targetMatch) {
+      target = targetMatch[1].trim();
+      continue;
+    }
+    const reasonMatch = /^POURQUOI\s*[:=]\s*(.+)$/i.exec(line);
+    if (reasonMatch) {
+      reason = reasonMatch[1].trim();
+      continue;
+    }
   }
   flush();
 
@@ -829,10 +892,13 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
     const key = mention.value.trim().toLowerCase();
     if (!key || known.has(key)) continue;
     known.add(key);
-    entities.push({ type: mention.type, label: mention.value, properties: { notes: 'Cité dans l’analyse.' } });
+    entities.push({ type: mention.type, label: mention.value, properties: { notes: 'Cité dans l'analyse.' } });
   }
 
-  return { entities, relations, summary };
+  const recommandationsBlock = pick('recommandations');
+  const recommendations = recommandationsBlock ? parseRecommendationBlocks(recommandationsBlock) : [];
+
+  return { entities, relations, summary, recommendations };
 }
 
 /**
@@ -860,6 +926,10 @@ export function parseOllamaTextToDiscovery(text: string): HermesDiscovery {
  */
 const UNSUPPORTED_MARKER = '[non renseigné]';
 const HYPOTHESIS_MARKER = /hypoth[èe]se/i;
+
+/** Types d'identifiants dont la valeur doit être vérifiée de façon stricte :
+ *  exact match ou token autonome dans la prose. */
+const IDENTIFIER_TYPES = new Set(['ip', 'email', 'domain', 'hostname', 'phone', 'username', 'url']);
 
 /**
  * Vocabulaire que la spécification interdit explicitement.

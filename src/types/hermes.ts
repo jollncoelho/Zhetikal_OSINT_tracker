@@ -9,6 +9,12 @@ export interface HermesRelation {
   type: string;
   properties?: Record<string, any>;
 }
+export interface HermesRecommendation {
+  action: string;
+  target: string;
+  reason: string;
+}
+
 export interface HermesDiscovery {
   entities: HermesEntity[];
   relations: HermesRelation[];
@@ -30,5 +36,12 @@ export interface HermesDiscovery {
    * aurait envie d'aller regarder.
    */
   suggested?: { value: string; type: string }[];
+  /**
+   * Actions de vérification proposées par le modèle, classées par priorité.
+   * Chaque recommandation est découpée en action, cible et justification pour
+   * être affichée comme une liste de tâches concrètes plutôt que noyée dans
+   * la prose.
+   */
+  recommendations?: HermesRecommendation[];
 }
 export type AnalysisMode = 'local' | 'freellm';
