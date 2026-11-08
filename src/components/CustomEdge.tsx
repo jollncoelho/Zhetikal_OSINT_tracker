@@ -15,13 +15,33 @@ import { useTheme } from '../theme/ThemeContext';
  *     pour garder un canevas calme quand rien n'est en cours d'édition
  */
 
-/** Trame de trait par relation : `undefined` = trait plein. */
+/**
+ * Trame de trait par relation : `undefined` = trait plein.
+ *
+ * La trame double la couleur, elle ne la remplace pas : sur un graphe dense et
+ * à 1–2 px, deux teintes voisines se confondent alors qu'un pointillé se repère
+ * encore. Chaque famille a sa trame, donc un « réside à » pointillé vert reste
+ * lisible à côté d'un « possède » plein orange même en daltonisme.
+ */
 const RELATION_DASH: Partial<Record<RelationType, string>> = {
+  // Identité : continuité de la personne.
   alias: '6 4',
-  evidence: '2 4',
+  sameAs: '10 3 2 3',
+  // Personne : liens humains, trame longue et calme.
+  family: '2 3',
+  resides: '1 4',
+  works: '8 3',
+  frequented: '3 5',
+  // Technique : flux.
   communicates: '1 5',
+  // Trace : ce qui prouve ou ce qui mentionne.
+  paid: '5 3',
+  mentioned: '1 3',
+  evidence: '2 4',
   member: '8 4',
 };
+
+/** Ensembles explicitement pleins, pour que le type reste exhaustif côté TS. */
 
 function strokeWidthFor(confidence: number): number {
   return 1.2 + confidence * 2.8;
