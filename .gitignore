@@ -1,3 +1,4 @@
 node_modules/
+dist/
 .env
 vite.config.ts.timestamp-*.mjs
