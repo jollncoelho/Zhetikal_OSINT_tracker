@@ -15,6 +15,25 @@ interface AppState {
   setAnalystName: (name: string) => void;
 
   createCase: (name: string, description: string) => string;
+  /**
+   * Crée un dossier et y dépose d'un bloc les résultats d'une enquête auto.
+   * Les écritures séparées (createCase + addEntity + onConnect) laissaient un
+   * dossier vide visible si le navigateur persistait entre deux appels.
+   */
+  createAutoCase: (payload: {
+    name: string;
+    description: string;
+    findings: {
+      key: string;
+      type: string;
+      label: string;
+      url: string;
+      fields: Record<string, unknown>;
+      notes: string;
+      confidence: number;
+      photoUrl?: string | null;
+    }[];
+  }) => string;
   switchCase: (id: string) => void;
   deleteCase: (id: string) => void;
   updateCase: (id: string, name: string, description: string, updates?: Partial<CaseData>) => void;
@@ -91,6 +110,89 @@ export const useStore = create<AppState>()(
             activeCaseId: id,
             nodes: [],
             edges: [],
+          }));
+          return id;
+        },
+
+        createAutoCase: ({ name, description, findings }) => {
+          const id = crypto.randomUUID();
+          // Disposition en étoile : la saisie au centre, chaque compte trouvé
+          // sur un cercle. React Flow recadrera via <InitialViewport> quand
+          // activeCaseId change, inutile de deviner le zoom ici.
+          const center = { x: 420, y: 300 };
+          const radius = 300;
+          const ids = new Map<string, string>();
+          const nodes: EntityNode[] = findings.map((finding, index) => {
+            const nodeId = crypto.randomUUID();
+            ids.set(finding.key, nodeId);
+            const isRoot = finding.key === 'root' || index === 0;
+            const angle = isRoot
+              ? 0
+              : ((index - 1) * 2 * Math.PI) / Math.max(1, findings.length - 1);
+            return {
+              id: nodeId,
+              type: 'entity',
+              position: isRoot
+                ? center
+                : {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                  },
+              data: {
+                entityType: finding.type,
+                label: finding.label,
+                notes: finding.notes,
+                color: (ENTITY_COLORS as Record<string, string>)[finding.type] || '#10b981',
+                icon: (ENTITY_ICON_NAMES as Record<string, string>)[finding.type] || 'Globe',
+                fields: {
+                  ...finding.fields,
+                  ...(finding.url ? { url: finding.url } : {}),
+                },
+                ...(finding.photoUrl ? { photoUrl: finding.photoUrl } : {}),
+              } as EntityData,
+            };
+          });
+
+          const edges: Edge[] = findings
+            .filter((finding) => finding.key !== 'root')
+            .flatMap((finding) => {
+              const source = ids.get('root');
+              const target = ids.get(finding.key);
+              if (!source || !target) return [];
+              return [{
+                id: crypto.randomUUID(),
+                source,
+                target,
+                sourceHandle: 'right',
+                targetHandle: 'left',
+                type: 'custom',
+                animated: false,
+                data: {
+                  relation: 'alias',
+                  confidence: Math.max(0.15, Math.min(0.9, finding.confidence)),
+                },
+              }];
+            });
+
+          const newCase: CaseData = {
+            id,
+            name,
+            description,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            nodes,
+            edges,
+            locations: [],
+            pinLinks: [],
+            caseNotes: '',
+            caseTitle: '',
+            origin: 'auto',
+          };
+          set((state) => ({
+            cases: [...state.cases, newCase],
+            activeCaseId: id,
+            nodes,
+            edges,
           }));
           return id;
         },

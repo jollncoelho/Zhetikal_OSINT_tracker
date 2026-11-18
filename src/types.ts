@@ -181,6 +181,8 @@ export interface CaseData {
   caseNotes?: string;
   caseTitle?: string;
   projectPath?: string;
+  /** Origine du dossier. `auto` autorise un cadrage plus serré au graphe créé. */
+  origin?: 'manual' | 'auto';
   locations?: MapPin[];
   pinLinks?: PinLink[];
 }

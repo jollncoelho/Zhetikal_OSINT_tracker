@@ -4,12 +4,13 @@ import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   Activity, Briefcase, FileJson, FileText, Ghost, History, Home, Image as ImageIcon,
-  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Send, Star, X,
+  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Send, Sparkles, Star, X,
 } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import ToolkitPanel from './components/ToolkitPanel';
 import TelegramSearch from './components/TelegramSearch';
+import AutoInvestigation from './components/AutoInvestigation';
 import SnapshotsPanel from './components/SnapshotsPanel';
 import { addSnapshot, type CaseSnapshot } from './lib/snapshots';
 import DisclaimerModal from './components/DisclaimerModal';
@@ -105,6 +106,7 @@ function AppInner() {
 
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [notePanelOpen, setNotePanelOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -424,6 +426,14 @@ function AppInner() {
    * visible directement dans l'en-tête.
    */
   const moreMenuItems: HeaderMenuItem[] = [
+    {
+      id: 'auto',
+      label: t('auto.openPanel'),
+      icon: Sparkles,
+      active: autoOpen,
+      onClick: () => setAutoOpen((value) => !value),
+      separatorBefore: true,
+    },
     {
       id: 'stats',
       label: t('header.stats'),
@@ -756,6 +766,8 @@ function AppInner() {
       </div>
 
       <TelegramSearch isOpen={telegramOpen} onClose={() => setTelegramOpen(false)} />
+
+      <AutoInvestigation isOpen={autoOpen} onClose={() => setAutoOpen(false)} />
 
       <SnapshotsPanel
         isOpen={snapshotsOpen}

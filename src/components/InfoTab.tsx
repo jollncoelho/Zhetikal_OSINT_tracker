@@ -475,7 +475,10 @@ export default function InfoTab({
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--cyber-border)" />
             {/* Remonté à chaque changement de dossier : ouvrir un autre dossier
                 recadre, mais ajouter un nœud ne bouge pas la vue en cours. */}
-            <InitialViewport key={activeCase?.id ?? 'aucun-dossier'} />
+            <InitialViewport
+              key={activeCase?.id ?? 'aucun-dossier'}
+              maxZoom={activeCase?.origin === 'auto' ? 1 : 0.5}
+            />
             <Controls showInteractive={false} className="!border-cyber-border !rounded-xl !overflow-hidden" />
             <MiniMap
               nodeColor={(node) => {
