@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tracker.query-intel.com/sitemap.xml
