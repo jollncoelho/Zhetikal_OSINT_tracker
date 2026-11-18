@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Palette } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -34,11 +34,11 @@ export default function ThemeSwitcher() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        title={t('theme.title')}
-        className="flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[11px] font-semibold text-cyber-text-dim transition-all hover:border-cyber-cyan/30 hover:bg-cyber-cyan/10 hover:text-cyber-cyan"
+        title={`${t('theme.title')} — ${t(theme.labelKey)}`}
+        aria-label={`${t('theme.title')} — ${t(theme.labelKey)}`}
+        className="flex items-center rounded-lg border border-transparent px-1.5 py-1 transition-all hover:border-cyber-cyan/30 hover:bg-cyber-cyan/10"
       >
-        <Palette size={12} />
-        <span className="hidden 2xl:inline">{t(theme.labelKey)}</span>
+        <ThemeSwatch tokens={theme.tokens} />
       </button>
 
       {open && (

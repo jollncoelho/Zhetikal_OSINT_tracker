@@ -4,7 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   Activity, Briefcase, FileJson, FileText, Ghost, History, Home, Image as ImageIcon,
-  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Search, Send, Sparkles, Star, X,
+  Languages, Map, MoreHorizontal, Network, Palette, Plus, Satellite, Save, Send, Sparkles, Star, X,
 } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
@@ -427,14 +427,6 @@ function AppInner() {
    */
   const moreMenuItems: HeaderMenuItem[] = [
     {
-      id: 'auto',
-      label: t('auto.openPanel'),
-      icon: Sparkles,
-      active: autoOpen,
-      onClick: () => setAutoOpen((value) => !value),
-      separatorBefore: true,
-    },
-    {
       id: 'stats',
       label: t('header.stats'),
       icon: Activity,
@@ -568,15 +560,12 @@ function AppInner() {
               on obtient une barre d'icônes propre au lieu de boutons écrasés. */}
           <div className="flex min-w-fit flex-1 basis-0 items-center justify-end gap-1.5 [&>*]:shrink-0">
             <button
-              onClick={() => setPaletteOpen(true)}
-              title={`${t('palette.open')} (Ctrl+K)`}
-              className="flex h-[30px] items-center gap-2 rounded-lg border border-cyber-border bg-cyber-panel px-2.5 text-[11px] font-medium text-cyber-text-dim transition-all hover:border-cyber-cyan/40 hover:text-cyber-cyan"
+              onClick={() => setAutoOpen(true)}
+              title={t('auto.openPanel')}
+              className="flex h-[30px] items-center gap-2 rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/10 px-2.5 text-[11px] font-semibold text-cyber-cyan transition-all hover:border-cyber-cyan/70 hover:bg-cyber-cyan/20"
             >
-              <Search size={12} />
-              <span className="hidden 2xl:inline">{t('palette.open')}</span>
-              <kbd className="hidden rounded border border-cyber-border bg-cyber-dark px-1.5 py-0.5 font-mono text-[10px] leading-none xl:inline">
-                Ctrl K
-              </kbd>
+              <Sparkles size={12} />
+              <span className="hidden lg:inline">{t('auto.openPanel')}</span>
             </button>
             <button
               onClick={() => setToolkitOpen(true)}
@@ -614,8 +603,9 @@ function AppInner() {
               <span className="hidden xl:inline">God's Eye</span>
             </a>
             <LanguageSwitcher />
-            <ThemeSwitcher />
             <SnippingTool activeCaseId={activeInvestigationCaseId} />
+            {/* Palette de thème : juste le dessin, collée au menu « Plus ». */}
+            <ThemeSwitcher />
             <HeaderMenu label={t('header.more')} icon={MoreHorizontal} items={moreMenuItems} />
           </div>
         </div>
