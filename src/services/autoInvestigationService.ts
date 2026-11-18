@@ -21,7 +21,9 @@ import {
   TelegramError,
 } from '../services/telegramService';
 
-export type AutoSourceId = 'telegram' | 'github' | 'hackernews' | 'mastodon';
+export type AutoSourceId =
+  | 'telegram' | 'github' | 'hackernews' | 'mastodon' | 'gitlab' | 'devto'
+  | 'bluesky' | 'pastebin';
 
 export type AutoSourceStatus = 'idle' | 'running' | 'found' | 'absent' | 'error';
 
@@ -131,6 +133,9 @@ export function normalizeUsername(raw: string): string {
 
   value = value.replace(/^@/, '');
   value = value.split(/[/?#\s]/)[0];
+  // Un pseudo accentué (`zhétikal`) doit devenir `zhetikal`, pas `zhtikal` :
+  // on retire les diacritiques avant de filtrer les caractères.
+  value = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return value.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64);
 }
 
@@ -333,6 +338,214 @@ async function collectMastodon(
   }
 }
 
+/** GitLab : la recherche par username renvoie `[]` si le compte n'existe pas. */
+async function collectGitlab(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://gitlab.com/api/v4/users?username=${encodeURIComponent(username)}`,
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (!response.ok) {
+      return { state: { id: 'gitlab', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as Record<string, unknown>[];
+    const user = Array.isArray(data) ? data[0] : null;
+    // GitLab est insensible à la casse sur la recherche mais renvoie parfois
+    // plusieurs comptes : on ne garde qu'une correspondance exacte.
+    const exact = user && typeof user.username === 'string' &&
+      user.username.toLowerCase() === username.toLowerCase() ? user : null;
+    if (!exact) {
+      return { state: { id: 'gitlab', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    const fields: Record<string, unknown> = {
+      plateforme: 'GitLab',
+      handle: exact.username,
+      nom: exact.name || null,
+      profil: exact.web_url || null,
+      _consulteLe: new Date().toISOString(),
+    };
+    return {
+      state: { id: 'gitlab', status: 'found', detail: `@${exact.username}` },
+      finding: {
+        key: 'gitlab',
+        type: 'username',
+        label: `@${exact.username}`,
+        source: 'gitlab',
+        url: typeof exact.web_url === 'string' ? exact.web_url : `https://gitlab.com/${exact.username}`,
+        fields,
+        notes: stripHtml(exact.bio),
+        confidence: 0.55,
+        photoUrl: typeof exact.avatar_url === 'string' ? exact.avatar_url : null,
+      },
+    };
+  } catch {
+    return { state: { id: 'gitlab', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
+/** DEV Community : profil public par username, sans clé ni authentification. */
+async function collectDevTo(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://dev.to/api/users/by_username?url=${encodeURIComponent(username)}`,
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (response.status === 404) {
+      return { state: { id: 'devto', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    if (!response.ok) {
+      return { state: { id: 'devto', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as Record<string, unknown>;
+    if (typeof data.username !== 'string') {
+      return { state: { id: 'devto', status: 'absent', detail: 'réponse inattendue' }, finding: null };
+    }
+    const fields: Record<string, unknown> = {
+      plateforme: 'DEV Community',
+      handle: data.username,
+      nom: data.name || null,
+      twitter: data.twitter_username || null,
+      github: data.github_username || null,
+      _consulteLe: new Date().toISOString(),
+    };
+    return {
+      state: { id: 'devto', status: 'found', detail: `@${data.username}` },
+      finding: {
+        key: 'devto',
+        type: 'username',
+        label: `@${data.username}`,
+        source: 'devto',
+        url: typeof data.url === 'string' ? data.url : `https://dev.to/${data.username}`,
+        fields,
+        notes: stripHtml(data.summary),
+        confidence: 0.55,
+        photoUrl: typeof data.profile_image === 'string' ? data.profile_image : null,
+      },
+    };
+  } catch {
+    return { state: { id: 'devto', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
+/**
+ * Lit une page publique via r.jina.ai — le même lecteur que le module Telegram.
+ * CORS ouvert, aucune clé requise (mais une clé fournie dans le module Telegram
+ * est réutilisée pour ne pas dépendre du quota anonyme partagé).
+ */
+async function readPublicPage(
+  targetUrl: string,
+  signal?: AbortSignal
+): Promise<string> {
+  let key = '';
+  try {
+    key = localStorage.getItem('telegram_reader_key')?.trim() ?? '';
+  } catch {
+    /* localStorage indisponible : lecture anonyme. */
+  }
+  const response = await boundedFetch(
+    `https://r.jina.ai/${targetUrl}`,
+    {
+      headers: {
+        Accept: 'text/plain',
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+    },
+    signal
+  );
+  if (!response.ok) throw new Error(`reader HTTP ${response.status}`);
+  return response.text();
+}
+
+/**
+ * Bluesky : un profil réel publie un identifiant `did:plc:` et une bio. Une
+ * page inexistante affiche le fil « Trending » et aucun DID — sans ce test,
+ * n'importe quel pseudo deviendrait un compte trouvé.
+ */
+async function collectBluesky(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const text = await readPublicPage(
+      `https://bsky.app/profile/${encodeURIComponent(username)}.bsky.social`,
+      signal
+    );
+    const did = /did:plc:[a-z0-9]+/i.exec(text)?.[0] ?? '';
+    if (!did) {
+      return { state: { id: 'bluesky', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    const display = /Profile\s*\n([^\n]{1,80})/.exec(text)?.[1]?.trim() || `@${username}`;
+    const bio = /did:plc:[a-z0-9]+\s*\n([^\n]{1,300})/.exec(text)?.[1]?.trim() ?? '';
+    return {
+      state: { id: 'bluesky', status: 'found', detail: display },
+      finding: {
+        key: 'bluesky',
+        type: 'username',
+        label: display,
+        source: 'bluesky',
+        url: `https://bsky.app/profile/${encodeURIComponent(username)}.bsky.social`,
+        fields: {
+          plateforme: 'Bluesky',
+          handle: `${username}.bsky.social`,
+          did,
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: bio,
+        confidence: 0.55,
+      },
+    };
+  } catch {
+    return { state: { id: 'bluesky', status: 'error', detail: 'lecture impossible' }, finding: null };
+  }
+}
+
+/** Pastebin : le titre d'une page inexistante est explicite (« Not Found (#404) »). */
+async function collectPastebin(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const text = await readPublicPage(
+      `https://pastebin.com/u/${encodeURIComponent(username)}`,
+      signal
+    );
+    if (/Not Found\s*\(?#?404/i.test(text) || /Target URL returned error 404/i.test(text)) {
+      return { state: { id: 'pastebin', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    const title = /^Title:\s*(.+)$/im.exec(text)?.[1]?.trim() ?? '';
+    if (!title) {
+      return { state: { id: 'pastebin', status: 'absent', detail: 'réponse inattendue' }, finding: null };
+    }
+    return {
+      state: { id: 'pastebin', status: 'found', detail: title.replace(/'s Pastebin.*$/i, '') },
+      finding: {
+        key: 'pastebin',
+        type: 'username',
+        label: title.replace(/\s*- Pastebin\.com$/i, ''),
+        source: 'pastebin',
+        url: `https://pastebin.com/u/${encodeURIComponent(username)}`,
+        fields: {
+          plateforme: 'Pastebin',
+          handle: username,
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: '',
+        confidence: 0.5,
+      },
+    };
+  } catch {
+    return { state: { id: 'pastebin', status: 'error', detail: 'lecture impossible' }, finding: null };
+  }
+}
+
 /**
  * Sites dont l'existence d'un profil ne peut pas être prouvée depuis un
  * navigateur (CORS fermé, login obligatoire, ou page générique renvoyée à
@@ -351,12 +564,24 @@ export function manualChecksFor(username: string): AutoManualCheck[] {
     { label: 'LinkedIn', url: `https://www.linkedin.com/in/${u}/` },
     { label: 'Hacker News', url: `https://news.ycombinator.com/user?id=${u}` },
     { label: 'Mastodon', url: `https://mastodon.social/@${u}` },
+    { label: 'GitLab', url: `https://gitlab.com/${u}` },
+    { label: 'DEV', url: `https://dev.to/${u}` },
+    { label: 'Twitch', url: `https://www.twitch.tv/${u}` },
+    { label: 'Bluesky', url: `https://bsky.app/profile/${u}.bsky.social` },
+    { label: 'Pastebin', url: `https://pastebin.com/u/${u}` },
+    { label: 'Hugging Face', url: `https://huggingface.co/${u}` },
+    { label: 'Docker Hub', url: `https://hub.docker.com/u/${u}` },
+    { label: 'Minds', url: `https://www.minds.com/${u}` },
   ];
 }
 
 export const AUTO_SOURCES: { id: AutoSourceId; label: string }[] = [
   { id: 'telegram', label: 'Telegram' },
   { id: 'github', label: 'GitHub' },
+  { id: 'gitlab', label: 'GitLab' },
+  { id: 'devto', label: 'DEV' },
+  { id: 'bluesky', label: 'Bluesky' },
+  { id: 'pastebin', label: 'Pastebin' },
   { id: 'hackernews', label: 'Hacker News' },
   { id: 'mastodon', label: 'Mastodon' },
 ];
@@ -386,6 +611,10 @@ export async function runAutoInvestigation(
   const collectors = [
     collectTelegram(username, signal),
     collectGithub(username, signal),
+    collectGitlab(username, signal),
+    collectDevTo(username, signal),
+    collectBluesky(username, signal),
+    collectPastebin(username, signal),
     collectHackerNews(username, signal),
     collectMastodon(username, signal),
   ];

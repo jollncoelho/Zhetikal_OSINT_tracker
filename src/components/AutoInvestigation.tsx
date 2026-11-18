@@ -59,7 +59,7 @@ function SourceBadge({ state }: { state: AutoSourceState | undefined }) {
 export default function AutoInvestigation({ isOpen, onClose }: Props) {
   const { t } = useLanguage();
   const { entityTone } = useTheme();
-  const { success, error: showError } = useToast();
+  const { success } = useToast();
   const createAutoCase = useStore((s) => s.createAutoCase);
 
   const [value, setValue] = useState('');
@@ -121,18 +121,29 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
     if (!result) return;
     const findings = result.findings.filter((item) => !excluded.has(item.key));
     const withAccounts = findings.filter((item) => item.source !== 'input');
-    if (withAccounts.length === 0) {
-      showError(t('auto.noFindingsTitle'), t('auto.noFindingsBody'));
-      return;
-    }
+
+    // Même sans compte prouvé, le dossier est créé : la piste existe, et la
+    // checklist manuelle est le résultat. Refuser de créer laissait l'analyste
+    // devant un bouton actif qui ne menait qu'à une erreur.
+    const checklistNotes = [
+      t('auto.notesHeader').replace('{u}', result.username),
+      ...result.manualChecks.map((check) => `- ${check.label}: ${check.url}`),
+    ].join('\n');
+
     createAutoCase({
       name: t('auto.caseName').replace('{u}', result.username),
       description: t('auto.caseDescription').replace('{u}', result.username),
       findings,
+      notes: checklistNotes,
     });
-    success(t('auto.createdTitle'), t('auto.createdBody').replace('{n}', String(withAccounts.length)));
+    success(
+      t('auto.createdTitle'),
+      withAccounts.length > 0
+        ? t('auto.createdBody').replace('{n}', String(withAccounts.length))
+        : t('auto.createdEmptyBody')
+    );
     onClose();
-  }, [result, excluded, createAutoCase, onClose, success, showError, t]);
+  }, [result, excluded, createAutoCase, onClose, success, t]);
 
   const toggle = useCallback((key: string) => {
     setExcluded((current) => {

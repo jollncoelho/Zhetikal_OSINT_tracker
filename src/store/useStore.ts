@@ -23,6 +23,7 @@ interface AppState {
   createAutoCase: (payload: {
     name: string;
     description: string;
+    notes?: string;
     findings: {
       key: string;
       type: string;
@@ -114,7 +115,7 @@ export const useStore = create<AppState>()(
           return id;
         },
 
-        createAutoCase: ({ name, description, findings }) => {
+        createAutoCase: ({ name, description, notes, findings }) => {
           const id = crypto.randomUUID();
           // Disposition en étoile : la saisie au centre, chaque compte trouvé
           // sur un cercle. React Flow recadrera via <InitialViewport> quand
@@ -184,7 +185,7 @@ export const useStore = create<AppState>()(
             edges,
             locations: [],
             pinLinks: [],
-            caseNotes: '',
+            caseNotes: notes ?? '',
             caseTitle: '',
             origin: 'auto',
           };
