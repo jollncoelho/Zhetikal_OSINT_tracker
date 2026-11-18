@@ -20,10 +20,11 @@ import {
   parseTarget,
   TelegramError,
 } from '../services/telegramService';
+import { PUBLIC_SITES, evaluatePublicSite, type PublicSite } from './publicSites';
 
 export type AutoSourceId =
   | 'telegram' | 'github' | 'hackernews' | 'mastodon' | 'gitlab' | 'devto'
-  | 'bluesky' | 'pastebin';
+  | 'bluesky' | 'pastebin' | 'web';
 
 export type AutoSourceStatus = 'idle' | 'running' | 'found' | 'absent' | 'error';
 
@@ -547,6 +548,66 @@ async function collectPastebin(
 }
 
 /**
+ * Interroge les sites publics en petit nombre (2 à la fois) : le lecteur
+ * anonyme compte 20 requêtes/minute par IP, un balayage massif en parallèle
+ * se ferait bloquer et ne rendrait rien.
+ */
+async function collectWebProfiles(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; findings: AutoFinding[] }> {
+  const findings: AutoFinding[] = [];
+  let checked = 0;
+  let errors = 0;
+
+  const checkOne = async (site: PublicSite) => {
+    if (signal?.aborted) return;
+    try {
+      const raw = await readPublicPage(site.url(username), signal);
+      const verdict = evaluatePublicSite(site, raw);
+      checked += 1;
+      if (verdict.found) {
+        findings.push({
+          key: `web-${site.id}`,
+          type: 'username',
+          label: `${site.label} : ${verdict.title.slice(0, 60)}`,
+          source: 'web',
+          url: site.url(username),
+          fields: {
+            plateforme: site.label,
+            handle: username,
+            titre: verdict.title,
+            _consulteLe: new Date().toISOString(),
+          },
+          notes: `Profil public détecté sur ${site.label} via lecteur. À confirmer de visu.`,
+          confidence: 0.45,
+        });
+      }
+    } catch {
+      checked += 1;
+      errors += 1;
+    }
+  };
+
+  // Lots de deux : assez lent pour le quota, assez rapide pour rester
+  // supportable (~10 s pour l'ensemble).
+  for (let i = 0; i < PUBLIC_SITES.length; i += 2) {
+    await Promise.all(PUBLIC_SITES.slice(i, i + 2).map(checkOne));
+  }
+
+  return {
+    state: {
+      id: 'web',
+      status: findings.length > 0 ? 'found' : errors === checked ? 'error' : 'absent',
+      detail: findings.length > 0
+        ? `${findings.length} profil(s)`
+        : errors === checked ? 'lecture bloquée' : 'aucun profil prouvé',
+    },
+    findings,
+  };
+}
+
+/**
  * Sites dont l'existence d'un profil ne peut pas être prouvée depuis un
  * navigateur (CORS fermé, login obligatoire, ou page générique renvoyée à
  * n'importe quel pseudo). On les propose comme **liens à vérifier à la main**,
@@ -582,6 +643,7 @@ export const AUTO_SOURCES: { id: AutoSourceId; label: string }[] = [
   { id: 'devto', label: 'DEV' },
   { id: 'bluesky', label: 'Bluesky' },
   { id: 'pastebin', label: 'Pastebin' },
+  { id: 'web', label: 'Web public' },
   { id: 'hackernews', label: 'Hacker News' },
   { id: 'mastodon', label: 'Mastodon' },
 ];
@@ -608,7 +670,9 @@ export async function runAutoInvestigation(
     onProgress?.([...states]);
   };
 
-  const collectors = [
+  // Huit sources directes + le balayage web, qui rend plusieurs findings.
+  // On lance tout en parallèle : le collecteur web gère lui-même son quota.
+  const direct = await Promise.all([
     collectTelegram(username, signal),
     collectGithub(username, signal),
     collectGitlab(username, signal),
@@ -617,15 +681,14 @@ export async function runAutoInvestigation(
     collectPastebin(username, signal),
     collectHackerNews(username, signal),
     collectMastodon(username, signal),
-  ];
+  ].map(async (collector) => {
+    const { state, finding } = await collector;
+    set(state);
+    return finding;
+  }));
 
-  const results = await Promise.all(
-    collectors.map(async (collector, index) => {
-      const { state, finding } = await collector;
-      set(state);
-      return finding ? { finding, order: index } : null;
-    })
-  );
+  const web = await collectWebProfiles(username, signal);
+  set(web.state);
 
   const root: AutoFinding = {
     key: 'root',
@@ -642,9 +705,20 @@ export async function runAutoInvestigation(
     confidence: 1,
   };
 
+  // Le balayage web retombe sur GitHub/Telegram déjà interrogés en direct :
+  // on garde la fiche API (plus riche) et on écarte le doublon du lecteur.
+  const webFindings = web.findings.filter((finding) => {
+    const key = finding.key.replace(/^web-/, '');
+    return !direct.some((other) => other && other.key === key);
+  });
+
   return {
     username,
-    findings: [root, ...results.filter(Boolean).map((item) => item!.finding)],
+    findings: [
+      root,
+      ...direct.filter((finding): finding is AutoFinding => Boolean(finding)),
+      ...webFindings,
+    ],
     sources: [...states],
     manualChecks: manualChecksFor(username),
   };
