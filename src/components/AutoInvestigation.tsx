@@ -158,7 +158,7 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
       style={{ background: 'rgb(0 0 0 / 0.72)' }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && phase !== 'running') onClose();

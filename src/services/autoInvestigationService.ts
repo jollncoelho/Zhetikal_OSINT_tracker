@@ -24,7 +24,8 @@ import { PUBLIC_SITES, evaluatePublicSite, type PublicSite } from './publicSites
 
 export type AutoSourceId =
   | 'telegram' | 'github' | 'hackernews' | 'mastodon' | 'gitlab' | 'devto'
-  | 'bluesky' | 'pastebin' | 'web';
+  | 'bluesky' | 'pastebin' | 'web' | 'search'
+  | 'bitbucket' | 'codeberg' | 'stackexchange' | 'wikipedia' | 'keybase';
 
 export type AutoSourceStatus = 'idle' | 'running' | 'found' | 'absent' | 'error';
 
@@ -436,6 +437,254 @@ async function collectDevTo(
   }
 }
 
+/** Évite qu'un `neo` soit accepté pour `néon` ou `neon_backup`. */
+function hasExactHandle(value: unknown, username: string): boolean {
+  return typeof value === 'string' && value.toLowerCase() === username.toLowerCase();
+}
+
+/**
+ * Sources supplémentaires vérifiées comme CORS-open en production :
+ * un 404 explicite = absent, une réponse valide = compte prouvé.
+ */
+async function collectBitbucket(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://api.bitbucket.org/2.0/users/${encodeURIComponent(username)}`,
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (response.status === 404) {
+      return { state: { id: 'bitbucket', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    if (!response.ok) {
+      return { state: { id: 'bitbucket', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as Record<string, unknown>;
+    if (!hasExactHandle(data.username, username)) {
+      return { state: { id: 'bitbucket', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    const links = data.links as Record<string, { href?: string }> | undefined;
+    return {
+      state: { id: 'bitbucket', status: 'found', detail: `@${data.username}` },
+      finding: {
+        key: 'bitbucket',
+        type: 'username',
+        label: `@${data.username}`,
+        source: 'bitbucket',
+        url: links?.html?.href ?? `https://bitbucket.org/${data.username}/`,
+        fields: {
+          plateforme: 'Bitbucket',
+          handle: data.username,
+          nom: data.display_name || null,
+          creeLe: typeof data.created_on === 'string' ? data.created_on.slice(0, 10) : '',
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: '',
+        confidence: 0.5,
+      },
+    };
+  } catch {
+    return { state: { id: 'bitbucket', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
+async function collectCodeberg(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://codeberg.org/api/v1/users/${encodeURIComponent(username)}`,
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (response.status === 404) {
+      return { state: { id: 'codeberg', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    if (!response.ok) {
+      return { state: { id: 'codeberg', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as Record<string, unknown>;
+    if (!hasExactHandle(data.login, username)) {
+      return { state: { id: 'codeberg', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    return {
+      state: { id: 'codeberg', status: 'found', detail: `@${data.login}` },
+      finding: {
+        key: 'codeberg',
+        type: 'username',
+        label: `@${data.login}`,
+        source: 'codeberg',
+        url: typeof data.html_url === 'string' ? data.html_url : `https://codeberg.org/${data.login}`,
+        fields: {
+          plateforme: 'Codeberg',
+          handle: data.login,
+          nom: data.full_name || null,
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: '',
+        confidence: 0.5,
+      },
+    };
+  } catch {
+    return { state: { id: 'codeberg', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
+/** Une seule source, trois sites : le pseudo peut exister sur l'un d'eux. */
+const STACK_SITES = [
+  { id: 'stackoverflow', label: 'Stack Overflow' },
+  { id: 'superuser', label: 'Super User' },
+  { id: 'serverfault', label: 'Server Fault' },
+];
+
+async function collectStackExchange(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; findings: AutoFinding[] }> {
+  try {
+    const matches = await Promise.all(
+      STACK_SITES.map(async (site) => {
+        const response = await boundedFetch(
+          `https://api.stackexchange.com/2.3/users?inname=${encodeURIComponent(username)}` +
+            `&site=${site.id}&filter=default&pagesize=25`,
+          { headers: { Accept: 'application/json' } },
+          signal
+        );
+        if (!response.ok) return null;
+        const data = (await response.json()) as { items?: Record<string, unknown>[] };
+        const items = Array.isArray(data.items) ? data.items : [];
+        // `inname` est une recherche partielle : on exige une correspondance exacte.
+        return items.find((item) => hasExactHandle(item.display_name, username)) ?? null;
+      })
+    );
+    const findings: AutoFinding[] = [];
+    matches.forEach((user, index) => {
+      if (!user) return;
+      const site = STACK_SITES[index];
+      findings.push({
+        key: `stackexchange-${site.id}`,
+        type: 'username',
+        label: `@${user.display_name} · ${site.label}`,
+        source: 'stackexchange',
+        url: typeof user.link === 'string' ? user.link : `https://${site.id}.com/users`,
+        fields: {
+          plateforme: site.label,
+          handle: user.display_name,
+          reputation: user.reputation ?? null,
+          inscritLe: unixToIso(user.creation_date),
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: '',
+        confidence: 0.45,
+      });
+    });
+    return {
+      state: findings.length
+        ? { id: 'stackexchange', status: 'found', detail: `${findings.length} profil(s)` }
+        : { id: 'stackexchange', status: 'absent', detail: 'introuvable' },
+      findings,
+    };
+  } catch {
+    return { state: { id: 'stackexchange', status: 'error', detail: 'requête bloquée' }, findings: [] };
+  }
+}
+
+async function collectWikipedia(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=users&ususers=${encodeURIComponent(username)}` +
+        '&format=json&origin=*',
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (!response.ok) {
+      return { state: { id: 'wikipedia', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as { query?: { users?: Record<string, unknown>[] } };
+    const user = data.query?.users?.[0];
+    if (!user || 'missing' in user || !hasExactHandle(user.name, username)) {
+      return { state: { id: 'wikipedia', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    return {
+      state: { id: 'wikipedia', status: 'found', detail: `@${user.name}` },
+      finding: {
+        key: 'wikipedia',
+        type: 'username',
+        label: `@${user.name} · Wikipédia`,
+        source: 'wikipedia',
+        url: `https://en.wikipedia.org/wiki/User:${encodeURIComponent(String(user.name))}`,
+        fields: {
+          plateforme: 'Wikipédia',
+          handle: user.name,
+          contributions: user.editcount ?? null,
+          inscritLe: user.registration || null,
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: '',
+        confidence: 0.45,
+      },
+    };
+  } catch {
+    return { state: { id: 'wikipedia', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
+async function collectKeybase(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; finding: AutoFinding | null }> {
+  try {
+    const response = await boundedFetch(
+      `https://keybase.io/_/api/1.0/user/lookup.json?usernames=${encodeURIComponent(username)}`,
+      { headers: { Accept: 'application/json' } },
+      signal
+    );
+    if (!response.ok) {
+      return { state: { id: 'keybase', status: 'error', detail: `HTTP ${response.status}` }, finding: null };
+    }
+    const data = (await response.json()) as { them?: { basics?: Record<string, unknown> }[] };
+    const them = Array.isArray(data.them) ? data.them : [];
+    // Un pseudo inconnu renvoie `[null]`, pas `[]` : sans optional chaining le
+    // collecteur levait et la source passait « bloquée » au lieu d'« absente ».
+    const basics = them
+      .map((item) => item?.basics)
+      .find((item) => hasExactHandle(item?.username, username));
+    if (!basics) {
+      return { state: { id: 'keybase', status: 'absent', detail: 'introuvable' }, finding: null };
+    }
+    return {
+      state: { id: 'keybase', status: 'found', detail: `@${basics.username}` },
+      finding: {
+        key: 'keybase',
+        type: 'username',
+        label: `@${basics.username} · Keybase`,
+        source: 'keybase',
+        url: `https://keybase.io/${encodeURIComponent(username)}`,
+        fields: {
+          plateforme: 'Keybase',
+          handle: basics.username,
+          nom: basics.full_name || null,
+          twitter: basics.twitter || null,
+          github: basics.github || null,
+          site: basics.website || null,
+          _consulteLe: new Date().toISOString(),
+        },
+        notes: typeof basics.bio === 'string' ? basics.bio : '',
+        confidence: 0.5,
+      },
+    };
+  } catch {
+    return { state: { id: 'keybase', status: 'error', detail: 'requête bloquée' }, finding: null };
+  }
+}
+
 /**
  * Lit une page publique via r.jina.ai — le même lecteur que le module Telegram.
  * CORS ouvert, aucune clé requise (mais une clé fournie dans le module Telegram
@@ -608,6 +857,180 @@ async function collectWebProfiles(
 }
 
 /**
+ * Découverte par moteur de recherche : une seule requête peut révéler des
+ * profils hébergés sur des sites que le lecteur ne peut pas ouvrir (Instagram,
+ * LinkedIn…). C'est le complément le plus rentable du balayage site par site.
+ *
+ * Règle anti-faux-positif : le résultat doit venir d'une plateforme connue,
+ * son chemin doit contenir exactement le pseudo, ET son titre doit le citer.
+ * Un lien vers un dépôt `github.com/pseudo/projet` n'est donc pas un profil.
+ */
+const escRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const hostIs = (url: URL, ...hosts: string[]) => {
+  const host = url.hostname.toLowerCase();
+  return hosts.some((h) => host === h || host.endsWith(`.${h}`));
+};
+const pathIs = (pathname: string, pattern: string) =>
+  new RegExp(`^${pattern}/?$`, 'i').test(pathname);
+const subdomainIs = (url: URL, username: string, domain: string) =>
+  url.hostname.toLowerCase() === `${username.toLowerCase()}.${domain}`;
+
+interface SearchPlatform {
+  id: string;
+  label: string;
+  match: (url: URL, username: string) => boolean;
+}
+
+const SEARCH_PLATFORMS: SearchPlatform[] = [
+  { id: 'reddit', label: 'Reddit', match: (x, u) => hostIs(x, 'reddit.com') && pathIs(x.pathname, `/user/${escRegex(u)}`) },
+  { id: 'github', label: 'GitHub', match: (x, u) => hostIs(x, 'github.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'gitlab', label: 'GitLab', match: (x, u) => hostIs(x, 'gitlab.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'bitbucket', label: 'Bitbucket', match: (x, u) => hostIs(x, 'bitbucket.org') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'codeberg', label: 'Codeberg', match: (x, u) => hostIs(x, 'codeberg.org') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'telegram', label: 'Telegram', match: (x, u) => hostIs(x, 't.me') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'x', label: 'X', match: (x, u) => hostIs(x, 'x.com', 'twitter.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'instagram', label: 'Instagram', match: (x, u) => hostIs(x, 'instagram.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'tiktok', label: 'TikTok', match: (x, u) => hostIs(x, 'tiktok.com') && pathIs(x.pathname, `/@${escRegex(u)}`) },
+  { id: 'linkedin', label: 'LinkedIn', match: (x, u) => hostIs(x, 'linkedin.com') && pathIs(x.pathname, `/in/${escRegex(u)}`) },
+  { id: 'youtube', label: 'YouTube', match: (x, u) => hostIs(x, 'youtube.com') && pathIs(x.pathname, `/@${escRegex(u)}`) },
+  { id: 'twitch', label: 'Twitch', match: (x, u) => hostIs(x, 'twitch.tv') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'medium', label: 'Medium', match: (x, u) => hostIs(x, 'medium.com') && pathIs(x.pathname, `/@${escRegex(u)}`) },
+  { id: 'devto', label: 'DEV', match: (x, u) => hostIs(x, 'dev.to') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'keybase', label: 'Keybase', match: (x, u) => hostIs(x, 'keybase.io') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'huggingface', label: 'Hugging Face', match: (x, u) => hostIs(x, 'huggingface.co') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'pastebin', label: 'Pastebin', match: (x, u) => hostIs(x, 'pastebin.com') && pathIs(x.pathname, `/u/${escRegex(u)}`) },
+  { id: 'pinterest', label: 'Pinterest', match: (x, u) => hostIs(x, 'pinterest.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'deviantart', label: 'DeviantArt', match: (x, u) => hostIs(x, 'deviantart.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'wordpress', label: 'WordPress', match: (x, u) => subdomainIs(x, u, 'wordpress.com') },
+  { id: 'blogger', label: 'Blogger', match: (x, u) => subdomainIs(x, u, 'blogspot.com') },
+  { id: 'tumblr', label: 'Tumblr', match: (x, u) => subdomainIs(x, u, 'tumblr.com') },
+  { id: 'linktree', label: 'Linktree', match: (x, u) => hostIs(x, 'linktr.ee') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'facebook', label: 'Facebook', match: (x, u) => hostIs(x, 'facebook.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'vk', label: 'VK', match: (x, u) => hostIs(x, 'vk.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'flickr', label: 'Flickr', match: (x, u) => hostIs(x, 'flickr.com') && pathIs(x.pathname, `/photos/${escRegex(u)}`) },
+  { id: 'spotify', label: 'Spotify', match: (x, u) => hostIs(x, 'spotify.com') && pathIs(x.pathname, `/user/${escRegex(u)}`) },
+  { id: 'soundcloud', label: 'SoundCloud', match: (x, u) => hostIs(x, 'soundcloud.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'steam', label: 'Steam', match: (x, u) => hostIs(x, 'steamcommunity.com') && pathIs(x.pathname, `/id/${escRegex(u)}`) },
+  { id: 'aboutme', label: 'About.me', match: (x, u) => hostIs(x, 'about.me') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'patreon', label: 'Patreon', match: (x, u) => hostIs(x, 'patreon.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+  { id: 'kickstarter', label: 'Kickstarter', match: (x, u) => hostIs(x, 'kickstarter.com') && pathIs(x.pathname, `/profile/${escRegex(u)}`) },
+  { id: 'openstreetmap', label: 'OpenStreetMap', match: (x, u) => hostIs(x, 'openstreetmap.org') && pathIs(x.pathname, `/user/${escRegex(u)}`) },
+  { id: 'quora', label: 'Quora', match: (x, u) => hostIs(x, 'quora.com') && pathIs(x.pathname, `/profile/${escRegex(u)}`) },
+  { id: 'bandcamp', label: 'Bandcamp', match: (x, u) => hostIs(x, 'bandcamp.com') && pathIs(x.pathname, `/${escRegex(u)}`) },
+];
+
+function decodeDdgUrl(raw: string): string {
+  try {
+    const link = new URL(raw);
+    if (/(^|\.)duckduckgo\.com$/.test(link.hostname) && link.pathname === '/l/') {
+      return link.searchParams.get('uddg') ?? '';
+    }
+    return link.href;
+  } catch {
+    return raw;
+  }
+}
+
+function titleMentions(title: string, username: string): boolean {
+  const plain = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return new RegExp(`(^|[^a-z0-9])@?${escRegex(username.toLowerCase())}([^a-z0-9]|$)`, 'i').test(plain);
+}
+
+export interface SearchHit {
+  key: string;
+  label: string;
+  platform: string;
+  title: string;
+  url: string;
+}
+
+/** Exporté pour les tests : vérifie qu'un faux positif ne passe pas. */
+export function parseSearchResults(markdown: string, username: string): SearchHit[] {
+  const hits: SearchHit[] = [];
+  const seen = new Set<string>();
+  for (const line of markdown.split('\n')) {
+    const match = /^##\s+\[([^\]]{2,180})\]\((https?:\/\/[^)]+)\)/.exec(line.trim());
+    if (!match) continue;
+    const title = match[1].trim();
+    if (/definition|dictionary|meaning|what is/i.test(title)) continue;
+    let url: URL;
+    try {
+      url = new URL(decodeDdgUrl(match[2]));
+    } catch {
+      continue;
+    }
+    if (!titleMentions(title, username)) continue;
+    for (const platform of SEARCH_PLATFORMS) {
+      if (!platform.match(url, username)) continue;
+      const key = `search-${platform.id}`;
+      if (seen.has(key)) break;
+      seen.add(key);
+      hits.push({
+        key,
+        label: `${platform.label} : ${title.slice(0, 60)}`,
+        platform: platform.label,
+        title,
+        url: url.href,
+      });
+      break;
+    }
+  }
+  return hits;
+}
+
+async function collectSearch(
+  username: string,
+  signal?: AbortSignal
+): Promise<{ state: AutoSourceState; findings: AutoFinding[] }> {
+  // Trois requêtes seulement : le lecteur public a un quota anonyme.
+  const queries = [`"${username}"`, `"${username}" site:reddit.com`, `"${username}" site:instagram.com`];
+  try {
+    const pages = await Promise.all(
+      queries.map((query) =>
+        readPublicPage(
+          `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+          signal
+        ).catch(() => '')
+      )
+    );
+    if (pages.every((page) => !page)) {
+      return { state: { id: 'search', status: 'error', detail: 'moteur bloqué' }, findings: [] };
+    }
+    const findings: AutoFinding[] = [];
+    const seen = new Set<string>();
+    for (const page of pages) {
+      for (const hit of parseSearchResults(page, username)) {
+        if (seen.has(hit.key)) continue;
+        seen.add(hit.key);
+        findings.push({
+          key: hit.key,
+          type: 'username',
+          label: hit.label,
+          source: 'search',
+          url: hit.url,
+          fields: {
+            plateforme: hit.platform,
+            handle: username,
+            titre: hit.title,
+            _consulteLe: new Date().toISOString(),
+          },
+          notes: `Résultat indexé par DuckDuckGo (${hit.title}). Index potentiellement obsolète : à confirmer de visu.`,
+          confidence: 0.4,
+        });
+      }
+    }
+    return {
+      state: findings.length
+        ? { id: 'search', status: 'found', detail: `${findings.length} résultat(s)` }
+        : { id: 'search', status: 'absent', detail: 'aucun profil indexé' },
+      findings,
+    };
+  } catch {
+    return { state: { id: 'search', status: 'error', detail: 'recherche impossible' }, findings: [] };
+  }
+}
+
+/**
  * Sites dont l'existence d'un profil ne peut pas être prouvée depuis un
  * navigateur (CORS fermé, login obligatoire, ou page générique renvoyée à
  * n'importe quel pseudo). On les propose comme **liens à vérifier à la main**,
@@ -633,6 +1056,19 @@ export function manualChecksFor(username: string): AutoManualCheck[] {
     { label: 'Hugging Face', url: `https://huggingface.co/${u}` },
     { label: 'Docker Hub', url: `https://hub.docker.com/u/${u}` },
     { label: 'Minds', url: `https://www.minds.com/${u}` },
+    { label: 'Facebook', url: `https://www.facebook.com/${u}` },
+    { label: 'Quora', url: `https://www.quora.com/profile/${u}` },
+    { label: 'Flickr', url: `https://www.flickr.com/photos/${u}/` },
+    { label: 'Steam', url: `https://steamcommunity.com/id/${u}/` },
+    { label: 'Spotify', url: `https://open.spotify.com/user/${u}` },
+    { label: 'SoundCloud', url: `https://soundcloud.com/${u}` },
+    { label: 'VK', url: `https://vk.com/${u}` },
+    { label: 'Tumblr', url: `https://${u}.tumblr.com/` },
+    { label: 'About.me', url: `https://about.me/${u}` },
+    { label: 'Codeberg', url: `https://codeberg.org/${u}` },
+    { label: 'Bitbucket', url: `https://bitbucket.org/${u}/` },
+    { label: 'OpenStreetMap', url: `https://www.openstreetmap.org/user/${u}` },
+    { label: 'Patreon', url: `https://www.patreon.com/${u}` },
   ];
 }
 
@@ -640,9 +1076,15 @@ export const AUTO_SOURCES: { id: AutoSourceId; label: string }[] = [
   { id: 'telegram', label: 'Telegram' },
   { id: 'github', label: 'GitHub' },
   { id: 'gitlab', label: 'GitLab' },
+  { id: 'bitbucket', label: 'Bitbucket' },
+  { id: 'codeberg', label: 'Codeberg' },
   { id: 'devto', label: 'DEV' },
+  { id: 'stackexchange', label: 'Stack Exchange' },
+  { id: 'wikipedia', label: 'Wikipédia' },
+  { id: 'keybase', label: 'Keybase' },
   { id: 'bluesky', label: 'Bluesky' },
   { id: 'pastebin', label: 'Pastebin' },
+  { id: 'search', label: 'Moteur de recherche' },
   { id: 'web', label: 'Web public' },
   { id: 'hackernews', label: 'Hacker News' },
   { id: 'mastodon', label: 'Mastodon' },
@@ -670,25 +1112,39 @@ export async function runAutoInvestigation(
     onProgress?.([...states]);
   };
 
-  // Huit sources directes + le balayage web, qui rend plusieurs findings.
-  // On lance tout en parallèle : le collecteur web gère lui-même son quota.
-  const direct = await Promise.all([
-    collectTelegram(username, signal),
-    collectGithub(username, signal),
-    collectGitlab(username, signal),
-    collectDevTo(username, signal),
-    collectBluesky(username, signal),
-    collectPastebin(username, signal),
-    collectHackerNews(username, signal),
-    collectMastodon(username, signal),
-  ].map(async (collector) => {
-    const { state, finding } = await collector;
-    set(state);
-    return finding;
-  }));
+  // Treize sources directes (dont Stack Exchange, qui rend plusieurs profils),
+  // puis le balayage site par site et la recherche indexée. Chaque collecteur
+  // gère sa propre erreur : une source bloquée n'en empêche aucune autre.
+  const directResults = await Promise.all(
+    [
+      collectTelegram(username, signal),
+      collectGithub(username, signal),
+      collectGitlab(username, signal),
+      collectDevTo(username, signal),
+      collectBluesky(username, signal),
+      collectPastebin(username, signal),
+      collectHackerNews(username, signal),
+      collectMastodon(username, signal),
+      collectBitbucket(username, signal),
+      collectCodeberg(username, signal),
+      collectStackExchange(username, signal),
+      collectWikipedia(username, signal),
+      collectKeybase(username, signal),
+    ].map(async (collector) => {
+      const result = await collector;
+      set(result.state);
+      if ('findings' in result) return result.findings;
+      return result.finding ? [result.finding] : [];
+    })
+  );
+  const directFindings = directResults.flat();
 
-  const web = await collectWebProfiles(username, signal);
+  const [web, search] = await Promise.all([
+    collectWebProfiles(username, signal),
+    collectSearch(username, signal),
+  ]);
   set(web.state);
+  set(search.state);
 
   const root: AutoFinding = {
     key: 'root',
@@ -705,19 +1161,29 @@ export async function runAutoInvestigation(
     confidence: 1,
   };
 
-  // Le balayage web retombe sur GitHub/Telegram déjà interrogés en direct :
-  // on garde la fiche API (plus riche) et on écarte le doublon du lecteur.
+  // Une plateforme ne produit qu'un seul nœud : on garde la source la plus
+  // fiable (API directe > page lue > résultat indexé) et on écarte les doublons.
+  const claimed = new Set(directFindings.map((finding) => finding.key));
   const webFindings = web.findings.filter((finding) => {
     const key = finding.key.replace(/^web-/, '');
-    return !direct.some((other) => other && other.key === key);
+    if (claimed.has(key)) return false;
+    claimed.add(key);
+    return true;
+  });
+  const searchFindings = search.findings.filter((finding) => {
+    const key = finding.key.replace(/^search-/, '');
+    if (claimed.has(key)) return false;
+    claimed.add(key);
+    return true;
   });
 
   return {
     username,
     findings: [
       root,
-      ...direct.filter((finding): finding is AutoFinding => Boolean(finding)),
+      ...directFindings,
       ...webFindings,
+      ...searchFindings,
     ],
     sources: [...states],
     manualChecks: manualChecksFor(username),
