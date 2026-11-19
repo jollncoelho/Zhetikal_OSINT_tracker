@@ -14,6 +14,14 @@ interface DeepScanResponse {
   durationMs?: number;
 }
 
+/** Sherlock n'utilise pas les mêmes libellés que nos collecteurs directs. */
+const CANONICAL_IDS: Record<string, string> = {
+  'dev-community': 'devto',
+  'mastodon-social': 'mastodon',
+  'mastodon-cloud': 'mastodon',
+  'mastodon-xyz': 'mastodon',
+};
+
 export interface DeepScanOutcome {
   state: AutoSourceState;
   findings: AutoFinding[];
@@ -63,7 +71,7 @@ export async function runDeepScan(
         detail: hits.length ? `${hits.length} / ${sites} sites` : `0 / ${sites} sites`,
       },
       findings: hits.map((hit) => ({
-        key: `deepscan-${hit.id}`,
+        key: `deepscan-${CANONICAL_IDS[hit.id] ?? hit.id}`,
         type: 'username' as const,
         label: `${hit.label} : ${String(hit.title || '').slice(0, 55)}`,
         source: 'deepscan' as const,
