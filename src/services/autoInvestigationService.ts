@@ -21,11 +21,13 @@ import {
   TelegramError,
 } from '../services/telegramService';
 import { PUBLIC_SITES, evaluatePublicSite, type PublicSite } from './publicSites';
+import { runDeepScan } from './deepScanService';
 
 export type AutoSourceId =
   | 'telegram' | 'github' | 'hackernews' | 'mastodon' | 'gitlab' | 'devto'
   | 'bluesky' | 'pastebin' | 'web' | 'search'
-  | 'bitbucket' | 'codeberg' | 'stackexchange' | 'wikipedia' | 'keybase';
+  | 'bitbucket' | 'codeberg' | 'stackexchange' | 'wikipedia' | 'keybase'
+  | 'deepscan';
 
 export type AutoSourceStatus = 'idle' | 'running' | 'found' | 'absent' | 'error';
 
@@ -1088,22 +1090,27 @@ export const AUTO_SOURCES: { id: AutoSourceId; label: string }[] = [
   { id: 'web', label: 'Web public' },
   { id: 'hackernews', label: 'Hacker News' },
   { id: 'mastodon', label: 'Mastodon' },
+  { id: 'deepscan', label: 'Serveur 476 sites' },
 ];
+
+export interface AutoRunOptions {
+  /** Active le balayage via la fonction Vercel. Faux = 100 % local. */
+  deepScan?: boolean;
+}
 
 /** Lance toutes les sources en parallèle et publie l'état après chacune. */
 export async function runAutoInvestigation(
   rawUsername: string,
   onProgress?: AutoProgress,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: AutoRunOptions = {}
 ): Promise<AutoInvestigationResult> {
   const username = normalizeUsername(rawUsername);
   if (!username) throw new Error('empty_username');
 
-  const states: AutoSourceState[] = AUTO_SOURCES.map(({ id }) => ({
-    id,
-    status: 'running',
-    detail: '',
-  }));
+  const states: AutoSourceState[] = AUTO_SOURCES
+    .filter(({ id }) => id !== 'deepscan' || options.deepScan)
+    .map(({ id }) => ({ id, status: 'running' as const, detail: '' }));
   onProgress?.([...states]);
 
   const set = (next: AutoSourceState) => {
@@ -1111,6 +1118,10 @@ export async function runAutoInvestigation(
     if (index >= 0) states[index] = next;
     onProgress?.([...states]);
   };
+
+  // Le mode serveur est lancé en même temps que les sources locales, mais
+  // uniquement si l'analyste l'a activé : sinon aucun octet ne quitte l'appareil.
+  const deepPromise = options.deepScan ? runDeepScan(username, signal) : null;
 
   // Treize sources directes (dont Stack Exchange, qui rend plusieurs profils),
   // puis le balayage site par site et la recherche indexée. Chaque collecteur
@@ -1146,6 +1157,9 @@ export async function runAutoInvestigation(
   set(web.state);
   set(search.state);
 
+  const deep = deepPromise ? await deepPromise : null;
+  if (deep) set(deep.state);
+
   const root: AutoFinding = {
     key: 'root',
     type: 'username',
@@ -1176,6 +1190,12 @@ export async function runAutoInvestigation(
     claimed.add(key);
     return true;
   });
+  const deepFindings = (deep?.findings ?? []).filter((finding) => {
+    const key = finding.key.replace(/^deepscan-/, '');
+    if (claimed.has(key)) return false;
+    claimed.add(key);
+    return true;
+  });
 
   return {
     username,
@@ -1184,6 +1204,7 @@ export async function runAutoInvestigation(
       ...directFindings,
       ...webFindings,
       ...searchFindings,
+      ...deepFindings,
     ],
     sources: [...states],
     manualChecks: manualChecksFor(username),

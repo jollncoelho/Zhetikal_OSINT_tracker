@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, Check, CheckCircle2, ExternalLink, Loader, Search, Sparkles, X, XCircle,
+  AlertTriangle, Check, CheckCircle2, ExternalLink, Loader, Search, Server, Sparkles, X, XCircle,
 } from 'lucide-react';
 
 import { useStore } from '../store/useStore';
@@ -68,6 +68,7 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
   const [result, setResult] = useState<AutoInvestigationResult | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [errorText, setErrorText] = useState('');
+  const [deepScan, setDeepScan] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Une fermeture en pleine recherche doit annuler les requêtes en vol :
@@ -103,7 +104,8 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
       const found = await runAutoInvestigation(
         username,
         (next) => setStates([...next]),
-        controller.signal
+        controller.signal,
+        { deepScan }
       );
       if (controller.signal.aborted) return;
       setResult(found);
@@ -115,7 +117,7 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [value, t]);
+  }, [value, t, deepScan]);
 
   const createGraph = useCallback(() => {
     if (!result) return;
@@ -230,6 +232,29 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
             </p>
           )}
           <p className="mt-2 text-[10px] leading-relaxed text-cyber-text-dim/80">{t('auto.scopeNote')}</p>
+
+          <label
+            className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors"
+            style={{
+              borderColor: deepScan ? 'rgb(var(--cyber-cyan-rgb) / 0.5)' : 'var(--cyber-border)',
+              background: deepScan ? 'rgb(var(--cyber-cyan-rgb) / 0.08)' : 'transparent',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={deepScan}
+              onChange={(event) => setDeepScan(event.target.checked)}
+              disabled={phase === 'running'}
+              className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 accent-cyber-cyan disabled:opacity-40"
+            />
+            <Server size={14} className="mt-px flex-shrink-0 text-cyber-cyan" />
+            <span className="min-w-0">
+              <span className="block text-[11px] font-semibold text-cyber-text">{t('auto.deepLabel')}</span>
+              <span className="mt-0.5 block text-[10px] leading-relaxed text-cyber-text-dim">
+                {t('auto.deepHint')}
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Corps */}
@@ -248,7 +273,9 @@ export default function AutoInvestigation({ isOpen, onClose }: Props) {
                   {t('auto.sourcesTitle')}
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {AUTO_SOURCES.map((source) => (
+                  {AUTO_SOURCES
+                    .filter((source) => source.id !== 'deepscan' || deepScan)
+                    .map((source) => (
                     <SourceBadge key={source.id} state={states.find((s) => s.id === source.id)} />
                   ))}
                 </div>
